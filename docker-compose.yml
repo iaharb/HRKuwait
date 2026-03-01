@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  portal-app-v3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # The app is served at localhost:8080. Supabase API calls go to /supabase/*
+        # which nginx proxies internally to supabase_kong_hrportal:8000.
+        # This avoids any cross-origin or localhost-in-container issues.
+        - VITE_SUPABASE_URL=http://localhost:8080/supabase
+        # Standard local Supabase anon JWT (same for all `supabase start` instances)
+        - VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+        - API_KEY=${API_KEY}
+    container_name: hrportal-app-v3
+    ports:
+      - "8080:80"
+    restart: always
+    networks:
+      - shared-network
+      - supabase_network_hrportal
+
+  ollama:
+    image: ollama/ollama
+    container_name: hrportal-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - C:/hrportal/ollama:/root/.ollama # Preserving existing downloaded models
+    networks:
+      - shared-network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_ORIGINS=*
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: hrportal-webui
+    ports:
+      - "3000:8080"
+    restart: unless-stopped
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - C:/hrportal/open-webui:/app/backend/data # Preserving existing webui data
+    networks:
+      - shared-network
+    depends_on:
+      - ollama
+
+networks:
+  shared-network:
+    driver: bridge
+  supabase_network_hrportal:
+    external: true

@@ -1,0 +1,8 @@
+{
+  "name": "HR Portal",
+  "description": "A sophisticated HRMS specialized for Kuwaitization compliance, workforce analytics, and AI-driven national talent development tracking.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
