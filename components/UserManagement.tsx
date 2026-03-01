@@ -16,7 +16,8 @@ export const UserManagement: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [isSetupNeeded, setIsSetupNeeded] = useState(false);
-    const [activeTab, setActiveTab] = useState<'users' | 'permissions'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'requests'>('users');
+    const [profileRequests, setProfileRequests] = useState<any[]>([]);
     const [rolePermissions, setRolePermissions] = useState<any[]>([]);
     const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<UserRole>('Admin');
     const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
@@ -52,6 +53,9 @@ export const UserManagement: React.FC = () => {
 
             const tmpls = await dbService.getPermissionTemplates();
             setTemplates(tmpls);
+
+            const requests = await dbService.getProfileUpdateRequests();
+            setProfileRequests(requests);
 
             setIsSetupNeeded(false);
         } catch (err: any) {
@@ -233,7 +237,87 @@ export const UserManagement: React.FC = () => {
                             Role Feature Permissions
                             {activeTab === 'permissions' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full"></div>}
                         </button>
+                        <button
+                            onClick={() => setActiveTab('requests')}
+                            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'requests' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
+                        >
+                            Profile Change Requests ({profileRequests.filter(r => r.status === 'PENDING').length})
+                        </button>
                     </div>
+
+                    {activeTab === 'requests' && (
+                        <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden animate-in fade-in duration-500">
+                            <div className="p-10 border-b border-slate-50 flex justify-between items-center text-start">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Self-Service Profile Updates</h3>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Pending HR Verifications</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-start">
+                                    <thead className="bg-slate-50/50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Employee</th>
+                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Update Context</th>
+                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Delta (Old → New)</th>
+                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-end">Operations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {profileRequests.length === 0 ? (
+                                            <tr><td colSpan={4} className="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Registry Clear: No Pending Requests</td></tr>
+                                        ) : (
+                                            profileRequests.map((req) => (
+                                                <tr key={req.id} className="hover:bg-slate-50/30 transition-colors">
+                                                    <td className="px-8 py-6">
+                                                        <p className="text-sm font-black text-slate-800">{req.employees?.name}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">UID: {req.employee_id.slice(0, 8)}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">{req.field_name}</span>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xs text-slate-400 italic strike-through line-through">{req.old_value || 'NULL'}</span>
+                                                            <span className="text-lg text-slate-300">→</span>
+                                                            <span className="text-sm font-black text-emerald-600">{req.new_value}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-end">
+                                                        {req.status === 'PENDING' ? (
+                                                            <div className="flex gap-2 justify-end">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        await dbService.approveProfileUpdate(req.id, 'HR_LEAD');
+                                                                        loadData();
+                                                                    }}
+                                                                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md"
+                                                                >Approve</button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const reason = prompt("Enter rejection reason:");
+                                                                        if (reason) {
+                                                                            await dbService.rejectProfileUpdate(req.id, reason);
+                                                                            loadData();
+                                                                        }
+                                                                    }}
+                                                                    className="px-6 py-2 bg-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                                >Reject</button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className={`text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-[0.2em] ${req.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                                {req.status}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {activeTab === 'users' ? (
                         <>

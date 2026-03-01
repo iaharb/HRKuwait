@@ -80,6 +80,8 @@ export interface Employee {
   bankCode?: string;
   faceToken?: string;
   deviceUserId?: string;
+  phone?: string;
+  emergencyContact?: string;
 }
 
 export interface AttendanceRecord {

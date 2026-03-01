@@ -1653,6 +1653,69 @@ export const dbService = {
     } catch (e: any) {
       return { success: false, error: e.message };
     }
+  },
+
+  async getPayrollItemsByEmployee(employeeId: string): Promise<any[]> {
+    return this._safeQuery(async () => {
+      const { data, error } = await supabase!
+        .from('payroll_items')
+        .select('*, payroll_runs(*)')
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(i => ({
+        ...i,
+        payrollRun: i.payroll_runs
+      }));
+    });
+  },
+
+  async requestProfileUpdate(employeeId: string, field: string, oldValue: string, newValue: string): Promise<void> {
+    const { error } = await supabase!
+      .from('profile_change_requests')
+      .insert([{
+        employee_id: employeeId,
+        field_name: field,
+        old_value: oldValue,
+        new_value: newValue,
+        status: 'PENDING'
+      }]);
+    if (error) throw error;
+  },
+
+  async getProfileUpdateRequests(employeeId?: string): Promise<any[]> {
+    let query = supabase!.from('profile_change_requests').select('*, employees(name)');
+    if (employeeId) query = query.eq('employee_id', employeeId);
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async approveProfileUpdate(requestId: string, hrId: string): Promise<void> {
+    const { data: req, error: fetchErr } = await supabase!
+      .from('profile_change_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+    if (fetchErr || !req) throw new Error("Request not found");
+
+    // 1. Update the employee record
+    const updates: any = {};
+    updates[req.field_name] = req.new_value; // Note: field_name must match DB column name
+    await supabase!.from('employees').update(updates).eq('id', req.employee_id);
+
+    // 2. Mark request as APPROVED
+    await supabase!
+      .from('profile_change_requests')
+      .update({ status: 'APPROVED', hr_note: `Approved by ${hrId}` })
+      .eq('id', requestId);
+  },
+
+  async rejectProfileUpdate(requestId: string, reason: string): Promise<void> {
+    await supabase!
+      .from('profile_change_requests')
+      .update({ status: 'REJECTED', hr_note: reason })
+      .eq('id', requestId);
   }
 };
 
