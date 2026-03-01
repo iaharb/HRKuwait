@@ -17,6 +17,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language, setLanguage, onLogout, onToggleMobile, onAddMember }) => {
   const { t } = useTranslation();
   const [dbStatus, setDbStatus] = useState<{ type: 'testing' | 'live' | 'mock', latency?: number }>({ type: 'testing' });
+  const [isPending, startTransition] = React.useTransition();
 
   const [rolePermissions, setRolePermissions] = useState<any[]>([]);
 
@@ -140,8 +141,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language,
         {filteredItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => setView(item.id)}
-            className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] text-sm font-bold transition-all group relative overflow-hidden ${currentView === item.id
+            onClick={() => {
+              startTransition(() => {
+                setView(item.id);
+              });
+            }}
+            className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] text-sm font-bold transition-all group relative overflow-hidden ${isPending && currentView !== item.id ? 'opacity-70 grayscale-[0.5]' : ''} ${currentView === item.id
               ? 'bg-slate-900 text-white shadow-2xl shadow-slate-900/10'
               : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
           >

@@ -20,6 +20,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [dbStatus, setDbStatus] = useState<{ type: string, latency?: number }>({ type: 'Testing' });
   const [showGuide, setShowGuide] = useState(!localStorage.getItem('guide_dashboard_seen'));
 
+  const [pendingCount, setPendingCount] = useState(0);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -29,10 +31,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           latency: test.latency
         });
 
-        const [empData, metricData] = await Promise.all([
+        const [empData, metricData, profileReqs, leaveReqs] = await Promise.all([
           dbService.getEmployees(),
-          dbService.getDepartmentMetrics()
+          dbService.getDepartmentMetrics(),
+          dbService.getProfileUpdateRequests(),
+          dbService.getLeaveRequests({})
         ]);
+
+        const pendingProfile = profileReqs.filter(r => r.status === 'PENDING').length;
+        const pendingLeaves = leaveReqs.filter(r => r.status.toLowerCase().includes('pending')).length;
+        setPendingCount(pendingProfile + pendingLeaves);
 
         if (user.role === 'Manager' && user.department) {
           const filteredEmps = empData.filter(e => e.department === user.department);
@@ -91,8 +99,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     { label: t('active'), val: employees.filter(e => e.status === 'Active').length, icon: '⚡', color: 'text-indigo-600', bg: 'bg-indigo-50', view: View.Directory },
     { label: t('onLeave'), val: employees.filter(e => e.status === 'On Leave').length, icon: '📅', color: 'text-amber-600', bg: 'bg-amber-50', view: View.Leaves },
     { label: t('nationalTalent'), val: kuwaitiCount, icon: '🇰🇼', color: 'text-emerald-600', bg: 'bg-emerald-50', view: View.Directory },
+    { label: t('pendingDecisions'), val: pendingCount, icon: '📝', color: 'text-indigo-600', bg: 'bg-indigo-50', view: View.UserManagement },
     { label: t('systemAlerts'), val: criticalExpiries, icon: '⚠️', color: criticalExpiries > 0 ? 'text-rose-600' : 'text-slate-400', bg: criticalExpiries > 0 ? 'bg-rose-50' : 'bg-slate-50', view: View.Compliance },
-    { label: t('strategy'), val: '📊', icon: '📈', color: 'text-indigo-600', bg: 'bg-indigo-50', view: View.Management }
   ];
 
   return (
