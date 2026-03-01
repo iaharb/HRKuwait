@@ -224,8 +224,8 @@ export interface PayrollItem {
   netSalary: number;
   verifiedByHr: boolean;
   variance: number;
-  allowanceBreakdown: Array<{ name: string; value: number }>;
-  deductionBreakdown: Array<{ name: string; value: number }>;
+  allowanceBreakdown: Array<{ name: string; nameArabic?: string; value: number }>;
+  deductionBreakdown: Array<{ name: string; nameArabic?: string; value: number }>;
 }
 
 export interface Notification {

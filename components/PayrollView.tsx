@@ -514,7 +514,7 @@ const PayrollView: React.FC<PayrollViewProps> = ({ user }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-end">
-                      {vc.status === 'PENDING_EXEC' && (user.role === 'Admin' || user.role === 'Executive') && (
+                      {vc.status === 'PENDING_EXEC' && ['Admin', 'Executive'].includes(user.role) && (
                         <button
                           onClick={async () => {
                             await supabase.from('variable_compensation').update({ status: 'PENDING_HR' }).eq('id', vc.id);
@@ -524,7 +524,7 @@ const PayrollView: React.FC<PayrollViewProps> = ({ user }) => {
                           className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md"
                         >Approve (Exec)</button>
                       )}
-                      {vc.status === 'PENDING_HR' && (user.role === 'Admin' || user.role === 'HR') && (
+                      {vc.status === 'PENDING_HR' && ['Admin', 'HR', 'HR Manager', 'Payroll Manager'].includes(user.role) && (
                         <button
                           onClick={async () => {
                             await supabase.from('variable_compensation').update({ status: 'APPROVED_FOR_PAYROLL' }).eq('id', vc.id);

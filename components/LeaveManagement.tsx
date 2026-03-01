@@ -65,10 +65,13 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
       setEmployeeMap(empMap);
 
       let filter: any = {};
-      if (user.role === 'Manager') {
-        filter = { department: user.department };
-      } else if (user.role === 'Admin' || user.role === 'HR' || user.role === 'Mandoob') {
+      const isGlobalViewer = ['Admin', 'HR', 'HR Manager', 'HR Officer', 'Mandoob', 'Payroll Manager', 'Executive'].includes(user.role);
+      const isDeptManager = ['Manager', 'Dept Manager'].includes(user.role);
+
+      if (isGlobalViewer) {
         filter = {};
+      } else if (isDeptManager) {
+        filter = { department: user.department };
       } else {
         filter = { employeeId: user.id };
       }
@@ -344,8 +347,8 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
     }
   };
 
-  const isHrAdmin = user.role === 'Admin' || user.role === 'HR';
-  const isManagerAdmin = user.role === 'Manager' || user.role === 'Admin';
+  const isHrAdmin = ['Admin', 'HR', 'HR Manager', 'HR Officer'].includes(user.role);
+  const isManagerAdmin = ['Manager', 'Admin', 'Dept Manager', 'HR Manager', 'Payroll Manager', 'Executive'].includes(user.role);
   const isTeamViewer = user.role !== 'Employee';
 
   const approvalRequests = requests.filter(r => r.status !== 'HR_Finalized' && r.status !== 'Rejected' && r.status !== 'Paid');

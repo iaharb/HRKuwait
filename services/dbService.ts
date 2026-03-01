@@ -303,10 +303,7 @@ export const dbService = {
     return dbService._safeQuery(async () => {
       if (!supabase) return [];
       const { data, error } = await supabase.from('role_permissions').select('*');
-      if (error) {
-        console.warn("role_permissions table check failed, might not be initialized:", error);
-        return [];
-      }
+      if (error) throw error;
       return data || [];
     });
   },
@@ -330,10 +327,7 @@ export const dbService = {
     return dbService._safeQuery(async () => {
       if (!supabase) return [];
       const { data, error } = await supabase.from('permission_templates').select('*');
-      if (error) {
-        console.warn("permission_templates fetch failed:", error);
-        return [];
-      }
+      if (error) throw error;
       return data || [];
     });
   },

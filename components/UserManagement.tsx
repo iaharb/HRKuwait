@@ -56,8 +56,8 @@ export const UserManagement: React.FC = () => {
             setIsSetupNeeded(false);
         } catch (err: any) {
             console.error("User management load error:", err);
-            const msg = err.message || '';
-            if (msg.includes('app_users') || msg.includes('role_permissions')) {
+            const msg = (err.message || '').toLowerCase();
+            if (msg.includes('app_users') || msg.includes('role_permissions') || msg.includes('permission_templates') || msg.includes('not found') || msg.includes('cache')) {
                 setIsSetupNeeded(true);
             }
         }
@@ -107,15 +107,19 @@ export const UserManagement: React.FC = () => {
                 INSERT INTO permission_templates (template_name, description, permissions) VALUES
                 ('Super Admin', 'Full access to all modules and security settings.', '{"dashboard": true, "admin-center": true, "mandoob": true, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": true, "settlement": true, "finance": true, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": true}'),
                 ('HR Manager', 'Comprehensive HR management access excluding security.', '{"dashboard": true, "admin-center": true, "mandoob": true, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": true, "finance": false, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": false}'),
-                ('Payroll Manager', 'Dedicated access to financial and payroll modules.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": false, "directory": true, "payroll": true, "settlement": true, "finance": true, "management": false, "insights": true, "compliance": false, "whitepaper": false, "user-management": false}'),
-                ('Executive', 'Strategic overview and high-level insights.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": false, "leaves": false, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": false}'),
-                ('Standard Employee', 'Basic access to personal tools and directory.', '{"dashboard": false, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": false, "insights": false, "compliance": false, "whitepaper": false, "user-management": false}')
-                ON CONFLICT (template_name) DO NOTHING;
+                ('Payroll Manager', 'Dedicated access to financial and payroll modules.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": true, "settlement": true, "finance": true, "management": false, "insights": true, "compliance": false, "whitepaper": false, "user-management": false}'),
+                ('Dept Manager', 'Department-level management focusing on team operations.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": true, "insights": true, "compliance": false, "whitepaper": false, "user-management": false}'),
+                ('Executive', 'Strategic overview and high-level insights.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": false}'),
+                ('Standard Employee', 'Basic access to personal tools and company directory.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": false, "insights": false, "compliance": false, "whitepaper": false, "user-management": false}')
+                ON CONFLICT (template_name) DO UPDATE SET permissions = EXCLUDED.permissions;
+                
+                -- Force Supabase cache reload
+                NOTIFY pgrst, 'reload schema';
             `;
 
             if (dbService.isLive()) {
                 await supabase?.rpc('run_sql', { sql_query: sql });
-                alert("System initialized successfully.");
+                alert("System initialized and cache reloaded successfully.");
                 loadData();
             }
         } catch (err: any) {
