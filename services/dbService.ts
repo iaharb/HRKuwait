@@ -326,6 +326,36 @@ export const dbService = {
     return { success: true };
   },
 
+  getPermissionTemplates: async (): Promise<any[]> => {
+    return dbService._safeQuery(async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.from('permission_templates').select('*');
+      if (error) {
+        console.warn("permission_templates fetch failed:", error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  applyPermissionTemplate: async (role: string, templatePermissions: Record<string, boolean>): Promise<{ success: boolean; message?: string }> => {
+    if (!supabase) return { success: false, message: 'Supabase not configured' };
+
+    const upserts = Object.entries(templatePermissions).map(([view_id, is_active]) => ({
+      role,
+      view_id,
+      is_active
+    }));
+
+    const { error } = await supabase.from('role_permissions').upsert(upserts, { onConflict: 'role,view_id' });
+
+    if (error) {
+      console.error('applyPermissionTemplate error:', error);
+      return { success: false, message: error.message };
+    }
+    return { success: true };
+  },
+
   /** Always true when the Supabase client is initialised (online-only mode). */
   isLive: () => isSupabaseConfigured && !!supabase,
 

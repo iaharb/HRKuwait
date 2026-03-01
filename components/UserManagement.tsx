@@ -20,6 +20,8 @@ export const UserManagement: React.FC = () => {
     const [rolePermissions, setRolePermissions] = useState<any[]>([]);
     const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<UserRole>('Admin');
     const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [applyingTemplate, setApplyingTemplate] = useState(false);
 
     const roles: UserRole[] = [
         'Admin',
@@ -47,6 +49,10 @@ export const UserManagement: React.FC = () => {
 
             const perms = await dbService.getRolePermissions();
             setRolePermissions(perms);
+
+            const tmpls = await dbService.getPermissionTemplates();
+            setTemplates(tmpls);
+
             setIsSetupNeeded(false);
         } catch (err: any) {
             console.error("User management load error:", err);
@@ -87,6 +93,24 @@ export const UserManagement: React.FC = () => {
                 );
                 ALTER TABLE role_permissions DISABLE ROW LEVEL SECURITY;
                 GRANT ALL ON TABLE role_permissions TO anon, authenticated, service_role;
+
+                CREATE TABLE IF NOT EXISTS permission_templates (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    template_name TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    permissions JSONB NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+                );
+                ALTER TABLE permission_templates DISABLE ROW LEVEL SECURITY;
+                GRANT ALL ON TABLE permission_templates TO anon, authenticated, service_role;
+
+                INSERT INTO permission_templates (template_name, description, permissions) VALUES
+                ('Super Admin', 'Full access to all modules and security settings.', '{"dashboard": true, "admin-center": true, "mandoob": true, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": true, "settlement": true, "finance": true, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": true}'),
+                ('HR Manager', 'Comprehensive HR management access excluding security.', '{"dashboard": true, "admin-center": true, "mandoob": true, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": true, "finance": false, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": false}'),
+                ('Payroll Manager', 'Dedicated access to financial and payroll modules.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": false, "directory": true, "payroll": true, "settlement": true, "finance": true, "management": false, "insights": true, "compliance": false, "whitepaper": false, "user-management": false}'),
+                ('Executive', 'Strategic overview and high-level insights.', '{"dashboard": true, "admin-center": false, "mandoob": false, "profile": true, "attendance": false, "leaves": false, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": true, "insights": true, "compliance": true, "whitepaper": true, "user-management": false}'),
+                ('Standard Employee', 'Basic access to personal tools and directory.', '{"dashboard": false, "admin-center": false, "mandoob": false, "profile": true, "attendance": true, "leaves": true, "directory": true, "payroll": false, "settlement": false, "finance": false, "management": false, "insights": false, "compliance": false, "whitepaper": false, "user-management": false}')
+                ON CONFLICT (template_name) DO NOTHING;
             `;
 
             if (dbService.isLive()) {
@@ -121,6 +145,27 @@ export const UserManagement: React.FC = () => {
         }
     };
 
+    const handleApplyTemplate = async (templateId: string) => {
+        const tmpl = templates.find(t => t.id === templateId);
+        if (!tmpl) return;
+
+        if (!window.confirm(`Apply "${tmpl.template_name}" template to ${selectedRoleForPermissions}? This will overwrite existing permissions for this role.`)) return;
+
+        setApplyingTemplate(true);
+        try {
+            const result = await dbService.applyPermissionTemplate(selectedRoleForPermissions, tmpl.permissions);
+            if (result.success) {
+                const allPerms = await dbService.getRolePermissions();
+                setRolePermissions(allPerms);
+                alert("Template applied successfully.");
+            } else {
+                alert("Failed to apply template: " + result.message);
+            }
+        } finally {
+            setApplyingTemplate(false);
+        }
+    };
+
     useEffect(() => { loadData(); }, []);
 
     const handleUpgrade = async () => {
@@ -129,6 +174,8 @@ export const UserManagement: React.FC = () => {
         if (result.success) {
             setShowUpgradeModal(false);
             setSelectedEmployee(null);
+            setUsername('');
+            setPassword('');
             setTimeout(() => loadData(), 300);
         } else alert(result.message);
     };
@@ -244,7 +291,7 @@ export const UserManagement: React.FC = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="bg-white rounded-[32px] border border-slate-200/60 p-10 shadow-sm">
+                        <div className="bg-white rounded-[32px] border border-slate-200/60 p-10 shadow-sm animate-in slide-in-from-bottom-4 duration-500">
                             <div className="flex flex-col md:flex-row gap-8">
                                 <div className="md:w-1/3 space-y-6">
                                     <h3 className="text-xl font-black text-slate-900">Feature Access</h3>
@@ -258,8 +305,21 @@ export const UserManagement: React.FC = () => {
                                 </div>
                                 <div className="md:w-2/3">
                                     <div className="bg-slate-50/50 rounded-[24px] border border-slate-100 overflow-hidden">
-                                        <div className="p-6 bg-white border-b border-slate-100 flex justify-between">
+                                        <div className="p-6 bg-white border-b border-slate-100 flex justify-between items-center">
                                             <h4 className="font-black text-slate-800 text-[10px] uppercase tracking-widest">Modules for {selectedRoleForPermissions}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Apply Template:</span>
+                                                <select
+                                                    disabled={applyingTemplate || templates.length === 0}
+                                                    onChange={(e) => e.target.value && handleApplyTemplate(e.target.value)}
+                                                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black outline-none focus:ring-2 focus:ring-indigo-500"
+                                                >
+                                                    <option value="">Select Template...</option>
+                                                    {templates.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.template_name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                         </div>
                                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
                                             {availableViews.map(v => {
