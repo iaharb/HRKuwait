@@ -18,6 +18,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language,
   const { t } = useTranslation();
   const [dbStatus, setDbStatus] = useState<{ type: 'testing' | 'live' | 'mock', latency?: number }>({ type: 'testing' });
 
+  const [rolePermissions, setRolePermissions] = useState<any[]>([]);
+
   const checkConnection = async () => {
     setDbStatus({ type: 'testing' });
     const test = await dbService.testConnection();
@@ -27,8 +29,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language,
     });
   };
 
+  const loadPermissions = async () => {
+    try {
+      const perms = await dbService.getRolePermissions();
+      setRolePermissions(perms);
+    } catch (e) {
+      console.warn("Failed to load role permissions:", e);
+    }
+  };
+
   useEffect(() => {
     checkConnection();
+    loadPermissions();
     const interval = setInterval(checkConnection, 120000);
     return () => clearInterval(interval);
   }, []);
@@ -72,9 +84,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language,
     }
   };
 
-  const filteredItems = allItems.filter(item =>
-    item.roles.map(r => r.toLowerCase()).includes(user.role.toLowerCase())
-  );
+  const filteredItems = allItems.filter(item => {
+    const dbEntry = rolePermissions.find(p =>
+      p.role.toLowerCase() === user.role.toLowerCase() &&
+      p.view_id === item.id
+    );
+
+    if (dbEntry) {
+      return dbEntry.is_active;
+    }
+
+    return item.roles.map(r => r.toLowerCase()).includes(user.role.toLowerCase());
+  });
 
   return (
     <><div className="w-80 bg-white border-e border-slate-200/50 h-screen sticky top-0 flex flex-col z-[80] shadow-[1px_0_10px_0_rgba(0,0,0,0.01)] no-print">

@@ -299,6 +299,33 @@ export const dbService = {
     return { success: true };
   },
 
+  getRolePermissions: async (): Promise<any[]> => {
+    return dbService._safeQuery(async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.from('role_permissions').select('*');
+      if (error) {
+        console.warn("role_permissions table check failed, might not be initialized:", error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  updateRolePermission: async (role: string, viewId: string, isActive: boolean): Promise<{ success: boolean; message?: string }> => {
+    if (!supabase) return { success: false, message: 'Supabase not configured' };
+
+    const { error } = await supabase.from('role_permissions').upsert(
+      { role, view_id: viewId, is_active: isActive },
+      { onConflict: 'role,view_id' }
+    ).select();
+
+    if (error) {
+      console.error('updateRolePermission error:', error);
+      return { success: false, message: error.message };
+    }
+    return { success: true };
+  },
+
   /** Always true when the Supabase client is initialised (online-only mode). */
   isLive: () => isSupabaseConfigured && !!supabase,
 
