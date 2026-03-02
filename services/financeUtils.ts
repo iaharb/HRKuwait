@@ -15,13 +15,14 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
     if (rError || !runObj) throw new Error("Could not find payroll run");
 
     let entryDate = new Date().toISOString();
-    const parts = runObj.period_key.split('-'); // e.g. "2026-01-MONTHLY" or "2026-1"
-    if (parts.length >= 2) {
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10);
+    // Improved logic: Match YYYY-MM pattern regardless of prefix (e.g., 2026-01 or LR-NAME-2026-01)
+    const dateMatch = runObj.period_key.match(/(\d{4})-(\d{1,2})/);
+    if (dateMatch) {
+        const year = parseInt(dateMatch[1], 10);
+        const month = parseInt(dateMatch[2], 10);
         if (!isNaN(year) && !isNaN(month)) {
-            // Set date to the middle of the last day of the run's month to avoid timezone bleeding
-            entryDate = new Date(Date.UTC(year, month, 0, 12, 0, 0)).toISOString();
+            // Set date to the 28th of the month as a safe anchor for standard accounting periods
+            entryDate = new Date(Date.UTC(year, month - 1, 28, 12, 0, 0)).toISOString();
         }
     }
 

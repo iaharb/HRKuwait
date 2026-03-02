@@ -878,10 +878,12 @@ export const dbService = {
       run_id: runId,
       employee_id: targetEmp.id,
       employee_name: targetEmp.name,
-      basic_salary: calculation.leavePay,
+      basic_salary: 0, // In Leave Run, basic is replaced by specific leave pay
       housing_allowance: 0,
       other_allowances: calculation.workPay,
-      leave_deductions: 0, // Using deduction breakdown instead
+      leave_deductions: 0,
+      sick_leave_pay: targetLeave.type === 'Sick' ? calculation.leavePay : 0,
+      annual_leave_pay: (targetLeave.type !== 'Sick' && targetLeave.type !== 'Hajj') ? calculation.leavePay : 0,
       short_permission_deductions: 0,
       pifss_deduction: calculation.pifssDeducted,
       pifss_employer_share: 0,
@@ -1133,10 +1135,15 @@ export const dbService = {
         const lossFromTakingLeave = standardPayForTheseDays - leavePay;
         totalShortLeaveDeduction += lossFromTakingLeave;
 
-        // Track for accounting split
+        // Track for accounting split (Pooled vs Sick)
         leaveDaysTotalStandardPay += standardPayForTheseDays;
-        if (l.type === 'Sick') sickLeavePayTotal += leavePay;
-        else if (l.type === 'Annual') annualLeavePayTotal += leavePay;
+        if (l.type === 'Sick') {
+          sickLeavePayTotal += leavePay;
+        } else if (l.type !== 'Hajj') {
+          // All other types (Emergency, Maternity, Annual etc.) pool into annual_leave_pay
+          // This aligns with the "most types deduct from annual" policy
+          annualLeavePayTotal += leavePay;
+        }
       });
 
       if (totalShortLeaveDeduction > 0) {
