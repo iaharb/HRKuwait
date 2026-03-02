@@ -8,6 +8,8 @@ import { initReactI18next } from 'react-i18next';
 import { resources } from './translations.ts';
 import './styles/index.css'; // Added local css import
 
+import { BrowserRouter } from 'react-router-dom';
+
 i18n
   .use(initReactI18next)
   .init({
@@ -27,10 +29,12 @@ if (!rootElement) {
 const root = createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ThemeProvider>
-      <NotificationProvider>
-        <App />
-      </NotificationProvider>
-    </ThemeProvider>
+    <BrowserRouter>
+      <ThemeProvider>
+        <NotificationProvider>
+          <App />
+        </NotificationProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
