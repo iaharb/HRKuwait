@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { View, User } from '../types/types.ts';
 import Dashboard from './Dashboard.tsx';
 import EmployeeDirectory from './EmployeeDirectory.tsx';
@@ -18,7 +19,6 @@ import { ManagementDashboard } from './ManagementDashboard.tsx';
 import { UserManagement } from './UserManagement.tsx';
 
 interface ViewRendererProps {
-    currentView: View;
     user: User;
     language: 'en' | 'ar';
     refreshKey: number;
@@ -28,7 +28,6 @@ interface ViewRendererProps {
 }
 
 const ViewRenderer: React.FC<ViewRendererProps> = ({
-    currentView,
     user,
     language,
     refreshKey,
@@ -36,24 +35,30 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
     onOpenEmployeeModal,
     onEditEmployee
 }) => {
-    switch (currentView) {
-        case View.Dashboard: return <Dashboard user={user} onNavigate={onNavigate} key={`dash-${refreshKey}`} language={language} />;
-        case View.Directory: return <EmployeeDirectory user={user} onAddClick={onOpenEmployeeModal} onEditClick={onEditEmployee} key={`dir-${refreshKey}`} language={language} />;
-        case View.Insights: return <AiInsights key={`ai-${refreshKey}`} />;
-        case View.Compliance: return <ComplianceView key={`comp-${refreshKey}`} />;
-        case View.Profile: return <ProfileView user={user} key={`profile-${refreshKey}`} />;
-        case View.Leaves: return <LeaveManagement user={user} key={`leaves-${refreshKey}`} />;
-        case View.Payroll: return <PayrollView user={user} key={`pay-${refreshKey}`} />;
-        case View.Settlement: return <SettlementView key={`settle-${refreshKey}`} />;
-        case View.Attendance: return <AttendanceView user={user} key={`attend-${refreshKey}`} />;
-        case View.AdminCenter: return <AdminCenter key={`admin-${refreshKey}`} />;
-        case View.Whitepaper: return <Whitepaper key={`wp-${refreshKey}`} />;
-        case View.Mandoob: return <MandoobDashboard key={`mandoob-${refreshKey}`} />;
-        case View.Finance: return <FinanceMappingSettings key={`finance-${refreshKey}`} />;
-        case View.Management: return <ManagementDashboard key={`manage-${refreshKey}`} />;
-        case View.UserManagement: return <UserManagement key={`user-${refreshKey}`} />;
-        default: return null;
-    }
+    const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
+
+    return (
+        <Routes>
+            <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+            <Route path="/dashboard" element={<Dashboard user={user} onNavigate={onNavigate} key={`dash-${refreshKey}`} language={language} />} />
+            <Route path="/directory" element={<EmployeeDirectory user={user} onAddClick={onOpenEmployeeModal} onEditClick={onEditEmployee} key={`dir-${refreshKey}`} language={language} />} />
+            <Route path="/insights" element={<AiInsights key={`ai-${refreshKey}`} />} />
+            <Route path="/compliance" element={<ComplianceView key={`comp-${refreshKey}`} />} />
+            <Route path="/profile" element={<ProfileView user={user} key={`profile-${refreshKey}`} />} />
+            <Route path="/leaves" element={<LeaveManagement user={user} key={`leaves-${refreshKey}`} />} />
+            <Route path="/payroll" element={<PayrollView user={user} key={`pay-${refreshKey}`} />} />
+            <Route path="/settlement" element={<SettlementView key={`settle-${refreshKey}`} />} />
+            <Route path="/attendance" element={<AttendanceView user={user} key={`attend-${refreshKey}`} />} />
+            <Route path="/admincenter" element={<AdminCenter key={`admin-${refreshKey}`} />} />
+            <Route path="/whitepaper" element={<Whitepaper key={`wp-${refreshKey}`} />} />
+            <Route path="/mandoob" element={<MandoobDashboard key={`mandoob-${refreshKey}`} />} />
+            <Route path="/finance" element={<FinanceMappingSettings key={`finance-${refreshKey}`} />} />
+            <Route path="/management" element={<ManagementDashboard key={`manage-${refreshKey}`} />} />
+            <Route path="/usermanagement" element={<UserManagement key={`user-${refreshKey}`} />} />
+            {/* 404 handling - redirect to default */}
+            <Route path="*" element={<Navigate to={defaultRoute} replace />} />
+        </Routes>
+    );
 };
 
 export default ViewRenderer;

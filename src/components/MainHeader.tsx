@@ -1,12 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation, Link } from 'react-router-dom';
 import { View, User, Notification } from '../types/types.ts';
-import IntelligentTicker from './IntelligentTicker.tsx';
 
 interface MainHeaderProps {
-    currentView: View;
-    setView: (view: View) => void;
     user: User;
     language: 'en' | 'ar';
     theme: 'shadcn' | 'glass';
@@ -22,8 +20,6 @@ interface MainHeaderProps {
 }
 
 const MainHeader: React.FC<MainHeaderProps> = ({
-    currentView,
-    setView,
     user,
     language,
     theme,
@@ -38,9 +34,15 @@ const MainHeader: React.FC<MainHeaderProps> = ({
     onOpenScopeModal
 }) => {
     const { t } = useTranslation();
+    const location = useLocation();
 
-    const getViewTitle = (view: View) => {
-        switch (view) {
+    const currentPath = location.pathname.split('/')[1]?.toLowerCase() || 'dashboard';
+
+    const viewTitle = useMemo(() => {
+        const matchedView = Object.values(View).find(v => v.toLowerCase() === currentPath);
+        if (!matchedView) return t('dashboard');
+
+        switch (matchedView) {
             case View.Dashboard: return t('dashboard');
             case View.Directory: return t('directory');
             case View.Insights: return t('insights');
@@ -56,19 +58,19 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             case View.Finance: return 'Finance Mapping';
             case View.Management: return t('strategy');
             case View.UserManagement: return 'Security & Roles';
-            default: return '';
+            default: return t('dashboard');
         }
-    };
+    }, [currentPath, t, language]);
 
     return (
         <div className={`flex items-center justify-between ${compactMode ? 'mb-6' : 'mb-12'} no-print`}>
             <div className="space-y-1">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-start">
-                    <span className="hover:text-indigo-600 transition-colors cursor-pointer" onClick={() => setView(View.Dashboard)}>{t('enterprise')}</span>
+                    <Link to="/dashboard" className="hover:text-indigo-600 transition-colors cursor-pointer">{t('enterprise')}</Link>
                     <span className="text-slate-300">/</span>
-                    <span className="text-indigo-600">{getViewTitle(currentView)}</span>
+                    <span className="text-indigo-600">{viewTitle}</span>
                 </div>
-                <h1 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-black text-slate-900 tracking-tight text-start`}>{getViewTitle(currentView)}</h1>
+                <h1 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-black text-slate-900 tracking-tight text-start`}>{viewTitle}</h1>
             </div>
             <div className="flex items-center gap-4">
                 <button onClick={toggleTheme} className={`flex items-center justify-center p-2 rounded-xl transition-all ${theme === 'shadcn' ? 'bg-slate-900 text-white' : 'bg-white border text-slate-500 hover:bg-slate-50 shadow-sm'}`} title="Toggle UI Design Language">

@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, User } from '../types/types';
 import { dbService } from '../services/dbService.ts';
 import { useTranslation } from 'react-i18next';
+import { useLocation, Link } from 'react-router-dom';
 
 interface SidebarProps {
-  currentView: View;
-  setView: (view: View) => void;
   user: User;
   language: 'en' | 'ar';
   setLanguage: (lang: 'en' | 'ar') => void;
@@ -14,7 +13,9 @@ interface SidebarProps {
   onAddMember: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language, setLanguage, onLogout, onToggleMobile, onAddMember }) => {
+const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout, onToggleMobile, onAddMember }) => {
+  const location = useLocation();
+  const activePath = location.pathname.split('/')[1]?.toLowerCase() || 'dashboard';
   const { t } = useTranslation();
   const [dbStatus, setDbStatus] = useState<{ type: 'testing' | 'live' | 'mock', latency?: number }>({ type: 'testing' });
   const [isPending, startTransition] = React.useTransition();
@@ -138,29 +139,28 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, language,
             <span className="tracking-tight uppercase text-[11px] font-black">{t('addMember')}</span>
           </button>
         )}
-        {filteredItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              startTransition(() => {
-                setView(item.id);
-              });
-            }}
-            className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] text-sm font-bold transition-all group relative overflow-hidden ${isPending && currentView !== item.id ? 'opacity-70 grayscale-[0.5]' : ''} ${currentView === item.id
-              ? 'bg-slate-900 text-white shadow-2xl shadow-slate-900/10'
-              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
-          >
-            {currentView === item.id && (
-              <div className="absolute inset-y-0 left-0 w-1 bg-indigo-500 rounded-full my-3"></div>
-            )}
-            <span className={`text-xl transition-all duration-500 group-hover:scale-125 group-hover:rotate-3 ${currentView === item.id ? '' : 'opacity-60'}`}>
-              {getIcon(item.icon)}
-            </span>
-            <span className={`tracking-tight text-start flex-1 text-[13px] ${currentView === item.id ? 'font-black' : 'font-bold'}`}>
-              {item.label}
-            </span>
-          </button>
-        ))}
+        {filteredItems.map((item) => {
+          const isActive = activePath === item.id.toLowerCase();
+          return (
+            <Link
+              key={item.id}
+              to={`/${item.id.toLowerCase()}`}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] text-sm font-bold transition-all group relative overflow-hidden ${isActive
+                ? 'bg-slate-900 text-white shadow-2xl shadow-slate-900/10'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              {isActive && (
+                <div className="absolute inset-y-0 left-0 w-1 bg-indigo-500 rounded-full my-3"></div>
+              )}
+              <span className={`text-xl transition-all duration-500 group-hover:scale-125 group-hover:rotate-3 ${isActive ? '' : 'opacity-60'}`}>
+                {getIcon(item.icon)}
+              </span>
+              <span className={`tracking-tight text-start flex-1 text-[13px] ${isActive ? 'font-black' : 'font-bold'}`}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
       <div className="p-6 space-y-4 mt-auto mb-6">
         {onToggleMobile && (

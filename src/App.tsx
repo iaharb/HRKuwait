@@ -16,11 +16,11 @@ import { useTheme } from './components/ThemeContext.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useNotificationsFetch } from './hooks/useNotifications.ts';
 import { useUIMode } from './hooks/useUIMode.ts';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { currentUser, loading, login, logout, setCurrentUser } = useAuth();
+  const { currentUser, loading, login, logout } = useAuth();
   const {
     viewMode,
     setViewMode,
@@ -32,25 +32,6 @@ const App: React.FC = () => {
   } = useUIMode();
 
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const [currentView, setViewState] = useState<View>(View.Dashboard);
-
-  // Sync state to URL
-  const setView = (view: View) => {
-    setViewState(view);
-    navigate(`/${view.toLowerCase()}`);
-  };
-
-  // Sync URL to state on load
-  useEffect(() => {
-    const path = location.pathname.split('/')[1];
-    if (path) {
-      const matchedView = Object.values(View).find(v => v.toLowerCase() === path.toLowerCase());
-      if (matchedView) setViewState(matchedView as View);
-    }
-  }, []);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState<Employee | null>(null);
@@ -63,7 +44,6 @@ const App: React.FC = () => {
     fetchNotifications
   } = useNotificationsFetch(currentUser);
 
-  const notificationRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
 
   const language = i18n.language as 'en' | 'ar';
@@ -71,7 +51,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
-      setView(currentUser.role === 'Employee' ? View.Profile : View.Dashboard);
       fetchNotifications();
     }
   }, [currentUser, fetchNotifications]);
@@ -89,6 +68,10 @@ const App: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEmployeeToEdit(null);
+  };
+
+  const navigateTo = (view: View) => {
+    navigate(`/${view.toLowerCase()}`);
   };
 
   const renderAppStructure = () => {
@@ -127,8 +110,6 @@ const App: React.FC = () => {
     return (
       <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
         <Sidebar
-          currentView={currentView}
-          setView={setView}
           user={currentUser}
           language={language}
           setLanguage={setLanguage}
@@ -139,8 +120,6 @@ const App: React.FC = () => {
         <main className={`flex-1 min-w-0 overflow-y-auto transition-all duration-500 ${compactMode ? 'compact-ui' : ''} ${presentationMode ? 'presentation-main' : ''}`}>
           <div className={`h-full ${compactMode ? 'px-6 py-4' : 'px-12 py-8'} ${presentationMode ? 'max-w-full' : 'max-w-[1500px] mx-auto'}`}>
             <MainHeader
-              currentView={currentView}
-              setView={setView}
               user={currentUser}
               language={language}
               theme={theme}
@@ -157,11 +136,10 @@ const App: React.FC = () => {
             <IntelligentTicker />
             <div className="pb-24">
               <ViewRenderer
-                currentView={currentView}
                 user={currentUser}
                 language={language}
                 refreshKey={refreshKey}
-                onNavigate={setView}
+                onNavigate={navigateTo}
                 onOpenEmployeeModal={() => setIsModalOpen(true)}
                 onEditEmployee={handleEditEmployee}
               />
