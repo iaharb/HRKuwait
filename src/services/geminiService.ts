@@ -1,10 +1,10 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Online-only mode – reads from Vite environment variables
 const isMeta = typeof import.meta !== 'undefined' && import.meta.env;
 const geminiKey = isMeta ? import.meta.env.VITE_GEMINI_API_KEY : process.env.VITE_GEMINI_API_KEY;
 
-const ai = new GoogleGenAI({ apiKey: geminiKey || '' });
+const genAI = new GoogleGenerativeAI(geminiKey || '');
 
 const ADMIN_SYSTEM_INSTRUCTION = `You are an expert on Kuwait Private Sector Labor Law (No. 6/2010). When calculating or discussing end-of-service indemnity:
 1. USE 18 MONTHS AS THE LIMIT: Never exceed a total payout of 18 times the current monthly remuneration for monthly-paid staff (this is the same as the 1.5-year cap mentioned in Article 51).
@@ -110,18 +110,16 @@ export const runAiTask = async (prompt: string, isJson: boolean = false, systemI
     }
   }
 
-  // Path 2: Cloud Gemini (Primary Online Path using @google/genai)
+  // Path 2: Cloud Gemini (Primary Online Path using @google/generative-ai)
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: isJson ? "application/json" : "text/plain"
-      }
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: systemInstruction
     });
 
-    return response.text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
   } catch (e: any) {
     console.error("Cloud AI Error:", e);
     throw new Error("Cloud AI engine failed. Check VITE_GEMINI_API_KEY or connection.");
@@ -194,20 +192,19 @@ export const analyzeReceipt = async (base64Image: string) => {
   const prompt = "Analyze this receipt image. Extract exactly these 3 fields as a JSON object: amount (number, value only in KWD), date (format: YYYY-MM-DD), and merchant (string). Return only the JSON.";
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } },
-          { text: prompt }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json"
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Image.split(',')[1],
+          mimeType: "image/jpeg"
+        }
       }
-    });
+    ]);
 
-    let text = response.text;
+    const response = await result.response;
+    let text = response.text();
     // Clean potential markdown
     if (typeof text === 'string') {
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
