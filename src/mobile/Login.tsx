@@ -53,7 +53,7 @@ const MobileLogin: React.FC<MobileLoginProps> = ({ onLogin, language, setLanguag
       if (systemUser) {
         if (password === systemUser.password || password === '12345') {
           onLogin({
-            id: systemUser.id,
+            id: systemUser.employee_id || systemUser.id,
             name: systemUser.employees?.name || systemUser.username,
             email: systemUser.employees ? `${normalizedInput}@enterprise-hr.kw` : 'admin@enterprise.local',
             role: systemUser.role as UserRole,

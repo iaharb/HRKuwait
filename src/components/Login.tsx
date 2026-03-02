@@ -73,7 +73,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
         // Direct credential verification
         if (normalizedPass === systemUser.password || normalizedPass === '12345') {
           onLogin({
-            id: systemUser.id,
+            id: systemUser.employee_id || systemUser.id,
             name: systemUser.employees?.name || systemUser.username,
             email: systemUser.employees ? `${normalizedInput}@enterprise-hr.kw` : 'admin@enterprise.local',
             role: systemUser.role as UserRole,
