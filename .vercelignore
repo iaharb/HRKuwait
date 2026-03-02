@@ -1,0 +1,35 @@
+# Exclude scripts and documentation
+/scripts
+/docs
+
+# Exclude database migrations and seeds
+/migrations
+*.sql
+
+# Exclude data files
+*.xlsx
+*.docx
+*.txt
+db_dump.json
+
+# Exclude environment variables
+.env
+.env.*
+*.env
+
+# System files
+.git
+node_modules
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist
+dist-ssr
+npm-debug.log*
+
+# Configs not needed for the build server
+.vscode
+Dockerfile
+docker-compose.yml
+nginx.conf
