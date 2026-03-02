@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient.ts';
 import { dbService } from '../services/dbService.ts';
-import { Employee, UserRole, View } from '../types.ts';
+import { Employee, UserRole, View } from '../types/types';
 import { useTranslation } from 'react-i18next';
 
 export const UserManagement: React.FC = () => {

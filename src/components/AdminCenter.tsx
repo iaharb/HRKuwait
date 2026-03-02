@@ -3,7 +3,7 @@ import { dbService } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient.ts';
-import { HardwareConfig, AttendanceRecord, OfficeLocation, Announcement, PublicHoliday, DepartmentMetric } from '../types.ts';
+import { HardwareConfig, AttendanceRecord, OfficeLocation, Announcement, PublicHoliday, DepartmentMetric } from '../types/types';
 import { runAiTask } from '../services/geminiService.ts';
 import { UserManagement } from './UserManagement.tsx';
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { dbService } from '../services/dbService.ts';
-import { Employee, DepartmentMetric, User, View } from '../types.ts';
+import { Employee, DepartmentMetric, User, View } from '../types/types';
 import { useTranslation } from 'react-i18next';
 
 interface DashboardProps {

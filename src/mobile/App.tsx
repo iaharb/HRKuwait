@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, User } from '../types.ts';
+import { View, User } from '../types/types';
 import MobileDashboard from './Dashboard.tsx';
 import MobileAttendance from './Attendance.tsx';
 import MobileExpenses from './Expenses.tsx';

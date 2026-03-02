@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { User, Employee, LeaveRequest, PayrollItem, PayrollRun, AttendanceRecord } from '../types.ts';
+import { User, Employee, LeaveRequest, PayrollItem, PayrollRun, AttendanceRecord } from '../types/types';
 import { dbService as hrmDb } from '../services/dbService.ts';
 import { useTranslation } from 'react-i18next';
 import { useNotifications } from './NotificationSystem.tsx';

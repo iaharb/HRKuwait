@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, LeaveRequest, LeaveType, Employee, PublicHoliday } from '../types.ts';
+import { User, LeaveRequest, LeaveType, Employee, PublicHoliday } from '../types/types';
 import { dbService, calculateLeaveDays } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';

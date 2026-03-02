@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { getKuwaitizationInsights, getActiveAiProvider } from '../services/geminiService.ts';
 import { dbService } from '../services/dbService.ts';
-import { InsightReport, LeaveRequest, Employee, AttendanceRecord } from '../types.ts';
+import { InsightReport, LeaveRequest, Employee, AttendanceRecord } from '../types/types';
 import { useTranslation } from 'react-i18next';
 
 const COLORS = ['#4f46e5', '#818cf8', '#f59e0b', '#ec4899', '#94a3b8'];

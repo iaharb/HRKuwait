@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { User } from '../types.ts';
+import { User } from '../types/types';
 import { GoogleGenAI } from "@google/genai";
 import { useNotifications } from '../components/NotificationSystem.tsx';
 

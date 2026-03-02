@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, UserRole } from '../types.ts';
+import { User, UserRole } from '../types/types';
 import { MOCK_EMPLOYEES } from '../constants.tsx';
 import { dbService } from '../services/dbService.ts';
 import { isSupabaseConfigured } from '../services/supabaseClient.ts';

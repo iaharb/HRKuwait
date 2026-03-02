@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { User } from '../types.ts';
+import { User } from '../types/types';
 import { useLocationValidation } from '../hooks/useLocationValidation.ts';
 import { dbService } from '../services/dbService.ts';
 import { useNotifications } from '../components/NotificationSystem.tsx';

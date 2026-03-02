@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, PayrollRun, PayrollItem, BreakdownItem, Employee, LeaveRequest } from '../types.ts';
+import { User, PayrollRun, PayrollItem, BreakdownItem, Employee, LeaveRequest } from '../types/types';
 import { dbService as hrmDb } from '../services/dbService.ts';
 import { supabase } from '../services/supabaseClient.ts';
 import { useNotifications } from './NotificationSystem.tsx';

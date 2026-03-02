@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ToastMessage, ToastType } from '../types.ts';
+import { ToastMessage, ToastType } from '../types/types';
 
 interface ConfirmOptions {
   title: string;

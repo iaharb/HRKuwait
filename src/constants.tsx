@@ -1,5 +1,5 @@
 
-import { Employee, LeaveRequest, DepartmentMetric, PublicHoliday, OfficeLocation, Allowance } from './types.ts';
+import { Employee, LeaveRequest, DepartmentMetric, PublicHoliday, OfficeLocation, Allowance } from './types/types';
 
 export const STANDARD_ALLOWANCE_NAMES = [
   { en: 'Housing', ar: 'بدل سكن', isHousing: true },

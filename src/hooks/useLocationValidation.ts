@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { OfficeLocation } from '../types.ts';
+import { OfficeLocation } from '../types/types';
 import { OFFICE_LOCATIONS } from '../constants.tsx';
 
 export const useLocationValidation = () => {

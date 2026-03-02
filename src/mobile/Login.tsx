@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, UserRole } from '../types.ts';
+import { User, UserRole } from '../types/types';
 import { dbService } from '../services/dbService.ts';
 import { MOCK_EMPLOYEES } from '../constants.tsx';
 import { translations } from '../translations.ts';

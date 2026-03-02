@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
-import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem } from '../types.ts';
+import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem } from '../types/types';
 import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
 
 // Use standard UUIDs

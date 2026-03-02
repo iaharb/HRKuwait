@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/dbService.ts';
-import { Employee, User, LeaveBalances } from '../types.ts';
+import { Employee, User, LeaveBalances } from '../types/types';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient.ts';
 import { useNotifications } from './NotificationSystem.tsx';

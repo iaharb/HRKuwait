@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, LeaveRequest, LeaveType, Employee } from '../types.ts';
+import { User, LeaveRequest, LeaveType, Employee } from '../types/types';
 import { dbService } from '../services/dbService.ts';
 import { useNotifications } from '../components/NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';

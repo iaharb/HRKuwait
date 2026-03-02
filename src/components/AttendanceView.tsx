@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { dbService } from '../services/dbService.ts';
-import { User, AttendanceRecord, OfficeLocation, Employee } from '../types.ts';
+import { User, AttendanceRecord, OfficeLocation, Employee } from '../types/types';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
 

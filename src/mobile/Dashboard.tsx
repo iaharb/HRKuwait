@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User } from '../types.ts';
+import { User } from '../types/types';
 import { dbService } from '../services/dbService.ts';
 import { translations } from '../translations.ts';
 

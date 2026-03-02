@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService.ts';
-import { Announcement } from '../types.ts';
+import { Announcement } from '../types/types';
 import { useTranslation } from 'react-i18next';
 
 const IntelligentTicker: React.FC = () => {

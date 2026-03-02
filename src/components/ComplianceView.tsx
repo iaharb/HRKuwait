@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
-import { Employee, PublicHoliday, PayrollRun, PayrollItem } from '../types.ts';
+import { Employee, PublicHoliday, PayrollRun, PayrollItem } from '../types/types';
 import { useTranslation } from 'react-i18next';
 
 const BankLetterModal: React.FC<{
