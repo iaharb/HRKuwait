@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
-import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem } from '../types/types';
+import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim } from '../types/types';
 import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
 
 // Use standard UUIDs
@@ -1708,6 +1708,98 @@ export const dbService = {
       .from('profile_change_requests')
       .update({ status: 'REJECTED', hr_note: reason })
       .eq('id', requestId);
+  },
+
+  // ─── Expense Claims Lifecycle ──────────────────────────────────────────────
+
+  async submitExpenseClaim(claim: Omit<ExpenseClaim, 'id' | 'status' | 'createdAt' | 'history'>): Promise<void> {
+    const { data: inserted, error } = await supabase!
+      .from('expense_claims')
+      .insert([{
+        employee_id: claim.employeeId,
+        merchant: claim.merchant,
+        amount: claim.amount,
+        entry_date: claim.date,
+        category: claim.category,
+        receipt_url: claim.receiptUrl,
+        status: 'Pending_Manager'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Log history
+    await supabase!.from('expense_claim_history').insert([{
+      claim_id: inserted.id,
+      actor_name: claim.employeeName,
+      actor_role: 'Employee',
+      to_status: 'Pending_Manager',
+      note: 'Claim submitted for approval'
+    }]);
+  },
+
+  async getExpenseClaims(employeeId?: string, status?: ClaimStatus): Promise<ExpenseClaim[]> {
+    let query = supabase!.from('expense_claims').select('*, employees(name), expense_claim_history(*)');
+
+    if (employeeId) query = query.eq('employee_id', employeeId);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data || []).map(row => ({
+      id: row.id,
+      employeeId: row.employee_id,
+      employeeName: row.employees?.name || 'Unknown',
+      merchant: row.merchant,
+      amount: Number(row.amount),
+      date: row.entry_date,
+      category: row.category,
+      receiptUrl: row.receipt_url,
+      status: row.status as ClaimStatus,
+      note: row.note,
+      createdAt: row.created_at,
+      history: (row.expense_claim_history || []).map((h: any) => ({
+        status: h.to_status,
+        actor: h.actor_name,
+        timestamp: h.created_at,
+        note: h.note
+      }))
+    }));
+  },
+
+  async updateExpenseClaimStatus(claimId: string, actor: User, nextStatus: ClaimStatus, note?: string): Promise<void> {
+    const { error: updateErr } = await supabase!
+      .from('expense_claims')
+      .update({ status: nextStatus, note: note || null })
+      .eq('id', claimId);
+
+    if (updateErr) throw updateErr;
+
+    // Log history
+    await supabase!.from('expense_claim_history').insert([{
+      claim_id: claimId,
+      actor_name: actor.name,
+      actor_role: actor.role,
+      to_status: nextStatus,
+      note: note
+    }]);
+
+    // Create notification for employee if approved/rejected/paid
+    if (['Approved', 'Rejected', 'Paid'].includes(nextStatus)) {
+      const { data: claim } = await supabase!.from('expense_claims').select('employee_id, merchant, amount').eq('id', claimId).single();
+      if (claim) {
+        await supabase!.from('notifications').insert([{
+          user_id: claim.employee_id,
+          title: `Claim ${nextStatus}`,
+          message: `Your claim for ${claim.merchant} (${claim.amount} KWD) is now ${nextStatus.toLowerCase()}.`,
+          type: nextStatus === 'Rejected' ? 'urgent' : 'success',
+          category: 'expense_claim',
+          link_id: claimId
+        }]);
+      }
+    }
   }
 };
 

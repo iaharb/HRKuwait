@@ -231,12 +231,41 @@ export interface PayrollItem {
   deductionBreakdown: Array<{ name: string; nameArabic?: string; value: number }>;
 }
 
+export type ClaimStatus =
+  | 'Draft'
+  | 'Pending_Manager'
+  | 'Pending_HR'
+  | 'Pending_Payroll'
+  | 'Approved'
+  | 'Rejected'
+  | 'Paid';
+
+export interface ExpenseClaim {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  merchant: string;
+  amount: number;
+  date: string;
+  category: string;
+  receiptUrl?: string; // Base64 or storage URL
+  status: ClaimStatus;
+  note?: string;
+  createdAt: string;
+  history: Array<{
+    status: ClaimStatus;
+    actor: string;
+    timestamp: string;
+    note?: string;
+  }>;
+}
+
 export interface Notification {
   id: string;
   title: string;
   message: string;
   type: 'urgent' | 'reminder' | 'success' | 'info';
-  category: 'leave_start' | 'leave_return' | 'pending_approval' | 'payroll_alert' | 'document_expiry' | 'permission_resume';
+  category: 'leave_start' | 'leave_return' | 'pending_approval' | 'payroll_alert' | 'document_expiry' | 'permission_resume' | 'expense_claim';
   timestamp: string;
   isRead: boolean;
   linkId?: string;

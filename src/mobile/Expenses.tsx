@@ -1,14 +1,14 @@
-
 import React, { useState, useRef } from 'react';
 import { User } from '../types/types';
-import { GoogleGenAI } from "@google/genai";
 import { useNotifications } from '../components/NotificationSystem.tsx';
+import { analyzeReceipt } from '../services/geminiService.ts';
+import { dbService } from '../services/dbService.ts';
 
 const MobileExpenses: React.FC<{ user: User, language: 'en' | 'ar' }> = ({ user, language }) => {
   const { notify } = useNotifications();
   const [capturing, setCapturing] = useState(false);
   const [image, setImage] = useState<string | null>(null);
-  const [data, setData] = useState<{amount?: string, date?: string, merchant?: string} | null>(null);
+  const [data, setData] = useState<{ amount?: string, date?: string, merchant?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,27 +26,33 @@ const MobileExpenses: React.FC<{ user: User, language: 'en' | 'ar' }> = ({ user,
   const processWithGemini = async (base64: string) => {
     setCapturing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = "Analyze this receipt. Extract Amount (KWD), Date, and Merchant Name as a clean JSON object.";
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [
-            { inlineData: { data: base64.split(',')[1], mimeType: 'image/jpeg' } },
-            { text: prompt }
-          ]
-        },
-        config: { responseMimeType: "application/json" }
-      });
-
-      const result = JSON.parse(response.text || '{}');
+      const result = await analyzeReceipt(base64);
       setData(result);
       notify("Scan Complete", "Financial data extracted successfully.", "success");
     } catch (err) {
       notify("Scan Error", "Unable to analyze receipt.", "error");
     } finally {
       setCapturing(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!data) return;
+    try {
+      await dbService.submitExpenseClaim({
+        employeeId: user.id,
+        employeeName: user.name,
+        merchant: data.merchant || 'Unknown',
+        amount: Number(data.amount || 0),
+        date: data.date || new Date().toISOString().split('T')[0],
+        category: 'Business Expense',
+        receiptUrl: image || undefined
+      });
+      notify("Submitted", "Claim forwarded for HR review.", "success");
+      setImage(null);
+      setData(null);
+    } catch (e) {
+      notify("Submission Error", "Failed to save claim to registry.", "error");
     }
   };
 
@@ -66,20 +72,19 @@ const MobileExpenses: React.FC<{ user: User, language: 'en' | 'ar' }> = ({ user,
             <img src={image} className="w-full h-full object-cover" />
             {capturing && (
               <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center text-white gap-4">
-                 <div className="w-12 h-12 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
-                 <p className="text-[10px] font-black uppercase tracking-widest">AI Audit in progress...</p>
+                <div className="w-12 h-12 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                <p className="text-[10px] font-black uppercase tracking-widest">AI Audit in progress...</p>
               </div>
             )}
           </div>
         )}
 
         <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleCapture} />
-        
-        <button 
+
+        <button
           onClick={() => image ? (setImage(null), setData(null)) : fileInputRef.current?.click()}
-          className={`w-full py-5 rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 ${
-            image ? 'bg-slate-100 text-slate-600' : 'bg-emerald-600 text-white shadow-emerald-600/20'
-          }`}
+          className={`w-full py-5 rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 ${image ? 'bg-slate-100 text-slate-600' : 'bg-emerald-600 text-white shadow-emerald-600/20'
+            }`}
         >
           {image ? 'Retake Photo' : 'Capture Receipt'}
         </button>
@@ -87,27 +92,27 @@ const MobileExpenses: React.FC<{ user: User, language: 'en' | 'ar' }> = ({ user,
 
       {data && (
         <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-6 animate-in slide-in-from-bottom-4">
-           <div className="flex justify-between items-center border-b border-white/10 pb-4">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verification Result</h4>
-              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">AI Confidence: High</span>
-           </div>
-           <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-xs text-slate-400 font-bold">Merchant</span>
-                <span className="text-sm font-black text-white">{data.merchant || 'Unknown'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs text-slate-400 font-bold">Date</span>
-                <span className="text-sm font-black text-white">{data.date || '---'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs text-slate-400 font-bold">Amount</span>
-                <span className="text-2xl font-black text-emerald-400">{data.amount || '0.00'} <span className="text-[10px]">KWD</span></span>
-              </div>
-           </div>
-           <button onClick={() => notify("Submitted", "Claim forwarded for HR review.", "success")} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest">
-             Confirm & Submit Claim
-           </button>
+          <div className="flex justify-between items-center border-b border-white/10 pb-4">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verification Result</h4>
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">AI Confidence: High</span>
+          </div>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-xs text-slate-400 font-bold">Merchant</span>
+              <span className="text-sm font-black text-white">{data.merchant || 'Unknown'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-slate-400 font-bold">Date</span>
+              <span className="text-sm font-black text-white">{data.date || '---'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-slate-400 font-bold">Amount</span>
+              <span className="text-2xl font-black text-emerald-400">{data.amount || '0.00'} <span className="text-[10px]">KWD</span></span>
+            </div>
+          </div>
+          <button onClick={handleSubmit} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest">
+            Confirm & Submit Claim
+          </button>
         </div>
       )}
     </div>

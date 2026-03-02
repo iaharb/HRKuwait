@@ -1,7 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Cloud Gemini Initialization
-const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
+// Online-only mode – reads from Vite environment variables
+const isMeta = typeof import.meta !== 'undefined' && import.meta.env;
+const geminiKey = isMeta ? import.meta.env.VITE_GEMINI_API_KEY : process.env.VITE_GEMINI_API_KEY;
+
+const ai = new GoogleGenAI({ apiKey: geminiKey || '' });
 
 const ADMIN_SYSTEM_INSTRUCTION = `You are an expert on Kuwait Private Sector Labor Law (No. 6/2010). When calculating or discussing end-of-service indemnity:
 1. USE 18 MONTHS AS THE LIMIT: Never exceed a total payout of 18 times the current monthly remuneration for monthly-paid staff (this is the same as the 1.5-year cap mentioned in Article 51).
@@ -181,5 +184,37 @@ export const runAdminTask = async (taskType: string, payload: any) => {
   } catch (error) {
     console.error("Admin Task Error:", error);
     return "The system assistant encountered an error while processing the request. Intelligence node may be offline.";
+  }
+};
+
+/**
+ * Enhanced Vision Analysis for Receipts (Claims)
+ */
+export const analyzeReceipt = async (base64Image: string) => {
+  const prompt = "Analyze this receipt image. Extract exactly these 3 fields as a JSON object: amount (number, value only in KWD), date (format: YYYY-MM-DD), and merchant (string). Return only the JSON.";
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } },
+          { text: prompt }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    let text = response.text;
+    // Clean potential markdown
+    if (typeof text === 'string') {
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+    return JSON.parse(text || '{}');
+  } catch (error) {
+    console.error("Receipt Analysis Failed:", error);
+    throw error;
   }
 };

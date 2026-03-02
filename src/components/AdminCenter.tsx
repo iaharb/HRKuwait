@@ -3,7 +3,7 @@ import { dbService } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient.ts';
-import { HardwareConfig, AttendanceRecord, OfficeLocation, Announcement, PublicHoliday, DepartmentMetric } from '../types/types';
+import { HardwareConfig, AttendanceRecord, OfficeLocation, Announcement, PublicHoliday, DepartmentMetric, ExpenseClaim, ClaimStatus, User } from '../types/types';
 import { runAiTask } from '../services/geminiService.ts';
 import { UserManagement } from './UserManagement.tsx';
 
@@ -295,13 +295,126 @@ const DataExplorerTab: React.FC = () => {
   );
 };
 
+const ClaimsManagerTab: React.FC = () => {
+  const { notify } = useNotifications();
+  const [claims, setClaims] = useState<ExpenseClaim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('app_user');
+    if (raw) setUser(JSON.parse(raw));
+    loadClaims();
+  }, []);
+
+  const loadClaims = async () => {
+    setLoading(true);
+    try {
+      const data = await dbService.getExpenseClaims();
+      setClaims(data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAction = async (claim: ExpenseClaim, action: 'Approve' | 'Reject') => {
+    if (!user) return;
+
+    let nextStatus: ClaimStatus = claim.status;
+
+    if (action === 'Reject') {
+      nextStatus = 'Rejected';
+    } else {
+      // Approval Progression: Manager -> HR -> Payroll -> Approved -> Paid
+      if (claim.status === 'Pending_Manager') nextStatus = 'Pending_HR';
+      else if (claim.status === 'Pending_HR') nextStatus = 'Pending_Payroll';
+      else if (claim.status === 'Pending_Payroll') nextStatus = 'Approved';
+      else if (claim.status === 'Approved') nextStatus = 'Paid';
+    }
+
+    try {
+      await dbService.updateExpenseClaimStatus(claim.id, user, nextStatus, `${action}ed by ${user.role}`);
+      notify("Success", `Claim ${action.toLowerCase()}ed.`, "success");
+      loadClaims();
+    } catch (e) {
+      notify("Error", "Failed to update claim status.", "error");
+    }
+  };
+
+  return (
+    <div className="animate-in slide-in-from-bottom-4 duration-500 text-start space-y-8">
+      <div>
+        <h3 className="text-xl font-black text-slate-900 tracking-tight">Expense Claims Manager</h3>
+        <p className="text-xs text-slate-400 font-medium mt-1">Multi-stage approval workflow for business reimbursements.</p>
+      </div>
+
+      <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Details</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {loading ? (
+              <tr><td colSpan={5} className="p-20 text-center text-slate-300 italic">Synchronizing claims registry...</td></tr>
+            ) : claims.length === 0 ? (
+              <tr><td colSpan={5} className="p-20 text-center text-slate-300 italic">No expense claims found</td></tr>
+            ) : claims.map(c => (
+              <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-8 py-6">
+                  <p className="text-sm font-black text-slate-900">{c.employeeName}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{c.date}</p>
+                </td>
+                <td className="px-8 py-6">
+                  <p className="text-xs font-bold text-slate-700">{c.merchant}</p>
+                  <p className="text-[9px] text-slate-400 italic">"{c.category}"</p>
+                </td>
+                <td className="px-8 py-6 text-right">
+                  <p className="text-lg font-black text-indigo-600">{c.amount.toFixed(3)} <span className="text-[9px]">KWD</span></p>
+                </td>
+                <td className="px-8 py-6 text-center">
+                  <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${c.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                    c.status === 'Rejected' ? 'bg-rose-50 text-rose-600' :
+                      c.status === 'Paid' ? 'bg-indigo-50 text-indigo-600' :
+                        'bg-slate-100 text-slate-500'
+                    }`}>
+                    {c.status.replace(/_/g, ' ')}
+                  </span>
+                </td>
+                <td className="px-8 py-6">
+                  <div className="flex justify-center gap-3">
+                    {['Pending_Manager', 'Pending_HR', 'Pending_Payroll', 'Approved'].includes(c.status) && (
+                      <>
+                        <button onClick={() => handleAction(c, 'Approve')} className="h-10 px-6 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">
+                          {c.status === 'Approved' ? 'Mark Paid' : 'Approve'}
+                        </button>
+                        <button onClick={() => handleAction(c, 'Reject')} className="h-10 px-6 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 active:scale-95 transition-all">
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
 const AdminCenter: React.FC = () => {
   const { notify, confirm } = useNotifications();
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const isAr = language === 'ar';
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'Integrity' | 'Registry' | 'Configuration' | 'Worksheet' | 'Connectors' | 'Terminal' | 'Intelligence' | 'MasterData' | 'Maintenance' | 'Users'>('Integrity');
+  const [activeTab, setActiveTab] = useState<'Integrity' | 'Registry' | 'Claims' | 'Configuration' | 'Worksheet' | 'Connectors' | 'Terminal' | 'Intelligence' | 'MasterData' | 'Maintenance' | 'Users'>('Integrity');
 
   const [selectedTable, setSelectedTable] = useState<TableName>('employees');
   const [tableData, setTableData] = useState<any[]>([]);
@@ -712,6 +825,7 @@ const AdminCenter: React.FC = () => {
         {[
           { id: 'Integrity', label: t('healthMatrix') },
           { id: 'Registry', label: t('dataExplorer') },
+          { id: 'Claims', label: 'Claims' },
           { id: 'MasterData', label: t('masterData') },
           { id: 'Intelligence', label: t('tickerHub') },
           { id: 'Worksheet', label: t('dailyWorksheet') },
@@ -733,6 +847,7 @@ const AdminCenter: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-12">
         {activeTab === 'Registry' && <DataExplorerTab />}
+        {activeTab === 'Claims' && <ClaimsManagerTab />}
         {activeTab === 'Users' && <div className="animate-in slide-in-from-bottom-4 duration-500"><UserManagement /></div>}
 
         {
