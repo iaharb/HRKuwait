@@ -133,8 +133,16 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
       ['Pending', 'Manager_Approved', 'HR_Approved', 'Resumed'].includes(r.status)
     );
 
+    // Sum up everything that deducts from Annual
+    const pendingAnnualPool = pendingRequests
+      .filter(r => r.type !== 'Sick' && r.type !== 'Hajj')
+      .reduce((acc, curr) => {
+        if (curr.type === 'ShortPermission') return acc + (curr.durationHours || 0) / 8;
+        return acc + curr.days;
+      }, 0);
+
     const pending = {
-      annual: pendingRequests.filter(r => r.type === 'Annual').reduce((acc, curr) => acc + curr.days, 0),
+      annual: pendingAnnualPool,
       sick: pendingRequests.filter(r => r.type === 'Sick').reduce((acc, curr) => acc + curr.days, 0),
       emergency: pendingRequests.filter(r => r.type === 'Emergency').reduce((acc, curr) => acc + curr.days, 0),
     };
@@ -142,7 +150,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
     const balances = employeeData.leaveBalances;
 
     return {
-      annual: Math.max(0, (balances.annual || 0) - (balances.annualUsed || 0) - pending.annual),
+      annual: Math.max(0, (balances.annual || 0) - (balances.annualUsed || 0) - pendingAnnualPool),
       sick: Math.max(0, (balances.sick || 0) - (balances.sickUsed || 0) - pending.sick),
       emergency: Math.max(0, (balances.emergency || 0) - (balances.emergencyUsed || 0) - pending.emergency),
       shortPermissionLimit: MAX_PERMISSION_HOURS,

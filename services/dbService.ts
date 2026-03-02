@@ -23,7 +23,7 @@ const mapEmployee = (data: any): Employee => {
   if (!data) return data;
 
   // New table: employee_allowances rows joined as an array
-  const joinedAllowances = (data.employee_allowances || []).map((a: any) => ({
+  const joinedAllowances = (data.allowance_rows || []).map((a: any) => ({
     id: a.id,
     name: a.name,
     nameArabic: a.name_arabic,
@@ -425,10 +425,10 @@ export const dbService = {
       };
 
       // 1. Try plural 'employees' with joins
-      let data = await tryFetch('employees', '*, employee_allowances(*), leave_balances(*)');
+      let data = await tryFetch('employees', '*, allowance_rows:employee_allowances(*), leave_balances_rows:leave_balances(*)');
 
       // 2. Try singular 'employee' with joins
-      if (!data) data = await tryFetch('employee', '*, employee_allowances(*), leave_balances(*)');
+      if (!data) data = await tryFetch('employee', '*, allowance_rows:employee_allowances(*), leave_balances_rows:leave_balances(*)');
 
       // 3. Try plural 'employees' without joins
       if (!data) data = await tryFetch('employees', '*');
@@ -441,12 +441,7 @@ export const dbService = {
         return [];
       }
 
-      // Re-map the raw data to include the alias expected by mapEmployee
-      const normalizedData = data.map((item: any) => ({
-        ...item,
-        leave_balances_rows: item.leave_balances || []
-      }));
-      return normalizedData.map(mapEmployee);
+      return data.map(mapEmployee);
     });
   },
 
@@ -639,22 +634,7 @@ export const dbService = {
 
   async finalizeHRApproval(id: string, user: User, finalizedDays: number): Promise<void> {
     await this.updateLeaveRequestStatus(id, 'HR_Finalized', user, `Finalized with ${finalizedDays} days.`);
-    const req = await supabase!.from('leave_requests').select('*').eq('id', id).single().then(res => mapLeaveRequest(res.data));
-
-    if (req) {
-      const emp = await supabase!.from('employees').select('*').eq('id', req.employeeId).single().then(res => mapEmployee(res.data));
-
-      if (emp) {
-        const balances = { ...emp.leaveBalances };
-        if (req.type === 'Annual') balances.annualUsed += finalizedDays;
-        else if (req.type === 'Sick') balances.sickUsed += finalizedDays;
-        else if (req.type === 'Emergency') balances.emergencyUsed += finalizedDays;
-        else if (req.type === 'ShortPermission') balances.shortPermissionUsed += (req.durationHours || 0);
-        else if (req.type === 'Hajj') balances.hajUsed = true;
-
-        await this.updateEmployee(emp.id, { leaveBalances: balances });
-      }
-    }
+    // Balance recalculation is handled by the DB trigger trg_update_leave_balances
   },
 
   async getAnnouncements(): Promise<Announcement[]> {

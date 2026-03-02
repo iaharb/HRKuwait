@@ -28,6 +28,10 @@ BEGIN
     -- Calculate sums for this employee (only approved/paid logs)
     -- All types EXCEPT Sick, Business, Hajj will deduct from Annual
     
+    -- Calculate sums for this employee (only approved/paid logs)
+    -- ALL types EXCEPT Sick and Hajj will deduct from the Annual pool
+    -- including Emergency, Maternity, ShortPermission (converted to days), etc.
+    
     WITH approved_leaves AS (
         SELECT 
             type, 
@@ -39,30 +43,25 @@ BEGIN
         GROUP BY type
     )
     SELECT 
-        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Annual'), 0),
-        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Sick'), 0),
-        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Emergency'), 0),
-        COALESCE((SELECT total_hours FROM approved_leaves WHERE type = 'ShortPermission'), 0),
-        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Hajj'), 0),
         COALESCE((SELECT SUM(
-            CASE WHEN type = 'ShortPermission' THEN total_hours / 8.0 ELSE total_days END
-        ) FROM approved_leaves WHERE type NOT IN ('Sick', 'Business', 'Hajj', 'Annual')), 0)
-    INTO v_annual, v_sick, v_emergency, v_short_perm, v_hajj, v_business;
+            CASE 
+                WHEN type = 'ShortPermission' THEN total_hours / 8.0 
+                ELSE total_days 
+            END
+        ) FROM approved_leaves WHERE type NOT IN ('Sick', 'Hajj')), 0),
+        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Sick'), 0),
+        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Hajj'), 0),
+        COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Emergency'), 0),
+        COALESCE((SELECT total_hours FROM approved_leaves WHERE type = 'ShortPermission'), 0)
+    INTO v_annual, v_sick, v_hajj, v_emergency, v_short_perm;
 
-    -- calc_annual will be the sum of (v_annual + whatever else deducts from it)
-    calc_annual := v_annual + v_business;
-    calc_sick := v_sick;
-    calc_emergency := v_emergency;
-    calc_short_perm := v_short_perm;
-    calc_hajj := v_hajj;
-
-    -- Now apply these updates back to the leave_balances table for this employee
-    UPDATE leave_balances SET used_days = ROUND(calc_annual, 2) WHERE employee_id = emp_id AND leave_type = 'Annual';
-    UPDATE leave_balances SET used_days = ROUND(calc_sick, 2) WHERE employee_id = emp_id AND leave_type = 'Sick';
-    UPDATE leave_balances SET used_days = ROUND(calc_emergency, 2) WHERE employee_id = emp_id AND leave_type = 'Emergency';
-    UPDATE leave_balances SET used_days = ROUND(calc_short_perm, 2) WHERE employee_id = emp_id AND leave_type = 'ShortPermission';
-    UPDATE leave_balances SET used_days = ROUND(calc_hajj, 2) WHERE employee_id = emp_id AND leave_type = 'Hajj';
-    -- Business isn't a tracked balance table usually but if it is we would set it. 
+    -- Update the leave_balances table
+    -- v_annual now contains the total days to be deducted from the Annual pool
+    UPDATE leave_balances SET used_days = ROUND(v_annual, 2) WHERE employee_id = emp_id AND leave_type = 'Annual' AND year = 2026;
+    UPDATE leave_balances SET used_days = ROUND(v_sick, 2) WHERE employee_id = emp_id AND leave_type = 'Sick' AND year = 2026;
+    UPDATE leave_balances SET used_days = ROUND(v_hajj, 2) WHERE employee_id = emp_id AND leave_type = 'Hajj' AND year = 2026;
+    UPDATE leave_balances SET used_days = ROUND(v_emergency, 2) WHERE employee_id = emp_id AND leave_type = 'Emergency' AND year = 2026;
+    UPDATE leave_balances SET used_days = ROUND(v_short_perm, 2) WHERE employee_id = emp_id AND leave_type = 'ShortPermission' AND year = 2026;
 
     IF (TG_OP = 'DELETE') THEN
         RETURN OLD;
@@ -109,27 +108,23 @@ BEGIN
             GROUP BY type
         )
         SELECT 
-            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Annual'), 0),
-            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Sick'), 0),
-            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Emergency'), 0),
-            COALESCE((SELECT total_hours FROM approved_leaves WHERE type = 'ShortPermission'), 0),
-            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Hajj'), 0),
             COALESCE((SELECT SUM(
-                CASE WHEN type = 'ShortPermission' THEN total_hours / 8.0 ELSE total_days END
-            ) FROM approved_leaves WHERE type NOT IN ('Sick', 'Business', 'Hajj', 'Annual')), 0)
-        INTO v_annual, v_sick, v_emergency, v_short_perm, v_hajj, v_business;
+                CASE 
+                    WHEN type = 'ShortPermission' THEN total_hours / 8.0 
+                    ELSE total_days 
+                END
+            ) FROM approved_leaves WHERE type NOT IN ('Sick', 'Hajj')), 0),
+            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Sick'), 0),
+            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Hajj'), 0),
+            COALESCE((SELECT total_days FROM approved_leaves WHERE type = 'Emergency'), 0),
+            COALESCE((SELECT total_hours FROM approved_leaves WHERE type = 'ShortPermission'), 0)
+        INTO v_annual, v_sick, v_hajj, v_emergency, v_short_perm;
 
-        calc_annual := v_annual + v_business;
-        calc_sick := v_sick;
-        calc_emergency := v_emergency;
-        calc_short_perm := v_short_perm;
-        calc_hajj := v_hajj;
-
-        UPDATE leave_balances SET used_days = ROUND(calc_annual, 2) WHERE employee_id = emp.id AND leave_type = 'Annual';
-        UPDATE leave_balances SET used_days = ROUND(calc_sick, 2) WHERE employee_id = emp.id AND leave_type = 'Sick';
-        UPDATE leave_balances SET used_days = ROUND(calc_emergency, 2) WHERE employee_id = emp.id AND leave_type = 'Emergency';
-        UPDATE leave_balances SET used_days = ROUND(calc_short_perm, 2) WHERE employee_id = emp.id AND leave_type = 'ShortPermission';
-        UPDATE leave_balances SET used_days = ROUND(calc_hajj, 2) WHERE employee_id = emp.id AND leave_type = 'Hajj';
+        UPDATE leave_balances SET used_days = ROUND(v_annual, 2) WHERE employee_id = emp.id AND leave_type = 'Annual' AND year = 2026;
+        UPDATE leave_balances SET used_days = ROUND(v_sick, 2) WHERE employee_id = emp.id AND leave_type = 'Sick' AND year = 2026;
+        UPDATE leave_balances SET used_days = ROUND(v_hajj, 2) WHERE employee_id = emp.id AND leave_type = 'Hajj' AND year = 2026;
+        UPDATE leave_balances SET used_days = ROUND(v_emergency, 2) WHERE employee_id = emp.id AND leave_type = 'Emergency' AND year = 2026;
+        UPDATE leave_balances SET used_days = ROUND(v_short_perm, 2) WHERE employee_id = emp.id AND leave_type = 'ShortPermission' AND year = 2026;
     END LOOP;
 END;
 $$;
