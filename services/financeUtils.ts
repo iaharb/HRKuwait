@@ -65,6 +65,7 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
             { type: 'net_salary_payable', amount: item.netSalary },
             { type: 'pifss_employer_share', amount: item.pifssEmployerShare },
             { type: 'pifss_deduction', amount: item.pifssDeduction },
+            { type: 'indemnity_accrual', amount: item.indemnityAccrual },
         ];
 
         partsDetails.forEach((part) => {

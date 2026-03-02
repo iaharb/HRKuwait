@@ -223,6 +223,7 @@ export interface PayrollItem {
   shortPermissionDeductions: number;
   pifssDeduction: number;
   pifssEmployerShare: number;
+  indemnityAccrual: number; // Added for EOSB
   netSalary: number;
   verifiedByHr: boolean;
   variance: number;

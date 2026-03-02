@@ -153,6 +153,7 @@ const mapPayrollItem = (data: any): PayrollItem => ({
   shortPermissionDeductions: Number(data.short_permission_deductions || 0),
   pifssDeduction: Number(data.pifss_deduction || 0),
   pifssEmployerShare: Number(data.pifss_employer_share || 0),
+  indemnityAccrual: Number(data.indemnity_accrual || 0),
   netSalary: Number(data.net_salary || 0),
   verifiedByHr: !!data.verified_by_hr,
   variance: Number(data.variance || 0),
@@ -887,6 +888,7 @@ export const dbService = {
       short_permission_deductions: 0,
       pifss_deduction: calculation.pifssDeducted,
       pifss_employer_share: 0,
+      indemnity_accrual: 0,
       net_salary: calculation.total,
       verified_by_hr: true,
       variance: 0,
@@ -1033,6 +1035,7 @@ export const dbService = {
         pifssDeduction = 0;
       }
       const pifssEmployerShare = emp.nationality === 'Kuwaiti' ? basic * 0.125 : 0;
+      const indemnityAccrual = emp.nationality !== 'Kuwaiti' ? (basic / 24) : 0; // 15 days per year accrual
 
       const deductionBreakdown: BreakdownItem[] = [];
       let totalExplicitHubDeduction = 0;
@@ -1166,6 +1169,7 @@ export const dbService = {
         short_permission_deductions: 0,
         pifss_deduction: pifssDeduction,
         pifss_employer_share: pifssEmployerShare,
+        indemnity_accrual: indemnityAccrual,
         net_salary: net,
         verified_by_hr: false, variance: 0,
         allowance_breakdown: allowanceBreakdown,
@@ -1192,6 +1196,7 @@ export const dbService = {
       short_permission_deductions: i.short_permission_deductions,
       pifss_deduction: i.pifss_deduction,
       pifss_employer_share: i.pifss_employer_share,
+      indemnity_accrual: (i as any).indemnity_accrual,
       net_salary: i.net_salary,
       verified_by_hr: i.verified_by_hr,
       variance: i.variance,
