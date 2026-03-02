@@ -49,12 +49,12 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/payroll" element={<PayrollView user={user} key={`pay-${refreshKey}`} />} />
             <Route path="/settlement" element={<SettlementView key={`settle-${refreshKey}`} />} />
             <Route path="/attendance" element={<AttendanceView user={user} key={`attend-${refreshKey}`} />} />
-            <Route path="/admincenter" element={<AdminCenter key={`admin-${refreshKey}`} />} />
+            <Route path="/admin-center" element={<AdminCenter key={`admin-${refreshKey}`} />} />
             <Route path="/whitepaper" element={<Whitepaper key={`wp-${refreshKey}`} />} />
             <Route path="/mandoob" element={<MandoobDashboard key={`mandoob-${refreshKey}`} />} />
             <Route path="/finance" element={<FinanceMappingSettings key={`finance-${refreshKey}`} />} />
             <Route path="/management" element={<ManagementDashboard key={`manage-${refreshKey}`} />} />
-            <Route path="/usermanagement" element={<UserManagement key={`user-${refreshKey}`} />} />
+            <Route path="/user-management" element={<UserManagement key={`user-${refreshKey}`} />} />
             {/* 404 handling - redirect to default */}
             <Route path="*" element={<Navigate to={defaultRoute} replace />} />
         </Routes>
