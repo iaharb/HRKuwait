@@ -139,13 +139,17 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
     if (!currentLocation || !activeZone || !isFaceVerified) return;
 
     const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const isLate = (hours > 8) || (hours === 8 && minutes > 30);
+
     const newRecord: Omit<AttendanceRecord, 'id'> = {
       employeeId: user.id,
       employeeName: user.name,
       date: now.toISOString().split('T')[0],
       clockIn: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       location: activeZone.name,
-      status: 'On-Site',
+      status: isLate ? 'Late' : 'On-Site',
       coordinates: { lat: currentLocation.latitude, lng: currentLocation.longitude },
       source: 'Web'
     };
