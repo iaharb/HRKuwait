@@ -38,101 +38,80 @@ const MobileDashboard: React.FC<{ user: User, language: 'en' | 'ar', onNavigate:
   }, [user]);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Welcome Card */}
-      <div className="bg-slate-900 rounded-[32px] p-8 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-6 opacity-10">🇰🇼</div>
-        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">{t.welcome}, {user.name.split(' ')[0]}</p>
-        <h2 className="text-2xl font-black tracking-tight mb-6">{t.readyShift}</h2>
-
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t.currentShift}</p>
-            <p className="text-4xl font-black font-mono tracking-tighter">{timer}</p>
+    <div className="space-y-4">
+      {/* Primary Action Card: Clock In/Out */}
+      <div className="bg-slate-900 rounded-[28px] p-6 text-white relative overflow-hidden shadow-xl shadow-slate-900/10">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{t.currentShift}</p>
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-lg">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
           </div>
-          <button onClick={() => onNavigate('clock')} className="px-6 py-3 bg-emerald-500 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all">
-            {t.viewSession}
-          </button>
         </div>
+
+        <div className="flex items-baseline gap-2 mb-6">
+          <span className="text-4xl font-black font-mono tracking-tighter">{timer}</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hrs Active</span>
+        </div>
+
+        <button
+          onClick={() => onNavigate('clock')}
+          className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-indigo-500/20"
+        >
+          {timer !== "00:00:00" ? "Manage Current Session" : "Start New Shift"}
+        </button>
       </div>
 
-      {/* Enhanced Quick Action Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.leaveBalance}</p>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1.5 uppercase">
-                <span>{t.annual}</span>
-                <span>{balances.annual}/30d</span>
-              </div>
-              <div className="w-full h-2 bg-indigo-50 rounded-full overflow-hidden border border-indigo-100 shadow-inner">
-                <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${(balances.annual / 30) * 100}%` }}></div>
-              </div>
+      {/* Grid: Balances & Payroll */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Compact Balance Column */}
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-between">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-4">Availability</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-600">{t.annual}</span>
+              <span className="text-sm font-black text-indigo-600">{balances.annual}<span className="text-[8px] ml-0.5">d</span></span>
             </div>
-            <div>
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1.5 uppercase">
-                <span>{t.sick}</span>
-                <span>{balances.sick}/15d</span>
-              </div>
-              <div className="w-full h-2 bg-rose-50 rounded-full overflow-hidden border border-rose-100 shadow-inner">
-                <div className="h-full bg-rose-500 transition-all duration-1000" style={{ width: `${(balances.sick / 15) * 100}%` }}></div>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-600">{t.sick}</span>
+              <span className="text-sm font-black text-rose-500">{balances.sick}<span className="text-[8px] ml-0.5">d</span></span>
             </div>
           </div>
         </div>
-        <button onClick={() => onNavigate('payroll')} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm text-start flex flex-col justify-between active:scale-95 transition-all">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{t.nextPayDay}</p>
+
+        {/* Compact Payroll Card */}
+        <button onClick={() => onNavigate('payroll')} className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-start flex flex-col justify-between active:scale-95 transition-all">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em]">Next Payment</p>
           <div>
-            <p className="text-xl font-black text-slate-900">{language === 'ar' ? '٢٥ أبريل' : 'April 25'}</p>
-            <p className="text-[8px] font-bold text-emerald-600 uppercase mt-1 tracking-widest flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
-              WPS Verified
-            </p>
+            <p className="text-lg font-black text-slate-900 mb-1">{language === 'ar' ? '٢٥ أبريل' : 'April 25'}</p>
+            <div className="h-0.5 w-full bg-emerald-500/20 rounded-full">
+              <div className="h-full bg-emerald-500 w-2/3 rounded-full"></div>
+            </div>
           </div>
         </button>
       </div>
 
-      {/* Notifications / Alerts Feed */}
-      <div className="space-y-4">
-        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">{t.actionRequired}</h3>
-        <div className="bg-amber-50 border border-amber-100 p-6 rounded-[32px] flex items-center gap-4">
-          <span className="text-2xl">🚨</span>
-          <div>
-            <p className="text-xs font-black text-amber-900 uppercase">{t.civilIdExpiryAlert}</p>
-            <p className="text-[10px] text-amber-700 font-medium">{t.expiryMessage} {t.uploadNew}</p>
+      {/* Critical Alerts - Ultra Compact */}
+      <div className="space-y-2">
+        <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">🚨</span>
+            <p className="text-[9px] font-black text-amber-900 uppercase tracking-tighter">{t.civilIdExpiryAlert}</p>
           </div>
-        </div>
-        <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-[32px] flex items-center gap-4">
-          <span className="text-2xl">✅</span>
-          <div>
-            <p className="text-xs font-black text-indigo-900 uppercase">{t.leaveApproved}</p>
-            <p className="text-[10px] text-indigo-700 font-medium">{t.leaveApprovedMsg}</p>
-          </div>
+          <button className="px-3 py-1.5 bg-amber-200 text-amber-900 rounded-lg text-[8px] font-black uppercase tracking-widest">Update</button>
         </div>
       </div>
 
-      {/* Quick Access Actions */}
-      <div className="space-y-4">
-        <button
-          onClick={() => onNavigate('expenses')}
-          className="w-full py-5 bg-white text-indigo-600 border border-slate-100 rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-sm active:scale-95 transition-all"
-        >
-          <span>📸</span> {t.claims}
-        </button>
+      {/* Quick Utility Strip */}
+      <div className="grid grid-cols-3 gap-2">
+        <button onClick={() => onNavigate('expenses')} className="py-3 bg-white border border-slate-100 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest shadow-sm">📸 {t.claims}</button>
+        <button onClick={() => onNavigate('leaves')} className="py-3 bg-white border border-slate-100 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest shadow-sm">📅 {t.leaves}</button>
+        <button onClick={() => onNavigate('profile')} className="py-3 bg-white border border-slate-100 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest shadow-sm">👤 Me</button>
       </div>
 
-      {/* Explicit Logout Section */}
-      <div className="pt-6 border-t border-slate-100">
-        <button
-          onClick={onLogout}
-          className="w-full py-5 bg-rose-50 text-rose-600 border border-rose-100 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] active:scale-95 transition-all shadow-sm"
-        >
-          {t.signOutEss}
-        </button>
-        <p className="mt-4 text-center text-[8px] text-slate-400 font-black uppercase tracking-widest">
-          {t.version} 4.0.2 {t.mobileBuild} • Enterprise HR
-        </p>
+      {/* Build Info */}
+      <div className="pt-4 text-center">
+        <p className="text-[7px] text-slate-300 font-black uppercase tracking-[0.3em]">{t.version} 5.0-COMPACT • KUWAIT ENTERPRISE</p>
       </div>
     </div>
   );
