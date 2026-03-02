@@ -23,3 +23,30 @@ INSERT INTO attendance (employee_id, employee_name, date, clock_in, clock_out, l
 SELECT e.id, e.name, d::date, '07:30:00'::time, '15:30:00'::time, 'HQ Tower', 'On-Site', 'Hardware'
 FROM employees e CROSS JOIN generate_series('2026-01-01'::date, '2026-01-31'::date, '1 day'::interval) d
 WHERE EXTRACT(DOW FROM d) != 5;
+
+-- 5. SEED DEPARTMENTS
+INSERT INTO departments (name, name_arabic, target_ratio, kuwaiti_count, expat_count)
+VALUES 
+('Executive', 'الإدارة التنفيذية', 100, 1, 0),
+('HR', 'الموارد البشرية', 100, 1, 0),
+('IT', 'تقنية المعلومات', 75, 2, 1),
+('Finance', 'الشؤون المالية', 30, 0, 0)
+ON CONFLICT (name) DO NOTHING;
+
+-- 6. HYDRATE NORMALIZED TABLES FROM JSONB
+-- This ensures modern relational tables are in sync with the employees table
+INSERT INTO leave_balances (employee_id, leave_type, entitled_days, used_days, year)
+SELECT id, 'Annual', 30, 0, 2026 FROM employees ON CONFLICT DO NOTHING;
+INSERT INTO leave_balances (employee_id, leave_type, entitled_days, used_days, year)
+SELECT id, 'Sick', 15, 0, 2026 FROM employees ON CONFLICT DO NOTHING;
+
+INSERT INTO employee_allowances (employee_id, name, name_arabic, type, value, is_housing)
+SELECT
+    e.id,
+    elem->>'name',
+    elem->>'nameArabic',
+    COALESCE(elem->>'type', 'Fixed'),
+    COALESCE((elem->>'value')::numeric, 0),
+    COALESCE((elem->>'isHousing')::boolean, false)
+FROM employees e, jsonb_array_elements(e.allowances) AS elem
+ON CONFLICT DO NOTHING;
