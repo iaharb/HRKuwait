@@ -159,7 +159,7 @@ export async function syncEOSBLiability(): Promise<{ gap: number; provisionAccou
         }
 
         // 5. Create/Update Migration Run
-        const migrationRunId = 'MIGRATION-EOSB-TOTAL';
+        const migrationRunId = 'ee05bb00-0000-4000-a000-111122223333';
 
         await supabase.from('payroll_runs').upsert([{
             id: migrationRunId,
