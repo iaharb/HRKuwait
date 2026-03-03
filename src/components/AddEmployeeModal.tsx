@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService.ts';
 import { Employee, Allowance } from '../types/types';
-import { STANDARD_ALLOWANCE_NAMES } from '../constants.tsx';
+import { STANDARD_ALLOWANCE_NAMES, STANDARD_ROLES } from '../constants.tsx';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
 
@@ -18,7 +18,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
   const { t, i18n } = useTranslation();
   const { notify } = useNotifications();
   const [loading, setLoading] = useState(false);
-  const [departments, setDepartments] = useState<{en: string, ar: string}[]>([]);
+  const [departments, setDepartments] = useState<{ en: string, ar: string }[]>([]);
 
   const initialFormData: Omit<Employee, 'id'> = {
     name: '',
@@ -27,6 +27,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     civilId: '',
     department: 'IT',
     departmentArabic: 'تقنية المعلومات',
+    role: 'Employee',
     position: '',
     positionArabic: '',
     joinDate: new Date().toISOString().split('T')[0],
@@ -80,6 +81,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
         civilId: employeeToEdit.civilId || '',
         department: employeeToEdit.department,
         departmentArabic: employeeToEdit.departmentArabic || '',
+        role: employeeToEdit.role || 'Employee',
         position: employeeToEdit.position,
         positionArabic: employeeToEdit.positionArabic || '',
         joinDate: employeeToEdit.joinDate,
@@ -108,12 +110,12 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     const stdMatch = STANDARD_ALLOWANCE_NAMES.find(s => s.en === newAllowance.selectedName);
     const finalName = newAllowance.selectedName === 'Other' ? newAllowance.customName : newAllowance.selectedName;
     const finalNameAr = newAllowance.selectedName === 'Other' ? newAllowance.customName : (stdMatch?.ar || finalName);
-    
+
     if (!finalName || newAllowance.value <= 0) {
       notify(t('warning'), t('actionRequired'), "warning");
       return;
     }
-    
+
     const allowanceWithId: Allowance = {
       id: Math.random().toString(36).substr(2, 9),
       name: finalName,
@@ -122,18 +124,18 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
       value: newAllowance.value,
       isHousing: newAllowance.isHousing
     };
-    
+
     setFormData({
       ...formData,
       allowances: [...formData.allowances, allowanceWithId]
     });
-    
-    setNewAllowance({ 
-      selectedName: 'Housing', 
-      customName: '', 
-      type: 'Fixed', 
-      value: 0, 
-      isHousing: true 
+
+    setNewAllowance({
+      selectedName: 'Housing',
+      customName: '',
+      type: 'Fixed',
+      value: 0,
+      isHousing: true
     });
   };
 
@@ -190,7 +192,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}></div>
       <div className="bg-white rounded-[48px] w-full max-w-5xl shadow-2xl relative z-10 overflow-hidden border border-slate-200 max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-300">
-        
+
         <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -200,23 +202,23 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
           </div>
           <button onClick={onClose} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 text-xl font-bold hover:text-rose-500 transition-colors">×</button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-10 space-y-2">
-          
+
           {/* Identity Section */}
           {sectionHeader("👤", t('personalIdentity'))}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nameEn')}</label>
-              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nameAr')}</label>
-              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-right outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nameArabic} onChange={e => setFormData({...formData, nameArabic: e.target.value})} />
+              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-right outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nameArabic} onChange={e => setFormData({ ...formData, nameArabic: e.target.value })} />
             </div>
             <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
-              <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value as any})}>
+              <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
                 <option value="Kuwaiti">{t('kuwaiti')}</option>
                 <option value="Expat">{t('expat')}</option>
               </select>
@@ -228,100 +230,110 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('dept')}</label>
-              <select 
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" 
-                value={formData.department} 
+              <select
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                value={formData.department}
                 onChange={e => {
                   const match = departments.find(d => d.en === e.target.value);
-                  setFormData({...formData, department: e.target.value, departmentArabic: match?.ar || ''});
+                  setFormData({ ...formData, department: e.target.value, departmentArabic: match?.ar || '' });
                 }}
               >
                 {departments.map(d => <option key={d.en} value={d.en}>{language === 'ar' ? d.ar : d.en}</option>)}
               </select>
             </div>
             <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Role</label>
+              <select
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                value={formData.role}
+                onChange={e => setFormData({ ...formData, role: e.target.value as any })}
+              >
+                {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{language === 'ar' ? r.ar : r.en}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleEn')}</label>
-              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} />
+              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })} />
             </div>
             <div className="space-y-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleAr')}</label>
-              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right" value={formData.positionArabic} onChange={e => setFormData({...formData, positionArabic: e.target.value})} />
+              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right" value={formData.positionArabic} onChange={e => setFormData({ ...formData, positionArabic: e.target.value })} />
             </div>
           </div>
 
           {/* Bank & Payment Details */}
           {sectionHeader("💳", t('bankAndPayment'))}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('bankCode')}</label>
-                <select 
-                  className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                  value={formData.bankCode}
-                  onChange={e => setFormData({...formData, bankCode: e.target.value})}
-                >
-                   {kuwaitBanks.map(b => <option key={b.code} value={b.code}>{b.name} ({b.code})</option>)}
-                </select>
-             </div>
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('ibanNumber')}</label>
-                <input 
-                  className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-mono font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" 
-                  placeholder="KW00 XXXX XXXX XXXX XXXX XXXX XXXX"
-                  value={formData.iban} 
-                  onChange={e => setFormData({...formData, iban: e.target.value.toUpperCase()})} 
-                />
-             </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('bankCode')}</label>
+              <select
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                value={formData.bankCode}
+                onChange={e => setFormData({ ...formData, bankCode: e.target.value })}
+              >
+                {kuwaitBanks.map(b => <option key={b.code} value={b.code}>{b.name} ({b.code})</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('ibanNumber')}</label>
+              <input
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-mono font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                placeholder="KW00 XXXX XXXX XXXX XXXX XXXX XXXX"
+                value={formData.iban}
+                onChange={e => setFormData({ ...formData, iban: e.target.value.toUpperCase() })}
+              />
+            </div>
           </div>
 
           {/* Official Documents */}
           {sectionHeader("🛡️", t('officialDocuments'))}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdNumber')}</label>
-                <input required maxLength={12} className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilId} onChange={e => setFormData({...formData, civilId: e.target.value.replace(/\D/g, '')})} />
-             </div>
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdExpiry')}</label>
-                <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilIdExpiry} onChange={e => setFormData({...formData, civilIdExpiry: e.target.value})} />
-             </div>
-             {formData.nationality === 'Kuwaiti' && (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdNumber')}</label>
+              <input required maxLength={12} className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilId} onChange={e => setFormData({ ...formData, civilId: e.target.value.replace(/\D/g, '') })} />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdExpiry')}</label>
+              <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilIdExpiry} onChange={e => setFormData({ ...formData, civilIdExpiry: e.target.value })} />
+            </div>
+            {formData.nationality === 'Kuwaiti' && (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('pifssNumber')}</label>
+                <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssNumber} onChange={e => setFormData({ ...formData, pifssNumber: e.target.value })} />
+              </div>
+            )}
+            {formData.nationality === 'Expat' && (
+              <>
                 <div className="space-y-2">
-                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('pifssNumber')}</label>
-                   <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssNumber} onChange={e => setFormData({...formData, pifssNumber: e.target.value})} />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportNumber')}</label>
+                  <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportNumber} onChange={e => setFormData({ ...formData, passportNumber: e.target.value })} />
                 </div>
-             )}
-             {formData.nationality === 'Expat' && (
-                <>
-                   <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportNumber')}</label>
-                      <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportNumber} onChange={e => setFormData({...formData, passportNumber: e.target.value})} />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportExpiry')}</label>
-                      <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportExpiry} onChange={e => setFormData({...formData, passportExpiry: e.target.value})} />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('iznAmalExpiry')}</label>
-                      <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.iznAmalExpiry} onChange={e => setFormData({...formData, iznAmalExpiry: e.target.value})} />
-                   </div>
-                </>
-             )}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportExpiry')}</label>
+                  <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportExpiry} onChange={e => setFormData({ ...formData, passportExpiry: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('iznAmalExpiry')}</label>
+                  <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.iznAmalExpiry} onChange={e => setFormData({ ...formData, iznAmalExpiry: e.target.value })} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Contract Settings */}
           {sectionHeader("📜", t('contractSettings'))}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('joinDate')}</label>
-                <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.joinDate} onChange={e => setFormData({...formData, joinDate: e.target.value})} />
-             </div>
-             <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('workingDaysWeek')}</label>
-                <div className="grid grid-cols-2 gap-4">
-                   <button type="button" onClick={() => setFormData({...formData, workDaysPerWeek: 5})} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 5 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>5 Days</button>
-                   <button type="button" onClick={() => setFormData({...formData, workDaysPerWeek: 6})} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 6 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>6 Days</button>
-                </div>
-             </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('joinDate')}</label>
+              <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.joinDate} onChange={e => setFormData({ ...formData, joinDate: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('workingDaysWeek')}</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button type="button" onClick={() => setFormData({ ...formData, workDaysPerWeek: 5 })} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 5 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>5 Days</button>
+                <button type="button" onClick={() => setFormData({ ...formData, workDaysPerWeek: 6 })} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 6 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>6 Days</button>
+              </div>
+            </div>
           </div>
 
           {/* Financial Section */}
@@ -330,7 +342,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('salary')} (Basic)</label>
-                <input type="number" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-black text-lg outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.salary} onChange={e => setFormData({...formData, salary: parseInt(e.target.value) || 0})} />
+                <input type="number" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-black text-lg outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.salary} onChange={e => setFormData({ ...formData, salary: parseInt(e.target.value) || 0 })} />
               </div>
               <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Allowances</h4>
@@ -354,9 +366,9 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Allowance Category</label>
-                  <select 
-                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/10" 
-                    value={newAllowance.selectedName} 
+                  <select
+                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/10"
+                    value={newAllowance.selectedName}
                     onChange={e => handleNameChange(e.target.value)}
                   >
                     {STANDARD_ALLOWANCE_NAMES.map(opt => (
@@ -366,31 +378,31 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
                 </div>
 
                 {newAllowance.selectedName === 'Other' && (
-                  <input 
-                    placeholder="Type Allowance Name..." 
-                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none animate-in fade-in" 
-                    value={newAllowance.customName} 
-                    onChange={e => setNewAllowance({...newAllowance, customName: e.target.value})} 
+                  <input
+                    placeholder="Type Allowance Name..."
+                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none animate-in fade-in"
+                    value={newAllowance.customName}
+                    onChange={e => setNewAllowance({ ...newAllowance, customName: e.target.value })}
                   />
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Logic</label>
-                     <select className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.type} onChange={e => setNewAllowance({...newAllowance, type: e.target.value as any})}>
-                       <option value="Fixed">Fixed Amount</option>
-                       <option value="Percentage">% of Basic</option>
-                     </select>
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Logic</label>
+                    <select className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.type} onChange={e => setNewAllowance({ ...newAllowance, type: e.target.value as any })}>
+                      <option value="Fixed">Fixed Amount</option>
+                      <option value="Percentage">% of Basic</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
-                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Magnitude</label>
-                     <input type="number" placeholder="Value" className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.value} onChange={e => setNewAllowance({...newAllowance, value: parseFloat(e.target.value) || 0})} />
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Magnitude</label>
+                    <input type="number" placeholder="Value" className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.value} onChange={e => setNewAllowance({ ...newAllowance, value: parseFloat(e.target.value) || 0 })} />
                   </div>
                 </div>
 
                 <label className="flex items-center gap-3 cursor-pointer select-none py-2 group">
                   <div className="relative w-10 h-5 bg-slate-200 rounded-full transition-all group-has-[:checked]:bg-indigo-500">
-                    <input type="checkbox" className="sr-only peer" checked={newAllowance.isHousing} onChange={e => setNewAllowance({...newAllowance, isHousing: e.target.checked})} />
+                    <input type="checkbox" className="sr-only peer" checked={newAllowance.isHousing} onChange={e => setNewAllowance({ ...newAllowance, isHousing: e.target.checked })} />
                     <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-5"></div>
                   </div>
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Is Housing? (Unconditional Payment)</span>

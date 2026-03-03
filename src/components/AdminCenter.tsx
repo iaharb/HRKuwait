@@ -21,6 +21,7 @@ const DataExplorerTab: React.FC = () => {
     { id: 'leave_balances', icon: '🏖️', label: 'Leave Balances', tables: ['leave_balances'] },
     { id: 'leave_history', icon: '📜', label: 'Leave Audit Trail', tables: ['leave_history'] },
     { id: 'payroll_runs', icon: '💳', label: 'Payroll Runs', tables: ['payroll_runs'] },
+    { id: 'expense_claims', icon: '🧾', label: 'Expense Claims', tables: ['expense_claims', 'expense_claim_history'] },
     { id: 'attendance', icon: '📅', label: 'Attendance', tables: ['attendance'] },
   ];
 
@@ -74,6 +75,10 @@ const DataExplorerTab: React.FC = () => {
       if (explorerEntity.id === 'leave_requests') {
         const hist = await supabase.from('leave_history').select('*').eq('leave_request_id', selectedRow.id).order('created_at');
         d.leaveHistory = hist.data || [];
+      }
+      if (explorerEntity.id === 'expense_claims') {
+        const hist = await supabase.from('expense_claim_history').select('*').eq('claim_id', selectedRow.id).order('created_at');
+        (d as any).claimHistory = hist.data || [];
       }
       setDetailData(d);
       setDetailLoading(false);
@@ -281,6 +286,25 @@ const DataExplorerTab: React.FC = () => {
                           </div>
                         ))}
                         {!detailData.leaveHistory?.length && <p className="text-xs text-slate-300 italic">No history entries</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Claim History timeline */}
+                {explorerEntity.id === 'expense_claims' && (
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Claim Audit Trail</p>
+                    {detailLoading ? <div className="text-xs text-slate-300 animate-pulse">Loading…</div> : (
+                      <div className="space-y-2">
+                        {((detailData as any).claimHistory || []).map((h: any, i: number) => (
+                          <div key={i} className="bg-slate-50 px-3 py-2 rounded-xl border-l-2 border-emerald-300">
+                            <p className="text-[10px] font-black text-slate-700">{h.action}</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">{h.actor_role} · {h.created_at?.slice(0, 10)}</p>
+                            {h.notes && <p className="text-[9px] text-slate-500 italic mt-0.5">"{h.notes}"</p>}
+                          </div>
+                        ))}
+                        {!((detailData as any).claimHistory || []).length && <p className="text-xs text-slate-300 italic">No history entries</p>}
                       </div>
                     )}
                   </div>

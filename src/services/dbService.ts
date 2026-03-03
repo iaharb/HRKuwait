@@ -87,6 +87,7 @@ const mapEmployee = (data: any): Employee => {
     bankCode: data.bank_code,
     salary: Number(data.salary || 0),
     allowances: resolvedAllowances,
+    role: data.role || 'Employee',
     faceToken: data.face_token,
     deviceUserId: data.device_user_id
   };
@@ -470,6 +471,7 @@ export const dbService = {
       bank_code: employee.bankCode,
       face_token: (employee as any).faceToken || null,
       device_user_id: (employee as any).deviceUserId || null,
+      role: employee.role,
       leave_balances: employee.leaveBalances,
       allowances: employee.allowances
     };
@@ -524,6 +526,7 @@ export const dbService = {
     if (updates.bankCode !== undefined) dbUpdates.bank_code = updates.bankCode;
     if (updates.faceToken !== undefined) dbUpdates.face_token = updates.faceToken;
     if (updates.deviceUserId !== undefined) dbUpdates.device_user_id = updates.deviceUserId;
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
     if (updates.allowances !== undefined) dbUpdates.allowances = updates.allowances;
 
     const { data, error = null } = await supabase!.from('employees').update(dbUpdates).eq('id', id).select().single();

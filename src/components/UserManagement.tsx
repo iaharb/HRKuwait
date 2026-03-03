@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient.ts';
 import { dbService } from '../services/dbService.ts';
 import { Employee, UserRole, View } from '../types/types';
+import { STANDARD_ROLES } from '../constants.tsx';
 import { useTranslation } from 'react-i18next';
 
 export const UserManagement: React.FC = () => {
@@ -24,18 +25,7 @@ export const UserManagement: React.FC = () => {
     const [templates, setTemplates] = useState<any[]>([]);
     const [applyingTemplate, setApplyingTemplate] = useState(false);
 
-    const roles: UserRole[] = [
-        'Admin',
-        'HR',
-        'HR Officer',
-        'HR Manager',
-        'Payroll Officer',
-        'Payroll Manager',
-        'Manager',
-        'Executive',
-        'Mandoob',
-        'Employee'
-    ];
+    const roles = STANDARD_ROLES.map(r => r.id as UserRole);
 
     const availableViews = Object.values(View);
 
@@ -344,7 +334,7 @@ export const UserManagement: React.FC = () => {
                                                     <td className="px-6 py-4 text-slate-500 font-mono text-sm">{user.username}</td>
                                                     <td className="px-6 py-4">
                                                         <select value={user.role} onChange={(e) => handleUpdateRole(user.id, e.target.value as UserRole)} className="bg-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold outline-none">
-                                                            {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                                                            {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en} / {r.ar}</option>)}
                                                         </select>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
@@ -439,7 +429,7 @@ export const UserManagement: React.FC = () => {
                             <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none" />
                             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none" />
                             <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none">
-                                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                                {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en} / {r.ar}</option>)}
                             </select>
                             <div className="flex gap-4 pt-4">
                                 <button onClick={() => setShowUpgradeModal(false)} className="flex-1 bg-slate-100 font-bold py-4 rounded-2xl">Cancel</button>

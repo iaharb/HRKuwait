@@ -10,12 +10,25 @@ export const STANDARD_ALLOWANCE_NAMES = [
   { en: 'Hardship', ar: 'بدل طبيعة عمل', isHousing: false }
 ];
 
+export const STANDARD_ROLES = [
+  { id: 'Admin', en: 'Admin', ar: 'مدير نظام' },
+  { id: 'HR', en: 'HR', ar: 'الموارد البشرية' },
+  { id: 'HR Manager', en: 'HR Manager', ar: 'مدير موارد بشرية' },
+  { id: 'HR Officer', en: 'HR Officer', ar: 'مسؤول موارد بشرية' },
+  { id: 'Payroll Manager', en: 'Payroll Manager', ar: 'مدير رواتب' },
+  { id: 'Payroll Officer', en: 'Payroll Officer', ar: 'مسؤول رواتب' },
+  { id: 'Manager', en: 'Manager', ar: 'مدير' },
+  { id: 'Executive', en: 'Executive', ar: 'تنفيذي' },
+  { id: 'Mandoob', en: 'Mandoob', ar: 'مندوب' },
+  { id: 'Employee', en: 'Employee', ar: 'موظف' },
+];
+
 export const MOCK_EMPLOYEES: Employee[] = [
   {
     id: '00000000-0000-0000-0000-000000000001',
     name: 'Dr. Faisal Al-Sabah', nameArabic: 'د. فيصل الصباح',
     nationality: 'Kuwaiti', department: 'Executive', departmentArabic: 'الإدارة التنفيذية',
-    position: 'CEO', positionArabic: 'الرئيس التنفيذي',
+    position: 'CEO', positionArabic: 'الرئيس التنفيذي', role: 'Admin',
     joinDate: '2015-01-01', salary: 7500, status: 'Active',
     trainingHours: 120, workDaysPerWeek: 5, civilIdExpiry: '2028-12-31',
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 5, sickUsed: 0, emergencyUsed: 0, shortPermissionLimit: 2, shortPermissionUsed: 0, hajUsed: false },
@@ -26,7 +39,7 @@ export const MOCK_EMPLOYEES: Employee[] = [
     id: '00000000-0000-0000-0000-000000000002',
     name: 'Layla Al-Fadhli', nameArabic: 'ليلى الفضلي',
     nationality: 'Kuwaiti', department: 'HR', departmentArabic: 'الموارد البشرية',
-    position: 'HR Manager', positionArabic: 'مدير الموارد البشرية',
+    position: 'HR Manager', positionArabic: 'مدير الموارد البشرية', role: 'HR Manager',
     joinDate: '2018-03-12', salary: 3500, status: 'Active',
     trainingHours: 65, workDaysPerWeek: 5, civilIdExpiry: '2027-05-20',
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 5, sickUsed: 0, emergencyUsed: 0, shortPermissionLimit: 2, shortPermissionUsed: 0, hajUsed: false },
@@ -38,7 +51,7 @@ export const MOCK_EMPLOYEES: Employee[] = [
     id: '00000000-0000-0000-0000-000000000003',
     name: 'Ahmed Al-Mutairi', nameArabic: 'أحمد المطيري',
     nationality: 'Kuwaiti', department: 'IT', departmentArabic: 'تقنية المعلومات',
-    position: 'IT Lead', positionArabic: 'رئيس قسم التقنية',
+    position: 'IT Lead', positionArabic: 'رئيس قسم التقنية', role: 'Manager',
     joinDate: '2019-06-15', salary: 3200, status: 'Active',
     trainingHours: 45, workDaysPerWeek: 5, civilIdExpiry: '2026-03-15',
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 12, sickUsed: 4, emergencyUsed: 1, shortPermissionLimit: 2, shortPermissionUsed: 0, hajUsed: false },
@@ -50,7 +63,7 @@ export const MOCK_EMPLOYEES: Employee[] = [
     id: '00000000-0000-0000-0000-000000000004',
     name: 'Sarah Al-Ghanim', nameArabic: 'سارة الغانم',
     nationality: 'Kuwaiti', department: 'IT', departmentArabic: 'تقنية المعلومات',
-    position: 'Senior Developer', positionArabic: 'مطور أقدم',
+    position: 'Senior Developer', positionArabic: 'مطور أقدم', role: 'Employee',
     joinDate: '2021-05-20', salary: 2200, status: 'Active',
     trainingHours: 40, workDaysPerWeek: 5, civilIdExpiry: '2027-10-10',
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 8, sickUsed: 2, emergencyUsed: 0, shortPermissionLimit: 2, shortPermissionUsed: 1.5, hajUsed: false },
@@ -62,7 +75,7 @@ export const MOCK_EMPLOYEES: Employee[] = [
     id: '00000000-0000-0000-0000-000000000005',
     name: 'John Doe', nameArabic: 'جون دو',
     nationality: 'Expat', department: 'IT', departmentArabic: 'تقنية المعلومات',
-    position: 'Network Engineer', positionArabic: 'مهندس شبكات',
+    position: 'Network Engineer', positionArabic: 'مهندس شبكات', role: 'Employee',
     joinDate: '2022-03-15', salary: 1800, status: 'Active',
     trainingHours: 32, workDaysPerWeek: 6, civilIdExpiry: '2026-03-15', passportExpiry: '2026-12-31',
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 14, sickUsed: 5, emergencyUsed: 3, shortPermissionLimit: 2, shortPermissionUsed: 0, hajUsed: true },

@@ -80,6 +80,7 @@ export interface Employee {
   bankCode?: string;
   faceToken?: string;
   deviceUserId?: string;
+  role: UserRole;
   phone?: string;
   emergencyContact?: string;
 }
