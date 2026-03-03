@@ -1377,8 +1377,65 @@ export const dbService = {
   },
 
   async generateHistoricalAttendance(): Promise<{ generated: number }> {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return { generated: 150 };
+    const sql = `
+      DO $$
+      DECLARE
+          emp RECORD;
+          d DATE;
+          clock_in TIME;
+          clock_out TIME;
+          lateness_chance NUMERIC;
+          ot_chance NUMERIC;
+          generated_count INTEGER := 0;
+      BEGIN
+          FOR emp IN SELECT id, name FROM employees LOOP
+              -- For each day from Jan 1st to March 3rd 2026
+              FOR d IN SELECT generate_series('2026-01-01'::date, '2026-03-03'::date, '1 day'::interval)::date LOOP
+                  -- Skip Fridays (Kuwait Weekend)
+                  IF EXTRACT(DOW FROM d) = 5 THEN
+                      CONTINUE;
+                  END IF;
+                  
+                  -- Skip if already exists
+                  IF EXISTS (SELECT 1 FROM attendance WHERE employee_id = emp.id AND date = d) THEN
+                      CONTINUE;
+                  END IF;
+
+                  -- Randomized Lateness (25% chance)
+                  lateness_chance := random();
+                  IF lateness_chance < 0.25 THEN
+                      -- Late: 07:45 to 09:30
+                      clock_in := '07:45:00'::time + (random() * interval '1 hour 45 minutes');
+                  ELSE
+                      -- On Time: 07:15 to 07:40
+                      clock_in := '07:15:00'::time + (random() * interval '25 minutes');
+                  END IF;
+
+                  -- Randomized Overtime (40% chance)
+                  ot_chance := random();
+                  IF ot_chance < 0.4 THEN
+                      -- Overtime: 16:30 to 20:30
+                      clock_out := '16:30:00'::time + (random() * interval '4 hours');
+                  ELSE
+                      -- Standard: 15:30 to 16:15
+                      clock_out := '15:30:00'::time + (random() * interval '45 minutes');
+                  END IF;
+
+                  INSERT INTO attendance (id, employee_id, employee_name, date, clock_in, clock_out, location, status, source)
+                  VALUES (uuid_generate_v4(), emp.id, emp.name, d, clock_in, clock_out, 'Al Hamra Tower HQ', 'On-Site', 'Hardware');
+                  
+                  generated_count := generated_count + 1;
+              END LOOP;
+          END LOOP;
+      END $$;
+    `;
+
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const { error } = await supabase.rpc('run_sql', { sql_query: sql });
+    if (error) throw error;
+
+    return { generated: 1 }; // Return dummy success count, client-side will refresh
   },
 
   async getOfficeLocations(): Promise<OfficeLocation[]> {
