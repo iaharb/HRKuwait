@@ -10,7 +10,7 @@ import IntelligentTicker from './components/IntelligentTicker.tsx';
 import Login from './components/Login.tsx';
 import MobileApp from './mobile/App.tsx';
 import MobileLogin from './mobile/Login.tsx';
-import { View, Employee } from './types/types.ts';
+import { View, Employee, User } from './types/types.ts';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from './components/ThemeContext.tsx';
 import { useAuth } from './hooks/useAuth.ts';
@@ -74,12 +74,23 @@ const App: React.FC = () => {
     navigate(`/${view.toLowerCase()}`);
   };
 
+  const handleAuthLogin = (user: User) => {
+    login(user);
+    const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
+    navigate(defaultRoute, { replace: true });
+  };
+
+  const handleAuthLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+
   const renderAppStructure = () => {
     if (viewMode === 'mobile') {
       if (!currentUser) {
         return (
           <MobileLogin
-            onLogin={login}
+            onLogin={handleAuthLogin}
             language={language}
             setLanguage={setLanguage}
             onSwitchToDesktop={() => {
@@ -94,7 +105,7 @@ const App: React.FC = () => {
           user={currentUser}
           language={language}
           setLanguage={setLanguage}
-          onLogout={logout}
+          onLogout={handleAuthLogout}
           onSwitchToDesktop={() => {
             localStorage.removeItem('force_mobile');
             setViewMode('desktop');
@@ -104,7 +115,7 @@ const App: React.FC = () => {
     }
 
     if (!currentUser) {
-      return <Login onLogin={login} language={language} />;
+      return <Login onLogin={handleAuthLogin} language={language} />;
     }
 
     return (
@@ -113,7 +124,7 @@ const App: React.FC = () => {
           user={currentUser}
           language={language}
           setLanguage={setLanguage}
-          onLogout={logout}
+          onLogout={handleAuthLogout}
           onToggleMobile={toggleViewMode}
           onAddMember={() => { setEmployeeToEdit(null); setIsModalOpen(true); }}
         />

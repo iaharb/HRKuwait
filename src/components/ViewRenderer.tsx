@@ -36,25 +36,28 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
     onEditEmployee
 }) => {
     const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
+    const isAdminOrHr = ['Admin', 'HR', 'HR Manager', 'HR Officer'].includes(user.role);
+    const isAdmin = user.role === 'Admin';
+    const isMandoob = user.role === 'Mandoob';
 
     return (
         <Routes>
             <Route path="/" element={<Navigate to={defaultRoute} replace />} />
             <Route path="/dashboard" element={<Dashboard user={user} onNavigate={onNavigate} key={`dash-${refreshKey}`} language={language} />} />
             <Route path="/directory" element={<EmployeeDirectory user={user} onAddClick={onOpenEmployeeModal} onEditClick={onEditEmployee} key={`dir-${refreshKey}`} language={language} />} />
-            <Route path="/insights" element={<AiInsights key={`ai-${refreshKey}`} />} />
-            <Route path="/compliance" element={<ComplianceView key={`comp-${refreshKey}`} />} />
+            <Route path="/insights" element={isAdminOrHr ? <AiInsights key={`ai-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/compliance" element={isAdminOrHr ? <ComplianceView key={`comp-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/profile" element={<ProfileView user={user} key={`profile-${refreshKey}`} />} />
             <Route path="/leaves" element={<LeaveManagement user={user} key={`leaves-${refreshKey}`} />} />
-            <Route path="/payroll" element={<PayrollView user={user} key={`pay-${refreshKey}`} />} />
-            <Route path="/settlement" element={<SettlementView key={`settle-${refreshKey}`} />} />
+            <Route path="/payroll" element={isAdminOrHr ? <PayrollView user={user} key={`pay-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/settlement" element={isAdminOrHr ? <SettlementView key={`settle-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/attendance" element={<AttendanceView user={user} key={`attend-${refreshKey}`} />} />
-            <Route path="/admin-center" element={<AdminCenter key={`admin-${refreshKey}`} />} />
-            <Route path="/whitepaper" element={<Whitepaper key={`wp-${refreshKey}`} />} />
-            <Route path="/mandoob" element={<MandoobDashboard key={`mandoob-${refreshKey}`} />} />
-            <Route path="/finance" element={<FinanceMappingSettings key={`finance-${refreshKey}`} />} />
-            <Route path="/management" element={<ManagementDashboard key={`manage-${refreshKey}`} />} />
-            <Route path="/user-management" element={<UserManagement key={`user-${refreshKey}`} />} />
+            <Route path="/admin-center" element={isAdminOrHr ? <AdminCenter key={`admin-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/whitepaper" element={isAdminOrHr ? <Whitepaper key={`wp-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/mandoob" element={(isAdminOrHr || isMandoob) ? <MandoobDashboard key={`mandoob-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/finance" element={isAdminOrHr ? <FinanceMappingSettings key={`finance-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/management" element={isAdminOrHr ? <ManagementDashboard key={`manage-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/user-management" element={isAdmin ? <UserManagement key={`user-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             {/* 404 handling - redirect to default */}
             <Route path="*" element={<Navigate to={defaultRoute} replace />} />
         </Routes>
