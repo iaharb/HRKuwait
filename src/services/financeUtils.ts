@@ -146,19 +146,32 @@ export async function syncEOSBLiability(): Promise<{ gap: number; provisionAccou
             targetEquityId = newAcc?.id;
         }
 
-        // 4. Create Catch-up JV
-        // We use a dummy payroll run ID or null if allowed, but better to link to a "Migration" run.
-        const migrationRunId = 'MIGRATION-EOSB-' + new Date().getFullYear();
+        // 4. Resolve a valid Cost Center (Required by FK)
+        let ccId = (await supabase.from('finance_cost_centers').select('id').limit(1).single()).data?.id;
+        if (!ccId) {
+            // Create a default CC if none exists to avoid FK failure
+            const { data: newCC } = await supabase.from('finance_cost_centers').insert([{
+                cost_center_code: 'HQ',
+                segment_name: 'Corporate HQ',
+                department_id: (await supabase.from('departments').select('id').limit(1).single()).data?.id || employees[0]?.department
+            }]).select('id').single();
+            ccId = newCC?.id;
+        }
 
-        // Ensure migration run exists in payroll_runs for FK constraints
+        // 5. Create/Update Migration Run
+        const migrationRunId = 'MIGRATION-EOSB-TOTAL';
+
         await supabase.from('payroll_runs').upsert([{
             id: migrationRunId,
-            period_key: migrationRunId,
+            period_key: 'MIGRATION-EOSB-INITIAL-SYNC',
             cycle_type: 'Monthly',
             status: 'Locked',
             total_disbursement: 0,
             created_at: new Date().toISOString()
         }]);
+
+        // 6. Delete existing migration entries for this specific ID to allow "re-sync"
+        await supabase.from('journal_entries').delete().eq('payroll_run_id', migrationRunId);
 
         const catchupEntries = [
             {
@@ -167,7 +180,7 @@ export async function syncEOSBLiability(): Promise<{ gap: number; provisionAccou
                 amount: gap,
                 entry_date: new Date().toISOString(),
                 entry_type: 'CR', // Increase Liability
-                cost_center_id: (await supabase.from('finance_cost_centers').select('id').limit(1).single()).data?.id, // Default CC
+                cost_center_id: ccId,
                 employee_id: employees[0]?.id // Default dummy link
             },
             {
@@ -176,12 +189,16 @@ export async function syncEOSBLiability(): Promise<{ gap: number; provisionAccou
                 amount: gap,
                 entry_date: new Date().toISOString(),
                 entry_type: 'DR', // Increase Expense/Equity Offset
-                cost_center_id: (await supabase.from('finance_cost_centers').select('id').limit(1).single()).data?.id,
+                cost_center_id: ccId,
                 employee_id: employees[0]?.id
             }
         ];
 
-        await supabase.from('journal_entries').insert(catchupEntries);
+        const { error: finalInsertError } = await supabase.from('journal_entries').insert(catchupEntries);
+        if (finalInsertError) {
+            console.error("Migration Entry Insertion Failed:", finalInsertError);
+            throw new Error(`Migration Failed: ${finalInsertError.message}`);
+        }
     }
 
     return { gap, provisionAccount: '200300' };

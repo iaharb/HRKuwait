@@ -16,150 +16,146 @@ export const FinanceIntelligenceHub: React.FC = () => {
     const [projectedOutflow, setProjectedOutflow] = useState<number>(0);
     const [monthlyNetData, setMonthlyNetData] = useState<any[]>([]);
 
-    useEffect(() => {
-        const fetchAnalytics = async () => {
-            // Fetch IDs of Finalized/Locked runs first for reliable filtering
-            const { data: runs, error: runsError } = await supabase
-                .from('payroll_runs')
-                .select('id')
-                .in('status', ['Finalized', 'Locked', 'JV_Generated', 'finalized', 'locked', 'jv_generated']);
+    const fetchAnalytics = async () => {
+        // Fetch IDs of Finalized/Locked runs first for reliable filtering
+        const { data: runs, error: runsError } = await supabase
+            .from('payroll_runs')
+            .select('id')
+            .in('status', ['Finalized', 'Locked', 'JV_Generated', 'finalized', 'locked', 'jv_generated']);
 
-            if (runsError || !runs || runs.length === 0) {
-                setLoading(false);
-                return;
-            }
-
-            const runIds = runs.map(r => r.id);
-
-            // 1. Fetch Rollup Data filtered by these run IDs
-            const { data: rollup, error: rollupError } = await supabase
-                .from('view_financial_rollup')
-                .select('*')
-                .in('payroll_run_id', runIds);
-
-            if (rollupError || !rollup) {
-                setLoading(false);
-                return;
-            }
-
-            // 1. Nationality-to-Expense Ratio
-            const natMap: Record<string, number> = {};
-            rollup.forEach(r => {
-                if (r.nationality_status && r.account_name) {
-                    natMap[r.nationality_status] = (natMap[r.nationality_status] || 0) + Number(r.total_amount);
-                }
-            });
-            const pieData = Object.entries(natMap).map(([name, value]) => ({ name, value }));
-            setNationalityData(pieData);
-
-            // 2. Projected Cash Outflow (Simple estimation based on current JV totals)
-            const currentRunTotal = rollup.reduce((acc, r) => acc + (r.nationality_status ? Number(r.total_amount) : 0), 0);
-            // Let's assume an AI projection of 5% growth or new hires
-            setProjectedOutflow(currentRunTotal * 1.05);
-
-            // 3. Flow of Funds (Simplified representation for Sankey or Stacked Bar)
-            // Node 0: Bank Account (Source)
-            // Node 1..N: Cost Centers
-            // Node N+1...M: Expense Categories
-            // Since Sankey in recharts requires a specific structure:
-            const nodes = [{ name: 'Corporate Bank Account' }];
-            const links: any[] = [];
-            const segmentMap: Record<string, number> = {};
-
-            rollup.forEach(r => {
-                if (r.segment_name && r.nationality_status) {
-                    if (segmentMap[r.segment_name] === undefined) {
-                        segmentMap[r.segment_name] = nodes.length;
-                        nodes.push({ name: r.segment_name });
-                    }
-                    links.push({
-                        source: 0,
-                        target: segmentMap[r.segment_name],
-                        value: Number(r.total_amount)
-                    });
-                }
-            });
-
-            // Provide data only if we generated some links
-            if (links.length > 0) {
-                setFundsFlow({ nodes, links });
-            }
-
-            // 4. Monthly Net Payroll by Cost Center - Filtered by Run IDs
-            const { data: histData, error: histError } = await supabase
-                .from('journal_entries')
-                .select(`
-                amount,
-                entry_date,
-                finance_chart_of_accounts!inner(account_name),
-                finance_cost_centers!inner(segment_name)
-              `)
-                .in('payroll_run_id', runIds);
-
-            const monthlyNetByCostCenter: any[] = [];
-            if (!histError && histData) {
-                const groupedHist: Record<string, any> = {};
-                histData.forEach((row: any) => {
-                    const accName = row.finance_chart_of_accounts?.account_name?.toLowerCase() || '';
-                    if (accName.includes('net ') || accName.includes('payable')) {
-                        const date = new Date(row.entry_date);
-                        // Use UTC to avoid timezone bleeding for month-end dates
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const monthLabel = `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
-                        const sortKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-                        const cc = row.finance_cost_centers.segment_name;
-                        const amt = Number(row.amount);
-
-                        if (!groupedHist[sortKey]) groupedHist[sortKey] = { name: monthLabel, sortKey, 'Total Net Payroll': 0 };
-                        if (!groupedHist[sortKey][cc]) groupedHist[sortKey][cc] = 0;
-                        groupedHist[sortKey][cc] += amt;
-                        groupedHist[sortKey]['Total Net Payroll'] += amt;
-                    }
-                });
-                Object.keys(groupedHist).sort().forEach(key => monthlyNetByCostCenter.push(groupedHist[key]));
-            }
-
-            setMonthlyNetData(monthlyNetByCostCenter);
-
-            // 5. Calculate Liability Gap for the UI
-            const employees = await dbService.getEmployees();
-            let trueLiability = 0;
-            employees.forEach(emp => {
-                if (emp.status === 'Active' && emp.nationality !== 'Kuwaiti') {
-                    const basic = Number(emp.salary) || 0;
-                    const dailyRate = basic / 26;
-                    const joinDate = new Date(emp.joinDate);
-                    const years = (new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-                    let indemnity = years <= 5 ? (years * 15 * dailyRate) : (5 * 15 * dailyRate) + ((years - 5) * 30 * dailyRate);
-                    trueLiability += Math.min(indemnity, (basic * 18));
-                }
-            });
-
-            const { data: accounts } = await supabase.from('finance_chart_of_accounts').select('id').eq('account_code', '200300').single();
-            if (accounts) {
-                const { data: entries } = await supabase.from('journal_entries').select('amount').eq('gl_account_id', accounts.id);
-                const currentBalance = entries?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
-                setLiabilityGap(Math.max(0, trueLiability - currentBalance));
-            }
-
+        if (runsError || !runs || runs.length === 0) {
             setLoading(false);
-        };
+            return;
+        }
 
-        fetchAnalytics();
-    }, []);
+        const runIds = runs.map(r => r.id);
+
+        // 1. Fetch Rollup Data filtered by these run IDs
+        const { data: rollup, error: rollupError } = await supabase
+            .from('view_financial_rollup')
+            .select('*')
+            .in('payroll_run_id', runIds);
+
+        if (rollupError || !rollup) {
+            setLoading(false);
+            return;
+        }
+
+        // 1. Nationality-to-Expense Ratio
+        const natMap: Record<string, number> = {};
+        rollup.forEach(r => {
+            if (r.nationality_status && r.account_name) {
+                natMap[r.nationality_status] = (natMap[r.nationality_status] || 0) + Number(r.total_amount);
+            }
+        });
+        const pieData = Object.entries(natMap).map(([name, value]) => ({ name, value }));
+        setNationalityData(pieData);
+
+        // 2. Projected Cash Outflow (Standard monthly recurring only)
+        const standardRollup = rollup.filter(r => !r.payroll_run_id?.includes('MIGRATION'));
+        const currentRunTotal = standardRollup.reduce((acc, r) => acc + (r.nationality_status ? Number(r.total_amount) : 0), 0);
+        // Let's assume an AI projection of 5% growth or new hires
+        setProjectedOutflow(currentRunTotal * 1.05);
+
+        // 3. Flow of Funds (Simplified representation for Sankey or Stacked Bar)
+        const nodes = [{ name: 'Corporate Bank Account' }];
+        const links: any[] = [];
+        const segmentMap: Record<string, number> = {};
+
+        rollup.forEach(r => {
+            if (r.segment_name && r.nationality_status) {
+                if (segmentMap[r.segment_name] === undefined) {
+                    segmentMap[r.segment_name] = nodes.length;
+                    nodes.push({ name: r.segment_name });
+                }
+                links.push({
+                    source: 0,
+                    target: segmentMap[r.segment_name],
+                    value: Number(r.total_amount)
+                });
+            }
+        });
+
+        if (links.length > 0) {
+            setFundsFlow({ nodes, links });
+        }
+
+        // 4. Monthly Net Payroll by Cost Center - Filtered by Run IDs
+        const { data: histData, error: histError } = await supabase
+            .from('journal_entries')
+            .select(`
+            amount,
+            entry_date,
+            finance_chart_of_accounts!inner(account_name),
+            finance_cost_centers!inner(segment_name)
+          `)
+            .in('payroll_run_id', runIds);
+
+        const monthlyNetByCostCenter: any[] = [];
+        if (!histError && histData) {
+            const groupedHist: Record<string, any> = {};
+            histData.forEach((row: any) => {
+                const accName = row.finance_chart_of_accounts?.account_name?.toLowerCase() || '';
+                if (accName.includes('net ') || accName.includes('payable')) {
+                    const date = new Date(row.entry_date);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const monthLabel = `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+                    const sortKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+                    const cc = row.finance_cost_centers.segment_name;
+                    const amt = Number(row.amount);
+
+                    if (!groupedHist[sortKey]) groupedHist[sortKey] = { name: monthLabel, sortKey, 'Total Net Payroll': 0 };
+                    if (!groupedHist[sortKey][cc]) groupedHist[sortKey][cc] = 0;
+                    groupedHist[sortKey][cc] += amt;
+                    groupedHist[sortKey]['Total Net Payroll'] += amt;
+                }
+            });
+            Object.keys(groupedHist).sort().forEach(key => monthlyNetByCostCenter.push(groupedHist[key]));
+        }
+
+        setMonthlyNetData(monthlyNetByCostCenter);
+
+        // 5. Calculate Liability Gap for the UI
+        const employees = await dbService.getEmployees();
+        let trueLiability = 0;
+        employees.forEach(emp => {
+            if (emp.status === 'Active' && emp.nationality !== 'Kuwaiti') {
+                const basic = Number(emp.salary) || 0;
+                const dailyRate = basic / 26;
+                const joinDate = new Date(emp.joinDate);
+                const years = (new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                let indemnity = years <= 5 ? (years * 15 * dailyRate) : (5 * 15 * dailyRate) + ((years - 5) * 30 * dailyRate);
+                trueLiability += Math.min(indemnity, (basic * 18));
+            }
+        });
+
+        const { data: accounts } = await supabase.from('finance_chart_of_accounts').select('id').eq('account_code', '200300').single();
+        if (accounts) {
+            const { data: entries } = await supabase.from('journal_entries').select('amount').eq('gl_account_id', accounts.id);
+            const currentBalance = entries?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+            setLiabilityGap(Math.max(0, trueLiability - currentBalance));
+        }
+
+        setLoading(false);
+    };
 
     const handleSync = async () => {
         setIsSyncing(true);
         try {
             const result = await syncEOSBLiability();
             notify("Reality Sync Complete", `Successfully created a catch-up JV for ${result.gap.toLocaleString()} KWD.`, "success");
-            setLiabilityGap(0);
+            // Re-fetch to update all stats and gap
+            await fetchAnalytics();
         } catch (err: any) {
             notify("Sync Failed", err.message, "error");
         } finally {
             setIsSyncing(false);
         }
     };
+
+    useEffect(() => {
+        fetchAnalytics();
+    }, []);
 
     const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6'];
 
