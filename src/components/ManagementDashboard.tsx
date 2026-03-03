@@ -14,6 +14,7 @@ export const ManagementDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [rollupData, setRollupData] = useState<any[]>([]);
     const [historicalData, setHistoricalData] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<any[]>([]);
     const [runIds, setRunIds] = useState<string[]>([]);
 
     useEffect(() => {
@@ -63,6 +64,10 @@ export const ManagementDashboard: React.FC = () => {
 
                 if (!entriesError && entries) setHistoricalData(entries);
 
+                // 4. Fetch Employees for True Liability Calculation
+                const emps = await dbService.getEmployees();
+                setEmployees(emps);
+
             } catch (err) {
                 console.error("Management Dashboard Fetch Error:", err);
             } finally {
@@ -85,19 +90,36 @@ export const ManagementDashboard: React.FC = () => {
             .sort((a, b) => b.value - a.value);
     }, [rollupData]);
 
-    // --- 2. EOSB Liability Health ---
+    // --- 2. EOSB Liability Health (True Tenure-based Liability) ---
     const eosbMetrics = useMemo(() => {
-        let provisionBalance = 0; // 200300
-        let currentExpense = 0;   // 600800
+        let provisionBalance = 0; // GL Account 200300 (CR)
 
         historicalData.forEach(e => {
             const code = e.finance_chart_of_accounts.account_code;
             if (code === '200300') provisionBalance += Number(e.amount);
-            if (code === '600800') currentExpense += Number(e.amount);
         });
 
-        return { provisionBalance, currentExpense };
-    }, [historicalData]);
+        // Calculate True Calculated Liability based on tenure for ALL employees
+        let trueLiability = 0;
+        employees.forEach(emp => {
+            if (emp.status === 'Active' && emp.nationality !== 'Kuwaiti') {
+                const basic = Number(emp.salary) || 0;
+                const dailyRate = basic / 26; // Standard Kuwait Daily Rate
+                const joinDate = new Date(emp.joinDate);
+                const yearsService = (new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+
+                let indemnity = 0;
+                if (yearsService <= 5) {
+                    indemnity = (yearsService * 15 * dailyRate);
+                } else {
+                    indemnity = (5 * 15 * dailyRate) + ((yearsService - 5) * 30 * dailyRate);
+                }
+                trueLiability += Math.min(indemnity, (basic * 18)); // Capped at 18 months
+            }
+        });
+
+        return { provisionBalance, trueLiability };
+    }, [historicalData, employees]);
 
     // --- 3. Statutory Burden (PIFSS) ---
     const pifssStatics = useMemo(() => {
@@ -195,7 +217,7 @@ export const ManagementDashboard: React.FC = () => {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">EOSB Funding Ratio</p>
                     <div className="flex items-baseline gap-2">
                         <h4 className="text-3xl font-black text-emerald-600">
-                            {((eosbMetrics.provisionBalance / (eosbMetrics.currentExpense || 1)) * 100).toFixed(1)}%
+                            {eosbMetrics.trueLiability > 0 ? ((eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100).toFixed(1) : '100.0'}%
                         </h4>
                         <span className="text-xs font-bold text-slate-400">Target: 100%</span>
                     </div>
@@ -314,20 +336,20 @@ export const ManagementDashboard: React.FC = () => {
                                 <p className="text-3xl font-black text-white">{eosbMetrics.provisionBalance.toLocaleString()} <span className="text-xs text-slate-400">KWD</span></p>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Fiscal Year Payout Exp</p>
-                                <p className="text-3xl font-black text-rose-500">{eosbMetrics.currentExpense.toLocaleString()} <span className="text-xs text-slate-400">KWD</span></p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">True Liability Estimate</p>
+                                <p className="text-3xl font-black text-indigo-400">{eosbMetrics.trueLiability.toLocaleString()} <span className="text-xs text-slate-400">KWD</span></p>
                             </div>
                         </div>
 
                         <div className="space-y-2 pt-4">
                             <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                <span>Risk Assessment: {eosbMetrics.currentExpense > 0 ? 'Optimal Coverage' : 'Awaiting Data'}</span>
-                                <span>{((eosbMetrics.provisionBalance / (eosbMetrics.currentExpense + 1)) * 100).toFixed(0)}% Cover</span>
+                                <span>Risk Assessment: {eosbMetrics.trueLiability === 0 ? 'Optimal' : (eosbMetrics.provisionBalance / eosbMetrics.trueLiability) > 0.9 ? 'Optimal Coverage' : 'Underfunded'}</span>
+                                <span>{eosbMetrics.trueLiability > 0 ? ((eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100).toFixed(0) : '100'}% Cover</span>
                             </div>
                             <div className="h-3 bg-white/10 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-indigo-500 transition-all duration-1000"
-                                    style={{ width: `${Math.min(100, (eosbMetrics.provisionBalance / (eosbMetrics.currentExpense + 1)) * 100)}%` }}
+                                    style={{ width: `${Math.min(100, (eosbMetrics.trueLiability > 0 ? (eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100 : 100))}%` }}
                                 ></div>
                             </div>
                         </div>
