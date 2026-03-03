@@ -101,3 +101,88 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
         if (insertError) throw insertError;
     }
 }
+
+/**
+ * Reconcile GL provisions with real-time actuarial liability (True Liability).
+ * Creates a catch-up JV for the missing balance.
+ */
+export async function syncEOSBLiability(): Promise<{ gap: number; provisionAccount: string }> {
+    // 1. Calculate True Liability
+    const employees = await dbService.getEmployees();
+    let trueLiability = 0;
+    employees.forEach(emp => {
+        if (emp.status === 'Active' && emp.nationality !== 'Kuwaiti') {
+            const basic = Number(emp.salary) || 0;
+            const dailyRate = basic / 26;
+            const joinDate = new Date(emp.joinDate);
+            const years = (new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+            let indemnity = years <= 5 ? (years * 15 * dailyRate) : (5 * 15 * dailyRate) + ((years - 5) * 30 * dailyRate);
+            trueLiability += Math.min(indemnity, (basic * 18));
+        }
+    });
+
+    // 2. Fetch Current GL Balance (Acc 200300)
+    const { data: accounts } = await supabase.from('finance_chart_of_accounts').select('id, account_code').in('account_code', ['200300', '300100']);
+    const provAcc = accounts?.find(a => a.account_code === '200300');
+    const equityAcc = accounts?.find(a => a.account_code === '300100');
+
+    if (!provAcc) throw new Error("EOSB Provision Account (200300) not found in Chart of Accounts.");
+
+    const { data: entries } = await supabase.from('journal_entries').select('amount').eq('gl_account_id', provAcc.id);
+    const currentBalance = entries?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+
+    const gap = trueLiability - currentBalance;
+
+    if (gap > 5) { // Small buffer for rounding
+        // 3. Ensure Equity account exists for the debit side
+        let targetEquityId = equityAcc?.id;
+        if (!targetEquityId) {
+            const { data: newAcc } = await supabase.from('finance_chart_of_accounts').insert([{
+                account_code: '300100',
+                account_name: 'Opening Balance Equity (Migration)',
+                account_type: 'ASSET', // Technically Equity
+                is_active: true
+            }]).select('id').single();
+            targetEquityId = newAcc?.id;
+        }
+
+        // 4. Create Catch-up JV
+        // We use a dummy payroll run ID or null if allowed, but better to link to a "Migration" run.
+        const migrationRunId = 'MIGRATION-EOSB-' + new Date().getFullYear();
+
+        // Ensure migration run exists in payroll_runs for FK constraints
+        await supabase.from('payroll_runs').upsert([{
+            id: migrationRunId,
+            period_key: migrationRunId,
+            cycle_type: 'Monthly',
+            status: 'Locked',
+            total_disbursement: 0,
+            created_at: new Date().toISOString()
+        }]);
+
+        const catchupEntries = [
+            {
+                payroll_run_id: migrationRunId,
+                gl_account_id: provAcc.id,
+                amount: gap,
+                entry_date: new Date().toISOString(),
+                entry_type: 'CR', // Increase Liability
+                cost_center_id: (await supabase.from('finance_cost_centers').select('id').limit(1).single()).data?.id, // Default CC
+                employee_id: employees[0]?.id // Default dummy link
+            },
+            {
+                payroll_run_id: migrationRunId,
+                gl_account_id: targetEquityId,
+                amount: gap,
+                entry_date: new Date().toISOString(),
+                entry_type: 'DR', // Increase Expense/Equity Offset
+                cost_center_id: (await supabase.from('finance_cost_centers').select('id').limit(1).single()).data?.id,
+                employee_id: employees[0]?.id
+            }
+        ];
+
+        await supabase.from('journal_entries').insert(catchupEntries);
+    }
+
+    return { gap, provisionAccount: '200300' };
+}

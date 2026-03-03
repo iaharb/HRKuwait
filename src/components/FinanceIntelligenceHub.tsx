@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, Sankey, BarChart, Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { syncEOSBLiability } from '../services/financeUtils';
+import { useNotifications } from './NotificationSystem';
+import { dbService } from '../services/dbService';
 
 export const FinanceIntelligenceHub: React.FC = () => {
+    const { notify } = useNotifications();
     const [loading, setLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [liabilityGap, setLiabilityGap] = useState<number | null>(null);
     const [pendingRuns, setPendingRuns] = useState<{ id: string, period_key: string, status?: string }[]>([]);
     const [nationalityData, setNationalityData] = useState<any[]>([]);
     const [fundsFlow, setFundsFlow] = useState<any>({ nodes: [], links: [] });
@@ -115,11 +121,45 @@ export const FinanceIntelligenceHub: React.FC = () => {
 
             setMonthlyNetData(monthlyNetByCostCenter);
 
+            // 5. Calculate Liability Gap for the UI
+            const employees = await dbService.getEmployees();
+            let trueLiability = 0;
+            employees.forEach(emp => {
+                if (emp.status === 'Active' && emp.nationality !== 'Kuwaiti') {
+                    const basic = Number(emp.salary) || 0;
+                    const dailyRate = basic / 26;
+                    const joinDate = new Date(emp.joinDate);
+                    const years = (new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                    let indemnity = years <= 5 ? (years * 15 * dailyRate) : (5 * 15 * dailyRate) + ((years - 5) * 30 * dailyRate);
+                    trueLiability += Math.min(indemnity, (basic * 18));
+                }
+            });
+
+            const { data: accounts } = await supabase.from('finance_chart_of_accounts').select('id').eq('account_code', '200300').single();
+            if (accounts) {
+                const { data: entries } = await supabase.from('journal_entries').select('amount').eq('gl_account_id', accounts.id);
+                const currentBalance = entries?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+                setLiabilityGap(Math.max(0, trueLiability - currentBalance));
+            }
+
             setLoading(false);
         };
 
         fetchAnalytics();
     }, []);
+
+    const handleSync = async () => {
+        setIsSyncing(true);
+        try {
+            const result = await syncEOSBLiability();
+            notify("Reality Sync Complete", `Successfully created a catch-up JV for ${result.gap.toLocaleString()} KWD.`, "success");
+            setLiabilityGap(0);
+        } catch (err: any) {
+            notify("Sync Failed", err.message, "error");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6'];
 
@@ -131,8 +171,51 @@ export const FinanceIntelligenceHub: React.FC = () => {
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+                {/* Liability Gap Card */}
+                <div className="bg-white rounded-3xl border border-rose-100 p-8 shadow-sm flex flex-col justify-between group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700"></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="p-2 bg-rose-50 text-rose-500 rounded-xl">⚖️</span>
+                            <h3 className="font-bold text-slate-800 text-lg">Actuarial Liability Gap</h3>
+                        </div>
+                        <p className="text-xs font-medium text-slate-500 mb-6">
+                            Difference between tenure-based mathematical liability and GL Provision Balance (Account 200300).
+                        </p>
+
+                        <div className="flex items-baseline gap-2 mb-6">
+                            <span className={`text-4xl font-black tracking-tight ${liabilityGap && liabilityGap > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {liabilityGap?.toLocaleString('en-KW', { minimumFractionDigits: 3 })}
+                            </span>
+                            <span className="text-sm font-bold text-slate-400">KWD</span>
+                        </div>
+
+                        {liabilityGap && liabilityGap > 10 ? (
+                            <button
+                                onClick={handleSync}
+                                disabled={isSyncing}
+                                className="w-full py-3 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-sm transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isSyncing ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                                        Syncing Reality...
+                                    </>
+                                ) : (
+                                    <>✨ Sync GL with Reality</>
+                                )}
+                            </button>
+                        ) : (
+                            <div className="py-3 px-4 bg-emerald-50 text-emerald-700 rounded-2xl text-xs font-bold border border-emerald-100 flex items-center gap-2">
+                                <span>✅</span>
+                                GL Balance is healthy & synced.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Predictive GL Anomaly / Projected Cash Outflow */}
-                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden text-white flex flex-col justify-center">
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden text-white flex flex-col justify-center lg:col-span-1">
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
                     <div className="z-10 relative">
                         <div className="flex items-center gap-3 mb-4">
