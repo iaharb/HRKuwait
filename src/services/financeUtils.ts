@@ -63,6 +63,8 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
             { type: 'sick_leave', amount: item.sickLeavePay }, // Added
             { type: 'annual_leave', amount: item.annualLeavePay }, // Added
             { type: 'overtime', amount: item.overtimeAmount }, // Added
+            { type: 'performance_bonus', amount: item.performanceBonus }, // Added
+            { type: 'company_bonus', amount: item.companyBonus }, // Added
             { type: 'net_salary_payable', amount: item.netSalary },
             { type: 'pifss_employer_share', amount: item.pifssEmployerShare },
             { type: 'pifss_deduction', amount: item.pifssDeduction },
@@ -88,6 +90,7 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
                     amount: part.amount,
                     entry_date: entryDate,
                     entry_type: rule.credit_or_debit,
+                    payroll_item_type: part.type,
                 } as JournalEntry);
             });
         });

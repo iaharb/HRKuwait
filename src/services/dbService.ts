@@ -167,6 +167,8 @@ const mapPayrollItem = (data: any): PayrollItem => ({
   leaveDeductions: Number(data.leave_deductions || 0),
   sickLeavePay: Number(data.sick_leave_pay || 0),
   annualLeavePay: Number(data.annual_leave_pay || 0),
+  performanceBonus: Number(data.performance_bonus || 0),
+  companyBonus: Number(data.company_bonus || 0),
   shortPermissionDeductions: Number(data.short_permission_deductions || 0),
   pifssDeduction: Number(data.pifss_deduction || 0),
   pifssEmployerShare: Number(data.pifss_employer_share || 0),
@@ -1092,26 +1094,32 @@ export const dbService = {
 
       const hourlyRate = (basic / 30) / 8; // Kuwaiti standard base hourly rate
       let overtimeAmount = 0;
+      let performanceBonusAmount = 0;
+      let companyBonusAmount = 0;
 
       empVarComp.forEach(vc => {
+        const val = Number(vc.amount);
         if (vc.comp_type === 'OVERTIME') {
           const hours = Number(vc.amount);
           const multiplier = vc.sub_type === 'Holiday_OT' ? 2.0 : 1.5;
           const kwd = hours * hourlyRate * multiplier;
           allowanceBreakdown.push({ name: `OVERTIME (${vc.sub_type.replace('_', ' ')}) - ${hours} hrs`, nameArabic: 'عمل إضافي', value: kwd });
           overtimeAmount += kwd;
+        } else if (vc.comp_type === 'PERFORMANCE_BONUS') {
+          allowanceBreakdown.push({ name: `PERFORMANCE BONUS (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة أداء', value: val });
+          performanceBonusAmount += val;
+        } else if (['COMPANY_BONUS', 'PROFIT_SHARING', 'PROFIT_BONUS'].includes(vc.comp_type)) {
+          allowanceBreakdown.push({ name: `COMPANY BONUS (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة الأرباح', value: val });
+          companyBonusAmount += val;
         } else {
-          const val = Number(vc.amount);
           allowanceBreakdown.push({ name: `VARIABLE COMP (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة إضافية', value: val });
           otherAllowancesTotal += val;
         }
       });
-      // Add overtime to total so net is correct
-      otherAllowancesTotal += overtimeAmount;
 
       let pifssPaidInHub = !!currentMonthHub;
 
-      const fullGrossParams = basic + housingAmount + otherAllowancesTotal;
+      const fullGrossParams = basic + housingAmount + otherAllowancesTotal + overtimeAmount + performanceBonusAmount + companyBonusAmount;
       const dailyGrossFull = fullGrossParams / 26;
       const dailyBasePlusHousing = (basic + housingAmount) / 26;
 
@@ -1249,6 +1257,8 @@ export const dbService = {
         housing_allowance: housingAmount,
         other_allowances: otherAllowancesTotal,
         overtime_amount: overtimeAmount,
+        performance_bonus: performanceBonusAmount,
+        company_bonus: companyBonusAmount,
         leave_deductions: totalShortLeaveDeduction,
         sick_leave_pay: sickLeavePayTotal,
         annual_leave_pay: annualLeavePayTotal,
@@ -1277,6 +1287,8 @@ export const dbService = {
       housing_allowance: i.housing_allowance,
       other_allowances: i.other_allowances,
       overtime_amount: i.overtime_amount,
+      performance_bonus: i.performance_bonus,
+      company_bonus: i.company_bonus,
       leave_deductions: i.leave_deductions,
       sick_leave_pay: i.sick_leave_pay,
       annual_leave_pay: i.annual_leave_pay,

@@ -222,6 +222,8 @@ export interface PayrollItem {
   leaveDeductions: number;
   sickLeavePay: number; // Added
   annualLeavePay: number; // Added
+  performanceBonus: number; // Added
+  companyBonus: number; // Added
   shortPermissionDeductions: number;
   pifssDeduction: number;
   pifssEmployerShare: number;
@@ -359,9 +361,12 @@ export interface JournalEntry {
   amount: number;
   entry_date: string;
   entry_type: EntryType;
+  payroll_item_type?: string;
 }
 
 export interface FinancialRollup {
+  payroll_run_id: string;
+  payroll_item_type: string;
   segment_name: string;
   account_name: string;
   nationality_status: string;

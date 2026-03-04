@@ -616,6 +616,19 @@ const PayrollView: React.FC<PayrollViewProps> = ({ user }) => {
                     <p className="text-sm text-slate-500 font-bold mt-1">
                       <span className="text-indigo-600 uppercase font-black tracking-[0.1em]">{activeRun.cycleType?.replace('_', ' ')} Run</span> • {formatCurrency(activeRun.totalDisbursement)} {t('currency')}
                     </p>
+                    {activeRun.status === 'Draft' && (
+                      <div className="flex gap-4 mt-3">
+                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                          KPI: {formatCurrency(items.reduce((sum, i) => sum + (i.performanceBonus || 0), 0))}
+                        </span>
+                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                          BONUS: {formatCurrency(items.reduce((sum, i) => sum + (i.companyBonus || 0), 0))}
+                        </span>
+                        <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                          OT: {formatCurrency(items.reduce((sum, i) => sum + (i.overtimeAmount || 0), 0))}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

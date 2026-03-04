@@ -81,6 +81,8 @@ export const FinanceMappingSettings: React.FC = () => {
     'indemnity_accrual',
     'pifss_employer_share',
     'pifss_deduction',
+    'performance_bonus',
+    'company_bonus',
     'kuwait_tax',
     'net_salary_payable'
   ]);
@@ -764,6 +766,36 @@ export const FinanceMappingSettings: React.FC = () => {
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="p-1 px-2 bg-indigo-50 text-indigo-500 rounded-lg text-sm">⭐</span>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">KPI Performance Bonuses</h4>
+                </div>
+                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                  {rollup.filter(r => r.payroll_item_type === 'performance_bonus').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="p-1 px-2 bg-emerald-50 text-emerald-500 rounded-lg text-sm">💰</span>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Company Profit Sharing</h4>
+                </div>
+                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                  {rollup.filter(r => r.payroll_item_type === 'company_bonus').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="p-1 px-2 bg-amber-50 text-amber-500 rounded-lg text-sm">⏰</span>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overtime Conversion</h4>
+                </div>
+                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                  {rollup.filter(r => r.payroll_item_type === 'overtime').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
+                </div>
+              </div>
             </div>
 
             {varianceAnalysis && (
