@@ -3,6 +3,7 @@ import { dbService } from '../services/dbService.ts';
 import { Employee, SettlementResult } from '../types/types';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
+import AISearchBar from './AISearchBar.tsx';
 
 const SettlementView: React.FC = () => {
   const { notify } = useNotifications();
@@ -10,6 +11,7 @@ const SettlementView: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [aiFilteredIds, setAiFilteredIds] = useState<string[] | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [reason, setReason] = useState<'Resignation' | 'Termination'>('Resignation');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -108,6 +110,9 @@ const SettlementView: React.FC = () => {
   };
 
   const filteredEmployees = employees.filter(emp => {
+    if (aiFilteredIds !== null) {
+      return aiFilteredIds.includes(emp.id);
+    }
     const name = emp.name.toLowerCase();
     const nameAr = (emp.nameArabic || '').toLowerCase();
     const search = searchTerm.toLowerCase();
@@ -136,23 +141,25 @@ const SettlementView: React.FC = () => {
               <div className="space-y-2 relative" ref={dropdownRef}>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ps-1">{t('targetEmployee')}</label>
                 <div className="relative">
-                  <input
-                    type="text"
-                    className="w-full px-6 py-4 rounded-[22px] border border-slate-200 bg-white focus:ring-8 focus:ring-indigo-500/5 outline-none font-black text-slate-900 transition-all text-sm"
-                    placeholder={t('searchPlaceholder')}
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
+                  <AISearchBar
+                    data={employees}
+                    onFilter={(ids) => {
+                      setAiFilteredIds(ids)
                       setIsDropdownOpen(true);
-                      if (selectedId && e.target.value !== (isAr ? selectedEmp?.nameArabic || selectedEmp?.name : selectedEmp?.name)) {
+                    }}
+                    placeholder={t('searchPlaceholder')}
+                    contextMessage="KUWAIT HR REPORTING - Employee directory. Return matching IDs."
+                    extractInfo={emp => `Name: ${emp.name}, ArabicName: ${emp.nameArabic}, Dept: ${emp.department}`}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    initialValue={searchTerm}
+                    onQueryChange={(q) => {
+                      setSearchTerm(q);
+                      setIsDropdownOpen(true);
+                      if (selectedId && q !== (isAr ? selectedEmp?.nameArabic || selectedEmp?.name : selectedEmp?.name)) {
                         setSelectedId('');
                       }
                     }}
-                    onFocus={() => setIsDropdownOpen(true)}
                   />
-                  <div className={`absolute inset-y-0 ${isAr ? 'left-4' : 'right-4'} flex items-center text-slate-300 pointer-events-none`}>
-                    🔍
-                  </div>
                 </div>
 
                 {/* Search Results Dropdown */}

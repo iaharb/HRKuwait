@@ -4,6 +4,7 @@ import { dbService } from '../services/dbService.ts';
 import { Employee, UserRole, View } from '../types/types';
 import { STANDARD_ROLES } from '../constants.tsx';
 import { useTranslation } from 'react-i18next';
+import AISearchBar from './AISearchBar.tsx';
 
 export const UserManagement: React.FC = () => {
     const { t } = useTranslation();
@@ -11,6 +12,7 @@ export const UserManagement: React.FC = () => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [aiFilteredIds, setAiFilteredIds] = useState<string[] | null>(null);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [selectedRole, setSelectedRole] = useState<UserRole>('Employee');
@@ -190,10 +192,11 @@ export const UserManagement: React.FC = () => {
         }
     };
 
-    const filteredEmployees = employees.filter(emp =>
-        !systemUsers.some(u => u.employee_id === emp.id) &&
-        (emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery))
-    );
+    const filteredEmployees = employees.filter(emp => {
+        if (systemUsers.some(u => u.employee_id === emp.id)) return false;
+        if (aiFilteredIds !== null) return aiFilteredIds.includes(emp.id);
+        return emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery);
+    });
 
     return (
         <div className="p-8 space-y-8 animate-in fade-in duration-700">
@@ -352,7 +355,15 @@ export const UserManagement: React.FC = () => {
                                     <div className="bg-slate-900 text-white p-8 rounded-[32px] shadow-xl h-full">
                                         <h4 className="text-xl font-black mb-2">Upgrade Workforce</h4>
                                         <p className="text-slate-400 text-sm mb-6">Grant portal access to employees.</p>
-                                        <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-2xl px-5 py-3 text-sm" />
+                                        <AISearchBar
+                                            data={employees.filter(e => !systemUsers.some(u => u.employee_id === e.id))}
+                                            onFilter={setAiFilteredIds}
+                                            placeholder="Search to Upgrade..."
+                                            contextMessage="KUWAIT HR REPORTING - User management upgrades. Return matching IDs."
+                                            extractInfo={emp => `Name: ${emp.name}, ArabicName: ${emp.nameArabic}, Dept: ${emp.department}, Position: ${emp.position}`}
+                                            onQueryChange={(q) => setSearchQuery(q)}
+                                            initialValue={searchQuery}
+                                        />
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200/60 p-6 max-h-[400px] overflow-y-auto custom-scrollbar space-y-3">

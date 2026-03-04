@@ -5,6 +5,7 @@ import { Employee, User, LeaveBalances } from '../types/types';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient.ts';
 import { useNotifications } from './NotificationSystem.tsx';
+import AISearchBar from './AISearchBar.tsx';
 
 interface EmployeeDirectoryProps {
   user: User;
@@ -329,6 +330,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
   const language = i18n.language;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filter, setFilter] = useState('');
+  const [aiFilteredIds, setAiFilteredIds] = useState<string[] | null>(null);
   const [balanceFilter, setBalanceFilter] = useState<'all' | 'low' | 'overdue'>('all');
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -394,6 +396,9 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
   };
 
   const filtered = useMemo(() => {
+    if (aiFilteredIds !== null) {
+      return employees.filter(e => aiFilteredIds.includes(e.id));
+    }
     const search = filter.toLowerCase();
     return employees.filter(e => {
       const textMatch = e.name.toLowerCase().includes(search)
@@ -453,14 +458,21 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
             ))}
           </div>
 
-          <div className="relative group">
-            <span className={`absolute inset-y-0 ${language === 'ar' ? 'right-0 pr-5' : 'left-0 pl-5'} flex items-center text-slate-400 group-focus-within:text-indigo-600 transition-colors`}>🔍</span>
-            <input
-              type="text"
+          <div className="relative group flex-1">
+            <AISearchBar
+              data={employees}
+              onFilter={(ids) => {
+                setAiFilteredIds(ids)
+                setCurrentPage(1);
+              }}
               placeholder={t('searchPlaceholder')}
-              className={`w-full min-w-[280px] ${language === 'ar' ? 'pr-12 pl-6' : 'pl-12 pr-6'} py-4.5 border border-slate-200/60 rounded-[28px] bg-white/70 backdrop-blur-md text-sm font-bold outline-none transition-all shadow-sm focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-500/30 focus:bg-white`}
-              value={filter}
-              onChange={e => { setFilter(e.target.value); setCurrentPage(1); }}
+              contextMessage="KUWAIT HR REPORTING - Employee directory. Return matching IDs."
+              extractInfo={emp => `Name: ${emp.name}, ArabicName: ${emp.nameArabic}, Position: ${emp.position}, Dept: ${emp.department}, Status: ${emp.status}`}
+              onQueryChange={(q) => {
+                setFilter(q);
+                setCurrentPage(1);
+              }}
+              initialValue={filter}
             />
           </div>
           {canManage && (
