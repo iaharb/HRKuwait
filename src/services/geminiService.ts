@@ -113,7 +113,7 @@ export const runAiTask = async (prompt: string, isJson: boolean = false, systemI
   // Path 2: Cloud Gemini (Primary Online Path using @google/generative-ai)
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: systemInstruction
     });
 
@@ -122,7 +122,11 @@ export const runAiTask = async (prompt: string, isJson: boolean = false, systemI
     return response.text();
   } catch (e: any) {
     console.error("Cloud AI Error:", e);
-    throw new Error("Cloud AI engine failed. Check VITE_GEMINI_API_KEY or connection.");
+    const msg = e.message || "Unknown error";
+    if (msg.includes("429")) {
+      throw new Error(`AI Quote Exceeded or Rate Limited: ${msg}`);
+    }
+    throw new Error(`Cloud AI engine failed: ${msg}`);
   }
 };
 
@@ -192,7 +196,7 @@ export const analyzeReceipt = async (base64Image: string) => {
   const prompt = "Analyze this receipt image. Extract exactly these 3 fields as a JSON object: amount (number, value only in KWD), date (format: YYYY-MM-DD), and merchant (string). Return only the JSON.";
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent([
       prompt,
       {
