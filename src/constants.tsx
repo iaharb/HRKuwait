@@ -23,6 +23,23 @@ export const STANDARD_ROLES = [
   { id: 'Employee', en: 'Employee', ar: 'موظف' },
 ];
 
+export const STANDARD_POSITIONS = [
+  { en: 'CEO', ar: 'الرئيس التنفيذي' },
+  { en: 'General Manager', ar: 'المدير العام' },
+  { en: 'HR Manager', ar: 'مدير الموارد البشرية' },
+  { en: 'IT Manager', ar: 'مدير تقنية المعلومات' },
+  { en: 'Payroll Manager', ar: 'مدير الرواتب' },
+  { en: 'Operations Manager', ar: 'مدير العمليات' },
+  { en: 'Senior Developer', ar: 'مطور أقدم' },
+  { en: 'Network Engineer', ar: 'مهندس شبكات' },
+  { en: 'HR Officer', ar: 'مسؤول موارد بشرية' },
+  { en: 'Accountant', ar: 'محاسب' },
+  { en: 'Administrative Assistant', ar: 'مساعد إداري' },
+  { en: 'Mandoob', ar: 'مندوب' },
+  { en: 'Driver', ar: 'سائق' },
+  { en: 'Security Officer', ar: 'مسؤول أمن' }
+];
+
 export const MOCK_EMPLOYEES: Employee[] = [
   {
     id: '00000000-0000-0000-0000-000000000001',

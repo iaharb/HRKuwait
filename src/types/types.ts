@@ -218,6 +218,7 @@ export interface PayrollItem {
   basicSalary: number;
   housingAllowance: number;
   otherAllowances: number;
+  overtimeAmount: number; // Added
   leaveDeductions: number;
   sickLeavePay: number; // Added
   annualLeavePay: number; // Added
@@ -301,7 +302,8 @@ export enum View {
   Mandoob = 'mandoob',
   Finance = 'finance',
   Management = 'management',
-  UserManagement = 'user-management'
+  UserManagement = 'user-management',
+  Approvals = 'approvals'
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';

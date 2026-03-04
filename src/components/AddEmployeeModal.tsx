@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService.ts';
 import { Employee, Allowance } from '../types/types';
-import { STANDARD_ALLOWANCE_NAMES, STANDARD_ROLES } from '../constants.tsx';
+import { STANDARD_ALLOWANCE_NAMES, STANDARD_ROLES, STANDARD_POSITIONS } from '../constants.tsx';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
 
@@ -251,13 +251,22 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
                 {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{language === 'ar' ? r.ar : r.en}</option>)}
               </select>
             </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleEn')}</label>
-              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleAr')}</label>
-              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right" value={formData.positionArabic} onChange={e => setFormData({ ...formData, positionArabic: e.target.value })} />
+            <div className="space-y-2 lg:col-span-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleEn')} / {t('roleAr')}</label>
+              <select
+                required
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                value={formData.position}
+                onChange={e => {
+                  const match = STANDARD_POSITIONS.find(p => p.en === e.target.value);
+                  setFormData({ ...formData, position: e.target.value, positionArabic: match?.ar || '' });
+                }}
+              >
+                <option value="">-- Select Designation --</option>
+                {STANDARD_POSITIONS.map(p => (
+                  <option key={p.en} value={p.en}>{language === 'ar' ? p.ar : p.en}</option>
+                ))}
+              </select>
             </div>
           </div>
 

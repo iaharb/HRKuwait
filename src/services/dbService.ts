@@ -14,6 +14,19 @@ const gid = () => {
   }
 };
 
+const getCurrentWeekRange = () => {
+  const now = new Date();
+  const sun = new Date(now);
+  sun.setDate(now.getDate() - now.getDay());
+  sun.setHours(0, 0, 0, 0);
+  const thu = new Date(sun);
+  thu.setDate(sun.getDate() + 4);
+  thu.setHours(23, 59, 59, 999);
+  return {
+    start: sun, end: thu
+  };
+};
+
 /**
  * Maps a raw DB row to an Employee object.
  * If `data.employee_allowances` are joined (from new table), those take priority.
@@ -86,6 +99,8 @@ const mapEmployee = (data: any): Employee => {
     workDaysPerWeek: data.work_days_per_week || 6,
     bankCode: data.bank_code,
     salary: Number(data.salary || 0),
+    managerId: data.manager_id,
+    managerName: data.manager_name,
     allowances: resolvedAllowances,
     role: data.role || 'Employee',
     faceToken: data.face_token,
@@ -148,6 +163,7 @@ const mapPayrollItem = (data: any): PayrollItem => ({
   basicSalary: Number(data.basic_salary || 0),
   housingAllowance: Number(data.housing_allowance || 0),
   otherAllowances: Number(data.other_allowances || 0),
+  overtimeAmount: Number(data.overtime_amount || 0),
   leaveDeductions: Number(data.leave_deductions || 0),
   sickLeavePay: Number(data.sick_leave_pay || 0),
   annualLeavePay: Number(data.annual_leave_pay || 0),
@@ -171,7 +187,6 @@ const mapAttendanceRecord = (data: any): AttendanceRecord => {
     clockIn: data.clock_in,
     clockOut: data.clock_out,
     locationArabic: data.location_arabic,
-    deviceId: data.device_id
   };
 };
 
@@ -251,36 +266,54 @@ export const dbService = {
 
   /** Create or update an app user against the online Supabase registry. */
   createAppUser: async (user: { username: string, password: string, role: UserRole, employee_id?: string }): Promise<{ success: boolean; message?: string }> => {
-    if (!supabase) return { success: false, message: 'Supabase is not configured.' };
+    if (!supabase) return {
+      success: false, message: 'Supabase is not configured.'
+    };
 
     const { error } = await supabase.from('app_users').upsert([user], { onConflict: 'username' });
     if (error) {
       console.error('Supabase createAppUser error:', error);
       if (error.code === '23503') {
-        return { success: false, message: 'Link Failed: The employee record is missing from the online registry.' };
+        return {
+          success: false, message: 'Link Failed: The employee record is missing from the online registry.'
+        };
       }
       if (error.code === '23505') {
-        return { success: false, message: 'Conflict: This username is already assigned to another system user.' };
+        return {
+          success: false, message: 'Conflict: This username is already assigned to another system user.'
+        };
       }
-      return { success: false, message: `Database Error: ${error.message}` };
+      return {
+        success: false, message: `Database Error: ${error.message}`
+      };
     }
-    return { success: true };
+    return {
+      success: true
+    };
   },
 
   /** Update a user's role in the online Supabase registry. */
   updateAppUserRole: async (id: string, role: UserRole): Promise<{ success: boolean; message?: string }> => {
-    if (!supabase) return { success: false, message: 'Supabase is not configured.' };
+    if (!supabase) return {
+      success: false, message: 'Supabase is not configured.'
+    };
 
     const { error } = await supabase.from('app_users').update({ role }).eq('id', id);
     if (error) {
       console.error('Supabase updateAppUserRole error:', error);
-      return { success: false, message: `Database Error: ${error.message}` };
+      return {
+        success: false, message: `Database Error: ${error.message}`
+      };
     }
-    return { success: true };
+    return {
+      success: true
+    };
   },
 
   deleteAppUser: async (id: string): Promise<{ success: boolean; message?: string }> => {
-    if (!id) return { success: false, message: "Invalid User ID provided for revocation." };
+    if (!id) return {
+      success: false, message: "Invalid User ID provided for revocation."
+    };
 
     // Robust delete: Check if 'id' is a valid UUID to avoid Supabase parsing errors
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -295,10 +328,14 @@ export const dbService = {
     const { error } = await query;
     if (error) {
       console.error("Supabase User Deletion Error:", error);
-      return { success: false, message: error.message };
+      return {
+        success: false, message: error.message
+      };
     }
 
-    return { success: true };
+    return {
+      success: true
+    };
   },
 
   getRolePermissions: async (): Promise<any[]> => {
@@ -311,7 +348,9 @@ export const dbService = {
   },
 
   updateRolePermission: async (role: string, viewId: string, isActive: boolean): Promise<{ success: boolean; message?: string }> => {
-    if (!supabase) return { success: false, message: 'Supabase not configured' };
+    if (!supabase) return {
+      success: false, message: 'Supabase not configured'
+    };
 
     const { error } = await supabase.from('role_permissions').upsert(
       { role, view_id: viewId, is_active: isActive },
@@ -320,9 +359,13 @@ export const dbService = {
 
     if (error) {
       console.error('updateRolePermission error:', error);
-      return { success: false, message: error.message };
+      return {
+        success: false, message: error.message
+      };
     }
-    return { success: true };
+    return {
+      success: true
+    };
   },
 
   getPermissionTemplates: async (): Promise<any[]> => {
@@ -335,7 +378,9 @@ export const dbService = {
   },
 
   applyPermissionTemplate: async (role: string, templatePermissions: Record<string, boolean>): Promise<{ success: boolean; message?: string }> => {
-    if (!supabase) return { success: false, message: 'Supabase not configured' };
+    if (!supabase) return {
+      success: false, message: 'Supabase not configured'
+    };
 
     const upserts = Object.entries(templatePermissions).map(([view_id, is_active]) => ({
       role,
@@ -347,16 +392,22 @@ export const dbService = {
 
     if (error) {
       console.error('applyPermissionTemplate error:', error);
-      return { success: false, message: error.message };
+      return {
+        success: false, message: error.message
+      };
     }
-    return { success: true };
+    return {
+      success: true
+    };
   },
 
   /** Always true when the Supabase client is initialised (online-only mode). */
   isLive: () => isSupabaseConfigured && !!supabase,
 
   async testConnection(): Promise<{ success: boolean; message: string; latency?: number; details?: any }> {
-    if (!supabase) return { success: false, message: 'Supabase client not configured.' };
+    if (!supabase) return {
+      success: false, message: 'Supabase client not configured.'
+    };
     const startTime = performance.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
@@ -366,11 +417,15 @@ export const dbService = {
       clearTimeout(timeoutId);
       const latency = Math.round(performance.now() - startTime);
       if (error) throw error;
-      return { success: true, message: 'Connected to Supabase Live Registry.', latency };
+      return {
+        success: true, message: 'Connected to Supabase Live Registry.', latency
+      };
     } catch (e: any) {
       clearTimeout(timeoutId);
       console.warn('Supabase connectivity check failed:', e);
-      return { success: false, message: `Network Error: ${e.message}`, details: e };
+      return {
+        success: false, message: `Network Error: ${e.message}`, details: e
+      };
     }
   },
 
@@ -385,7 +440,9 @@ export const dbService = {
   },
 
   async updateGlobalPolicies(updates: Partial<typeof globalPolicies>) {
-    globalPolicies = { ...globalPolicies, ...updates };
+    globalPolicies = {
+      ...globalPolicies, ...updates
+    };
     return globalPolicies;
   },
 
@@ -623,7 +680,9 @@ export const dbService = {
 
     // Also keep the JSONB history column in sync (transition period)
     const { data: current } = await supabase!.from('leave_requests').select('history').eq('id', id).single();
-    const legacyEntry = { user: user.name, role: user.role, action: `Status changed to ${status}`, timestamp: now, note };
+    const legacyEntry = {
+      user: user.name, role: user.role, action: `Status changed to ${status}`, timestamp: now, note
+    };
     const newHistory = [...(current?.history || []), legacyEntry];
 
     const { data, error = null } = await supabase!
@@ -713,7 +772,9 @@ export const dbService = {
     const userItem = items.find(i => i.employeeId === userId);
 
     if (!userItem) return null;
-    return { item: userItem, run: latestRun };
+    return {
+      item: userItem, run: latestRun
+    };
   },
 
   async exportWPS(runId: string, bankFormat: string): Promise<string> {
@@ -1021,11 +1082,25 @@ export const dbService = {
 
       // Inject Variable Compensation (Bonus/OT)
       const empVarComp = variableComp.filter(vc => vc.employee_id === emp.id);
+
+      const hourlyRate = (basic / 30) / 8; // Kuwaiti standard base hourly rate
+      let overtimeAmount = 0;
+
       empVarComp.forEach(vc => {
-        const val = Number(vc.amount);
-        allowanceBreakdown.push({ name: `VARIABLE COMP (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة إضافية', value: val });
-        otherAllowancesTotal += val;
+        if (vc.comp_type === 'OVERTIME') {
+          const hours = Number(vc.amount);
+          const multiplier = vc.sub_type === 'Holiday_OT' ? 2.0 : 1.5;
+          const kwd = hours * hourlyRate * multiplier;
+          allowanceBreakdown.push({ name: `OVERTIME (${vc.sub_type.replace('_', ' ')}) - ${hours} hrs`, nameArabic: 'عمل إضافي', value: kwd });
+          overtimeAmount += kwd;
+        } else {
+          const val = Number(vc.amount);
+          allowanceBreakdown.push({ name: `VARIABLE COMP (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة إضافية', value: val });
+          otherAllowancesTotal += val;
+        }
       });
+      // Add overtime to total so net is correct
+      otherAllowancesTotal += overtimeAmount;
 
       let pifssPaidInHub = !!currentMonthHub;
 
@@ -1166,6 +1241,7 @@ export const dbService = {
         basic_salary: Math.max(0, basic - leaveDaysTotalStandardPay), // Reclassify leave portion
         housing_allowance: housingAmount,
         other_allowances: otherAllowancesTotal,
+        overtime_amount: overtimeAmount,
         leave_deductions: totalShortLeaveDeduction,
         sick_leave_pay: sickLeavePayTotal,
         annual_leave_pay: annualLeavePayTotal,
@@ -1193,6 +1269,7 @@ export const dbService = {
       basic_salary: i.basic_salary,
       housing_allowance: i.housing_allowance,
       other_allowances: i.other_allowances,
+      overtime_amount: i.overtime_amount,
       leave_deductions: i.leave_deductions,
       sick_leave_pay: i.sick_leave_pay,
       annual_leave_pay: i.annual_leave_pay,
@@ -1245,8 +1322,12 @@ export const dbService = {
       .select();
 
     if (error) throw error;
-    if (!data || data.length === 0) return { success: false, message: "No payroll record found for this period." };
-    return { success: true, message: "Payroll records purged successfully from live registry." };
+    if (!data || data.length === 0) return {
+      success: false, message: "No payroll record found for this period."
+    };
+    return {
+      success: true, message: "Payroll records purged successfully from live registry."
+    };
   },
 
   async rollbackLeavePayout(payrollRunId: string, leaveRequestId: string, user: User): Promise<{ success: boolean; message: string }> {
@@ -1260,11 +1341,15 @@ export const dbService = {
       .select();
 
     if (error) throw error;
-    if (!data || data.length === 0) return { success: false, message: "No run found." };
+    if (!data || data.length === 0) return {
+      success: false, message: "No run found."
+    };
 
     // Revert the leave request status back to HR_Finalized so it can be paid again
     await this.updateLeaveRequestStatus(leaveRequestId, 'HR_Finalized', user, "Payout reversed by Admin.");
-    return { success: true, message: "Leave payout reversed successfully." };
+    return {
+      success: true, message: "Leave payout reversed successfully."
+    };
   },
 
   async calculateFinalSettlement(employeeId: string, endDate: string, reason: 'Resignation' | 'Termination', unpaidDays: number): Promise<SettlementResult> {
@@ -1373,7 +1458,9 @@ export const dbService = {
 
   async syncHardwareAttendance(): Promise<{ synced: number; errors: number }> {
     await new Promise(resolve => setTimeout(resolve, 1500));
-    return { synced: 5, errors: 0 };
+    return {
+      synced: 5, errors: 0
+    };
   },
 
   async generateHistoricalAttendance(): Promise<{ generated: number }> {
@@ -1428,7 +1515,7 @@ export const dbService = {
               END LOOP;
           END LOOP;
       END $$;
-    `;
+      `;
 
     if (!supabase) throw new Error('Supabase not configured');
 
@@ -1436,6 +1523,59 @@ export const dbService = {
     if (error) throw error;
 
     return { generated: 1 }; // Return dummy success count, client-side will refresh
+  },
+
+  async calculateOvertimeFromLogs(): Promise<{ processed: number }> {
+    const sql = `
+      DO $$
+      DECLARE
+          rec RECORD;
+          shift_duration INTERVAL;
+          ot_hours NUMERIC;
+          standard_shift INTERVAL := '8 hours'::interval;
+          ot_count INTEGER := 0;
+      BEGIN
+          -- Only process attendance records with both clock_in and clock_out
+          -- And only those not already processed into variable_compensation
+          FOR rec IN 
+            SELECT a.*
+            FROM attendance a
+            WHERE a.clock_in IS NOT NULL 
+              AND a.clock_out IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM variable_compensation vc 
+                WHERE vc.employee_id = a.employee_id 
+                  AND vc.comp_type = 'OVERTIME'
+                  AND vc.notes LIKE '%' || a.id || '%'
+              )
+          LOOP
+              shift_duration := rec.clock_out::time - rec.clock_in::time;
+              
+              IF shift_duration > standard_shift THEN
+                  -- Calculate OT hours
+                  ot_hours := EXTRACT(EPOCH FROM (shift_duration - standard_shift)) / 3600;
+                  
+                  INSERT INTO variable_compensation (
+                    employee_id, comp_type, sub_type, amount, status, notes
+                  ) VALUES (
+                    rec.employee_id, 'OVERTIME', 'Workday_OT', ot_hours, 'PENDING_MANAGER', 
+                    'Generated from Attendance ID: ' || rec.id || ' on ' || rec.date
+                  );
+                  
+                  ot_count := ot_count + 1;
+              END IF;
+          END LOOP;
+      END $$;
+      `;
+
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const { error } = await supabase.rpc('run_sql', { sql_query: sql });
+    if (error) throw error;
+
+    return {
+      processed: 1
+    };
   },
 
   async getOfficeLocations(): Promise<OfficeLocation[]> {
@@ -1477,7 +1617,9 @@ export const dbService = {
     };
     const { data, error = null } = await supabase!.from('office_locations').insert([dbPayload]).select().single();
     if (error) throw error;
-    return { ...data, nameArabic: data.name_arabic, addressArabic: data.address_arabic };
+    return {
+      ...data, nameArabic: data.name_arabic, addressArabic: data.address_arabic
+    };
   },
 
   async deleteOfficeLocation(id: string): Promise<void> {
@@ -1485,7 +1627,9 @@ export const dbService = {
   },
 
   async addPublicHoliday(h: PublicHoliday): Promise<PublicHoliday> {
-    const finalH = h.id ? h : { ...h, id: gid() };
+    const finalH = h.id ? h : {
+      ...h, id: gid()
+    };
     const dbPayload = {
       id: finalH.id,
       name: h.name,
@@ -1512,7 +1656,9 @@ export const dbService = {
 
     const { data, error } = await supabase!.from('public_holidays').update(dbUpdates).eq('id', id).select().single();
     if (error) throw error;
-    return { ...data, nameArabic: data.name_arabic, isFixed: data.is_fixed };
+    return {
+      ...data, nameArabic: data.name_arabic, isFixed: data.is_fixed
+    };
   },
 
   // ─── Departments (merged from department_metrics + department_configs) ────────
@@ -1563,7 +1709,9 @@ export const dbService = {
       target_ratio: m.targetRatio
     }]).select().single();
     if (error) throw error;
-    return { name: data.name, nameArabic: data.name_arabic, kuwaitiCount: data.kuwaiti_count, expatCount: data.expat_count, targetRatio: data.target_ratio };
+    return {
+      name: data.name, nameArabic: data.name_arabic, kuwaitiCount: data.kuwaiti_count, expatCount: data.expat_count, targetRatio: data.target_ratio
+    };
   },
 
   async deleteDepartmentMetric(name: string): Promise<void> {
@@ -1701,9 +1849,13 @@ export const dbService = {
         }))),
         supabase!.from('departments').upsert(DEPARTMENT_METRICS.map(m => ({ name: m.name, name_arabic: m.nameArabic, kuwaiti_count: m.kuwaitiCount, expat_count: m.expatCount, target_ratio: m.targetRatio })))
       ]);
-      return { success: true };
+      return {
+        success: true
+      };
     } catch (e: any) {
-      return { success: false, error: e.message };
+      return {
+        success: false, error: e.message
+      };
     }
   },
 
@@ -1860,16 +2012,45 @@ export const dbService = {
         }]);
       }
     }
+  },
+
+  async getOvertimeApprovals(managerId?: string, department?: string): Promise<any[]> {
+    let query = supabase!
+      .from('variable_compensation')
+      .select(`
+          *,
+          employees (
+            name,
+            name_arabic,
+            department,
+            manager_id
+          )
+        `)
+      .eq('comp_type', 'OVERTIME');
+
+    if (managerId) {
+      query = query.eq('employees.manager_id', managerId);
+    }
+    if (department) {
+      query = query.eq('employees.department', department);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateVariableCompStatus(id: string, newStatus: string, calculatedKwd?: number): Promise<void> {
+    const updatePayload: any = { status: newStatus };
+    if (calculatedKwd !== undefined) {
+      updatePayload.calculated_kwd = calculatedKwd;
+    }
+    const { error } = await supabase!
+      .from('variable_compensation')
+      .update(updatePayload)
+      .eq('id', id);
+    if (error) throw error;
   }
 };
 
-const getCurrentWeekRange = () => {
-  const now = new Date();
-  const sun = new Date(now);
-  sun.setDate(now.getDate() - now.getDay());
-  sun.setHours(0, 0, 0, 0);
-  const thu = new Date(sun);
-  thu.setDate(sun.getDate() + 4);
-  thu.setHours(23, 59, 59, 999);
-  return { start: sun, end: thu };
-};
+

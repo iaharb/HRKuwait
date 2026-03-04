@@ -17,6 +17,7 @@ import MandoobDashboard from './MandoobDashboard.tsx';
 import { FinanceMappingSettings } from './FinanceMappingSettings.tsx';
 import { ManagementDashboard } from './ManagementDashboard.tsx';
 import { UserManagement } from './UserManagement.tsx';
+import { ApprovalsView } from './ApprovalsView.tsx';
 
 interface ViewRendererProps {
     user: User;
@@ -58,6 +59,7 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/finance" element={isAdminOrHr ? <FinanceMappingSettings key={`finance-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/management" element={isAdminOrHr ? <ManagementDashboard key={`manage-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/user-management" element={isAdmin ? <UserManagement key={`user-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/approvals" element={<ApprovalsView user={user} key={`approvals-${refreshKey}`} />} />
             {/* 404 handling - redirect to default */}
             <Route path="*" element={<Navigate to={defaultRoute} replace />} />
         </Routes>

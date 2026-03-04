@@ -448,6 +448,7 @@ const AdminCenter: React.FC = () => {
   const [hwConfig, setHwConfig] = useState<HardwareConfig | null>(null);
   const [syncingHw, setSyncingHw] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
+  const [analyzingOt, setAnalyzingOt] = useState(false);
 
   // AI Configuration State
   const [aiUrl, setAiUrl] = useState(localStorage.getItem('ai_provider_url') || '');
@@ -640,6 +641,18 @@ const AdminCenter: React.FC = () => {
         }
       }
     });
+  };
+
+  const handleAnalyzeOvertime = async () => {
+    setAnalyzingOt(true);
+    try {
+      await dbService.calculateOvertimeFromLogs();
+      notify(t('success'), 'Daily logs analyzed. Pending OT entries pushed to Payroll Hub.', "success");
+    } catch (err: any) {
+      notify(t('critical'), err.message || t('unknown'), "error");
+    } finally {
+      setAnalyzingOt(false);
+    }
   };
 
   const fetchLeaveRuns = async () => {
@@ -1234,6 +1247,9 @@ const AdminCenter: React.FC = () => {
               <div className="w-full space-y-5 relative z-10 max-w-sm">
                 <button onClick={handleSyncHardware} disabled={syncingHw} className="w-full py-6 bg-white text-slate-900 rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl transition-all active:scale-95 disabled:opacity-50 hover:bg-indigo-50">{t('pullLogs')}</button>
                 <button onClick={handleReconstructHistory} disabled={reconstructing} className="w-full py-6 bg-indigo-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-50 border border-indigo-500">{t('backfillRegistry')}</button>
+                <button onClick={handleAnalyzeOvertime} disabled={analyzingOt} className="w-full py-6 bg-emerald-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50 border border-emerald-500 hover:bg-emerald-700">
+                  {analyzingOt ? 'Analyzing Registry...' : (isAr ? 'تحليل العمل الإضافي' : 'Analyze Overtime')}
+                </button>
               </div>
             </div>
           </div>
