@@ -174,18 +174,23 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
 
     let current = new Date(start.getTime());
     while (current <= end) {
-      const dayOfWeek = current.getDay();
-      const dateStr = current.toLocaleDateString('en-CA');
-      const holiday = publicHolidays.find(h => h.date === dateStr);
+      const year = current.getFullYear();
+      const month = String(current.getMonth() + 1).padStart(2, '0');
+      const day = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
-      if (dayOfWeek === 5) {
-        weekendsFound.push(`${dateStr} (${language === 'ar' ? 'الجمعة' : 'Friday'})`);
-      } else if (dayOfWeek === 6 && isFiveDayWorker) {
-        weekendsFound.push(`${dateStr} (${language === 'ar' ? 'السبت' : 'Saturday'})`);
-      } else if (holiday) {
+      const holiday = publicHolidays.find(h => h.date === dateStr);
+      const dayOfWeek = current.getDay();
+
+      if (holiday) {
         holidaysFound.push(`${dateStr} (${holiday.name})`);
       } else {
         total++;
+        if (dayOfWeek === 5) {
+          weekendsFound.push(`${dateStr} (${language === 'ar' ? 'الجمعة' : 'Friday'})`);
+        } else if (dayOfWeek === 6 && isFiveDayWorker) {
+          weekendsFound.push(`${dateStr} (${language === 'ar' ? 'السبت' : 'Saturday'})`);
+        }
       }
       current.setDate(current.getDate() + 1);
     }
@@ -491,7 +496,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
                           ) : <p className="text-[11px] text-slate-400 italic">{t('noneDetected')}</p>}
                         </div>
                         <div className="space-y-2">
-                          <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{t('weekendsDeducted')} ({calculationBreakdown.weekends?.length || 0})</p>
+                          <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{t('weekendsConsumed')} ({calculationBreakdown.weekends?.length || 0})</p>
                           {calculationBreakdown.weekends && calculationBreakdown.weekends.length > 0 ? (
                             calculationBreakdown.weekends.map((w, i) => <p key={i} className="text-[11px] font-bold text-slate-600">🗓️ {w}</p>)
                           ) : <p className="text-[11px] text-slate-400 italic">{t('noneDetected')}</p>}

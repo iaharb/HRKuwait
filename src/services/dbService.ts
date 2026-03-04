@@ -210,13 +210,20 @@ export const calculateLeaveDays = (start: string, end: string, type: LeaveType, 
   const endDate = new Date(end);
   let total = 0;
   let current = new Date(startDate);
+
   while (current <= endDate) {
-    const dayOfWeek = current.getDay();
-    const dateStr = current.toLocaleDateString('en-CA');
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const day = String(current.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
     const isHoliday = holidays.includes(dateStr);
-    const isFriday = dayOfWeek === 5;
-    const isSaturday = dayOfWeek === 6;
-    if (!isFriday && !(isSaturday && !includeSat) && !isHoliday) total++;
+
+    // Under Kuwait Labor Law, Annual Leave consumes calendar days (including weekends),
+    // but official holidays falling during the leave are not counted (not deducted from balance).
+    if (!isHoliday) {
+      total++;
+    }
     current.setDate(current.getDate() + 1);
   }
   return total;
