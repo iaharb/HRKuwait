@@ -47,24 +47,37 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     return () => clearInterval(interval);
   }, []);
 
+  const allRoles = ['Admin', 'Manager', 'Employee', 'HR', 'Mandoob', 'Executive', 'HR Officer', 'HR Manager', 'Payroll Officer', 'Payroll Manager'];
+
   const allItems = [
-    { id: View.Dashboard, label: t('dashboard'), icon: 'layout-grid', roles: ['Admin', 'Manager', 'HR', 'Mandoob'] },
-    { id: View.AdminCenter, label: t('adminCenter'), icon: 'shield', roles: ['Admin', 'HR'] },
-    { id: View.Mandoob, label: language === 'ar' ? 'أعمال المندوب' : 'Mandoob PRO', icon: 'passport', roles: ['Admin', 'HR', 'Mandoob'] },
-    { id: View.Profile, label: t('profile'), icon: 'user', roles: ['Employee', 'Manager', 'Admin', 'HR'] },
-    { id: View.Attendance, label: t('attendance'), icon: 'map-pin', roles: ['Employee', 'Manager', 'Admin', 'HR'] },
-    { id: View.Leaves, label: t('leaves'), icon: 'calendar', roles: ['Admin', 'Manager', 'Employee', 'HR'] },
-    { id: View.Directory, label: t('directory'), icon: 'users', roles: ['Admin', 'Manager', 'HR'] },
-    { id: View.Payroll, label: t('payroll'), icon: 'banknote', roles: ['Admin', 'HR'] },
-    { id: View.Settlement, label: t('settlement'), icon: 'file-text', roles: ['Admin', 'HR'] },
-    { id: View.Finance, label: language === 'ar' ? 'المحاسبة' : 'Finance', icon: 'finance', roles: ['Admin', 'HR'] },
-    { id: View.Management, label: t('strategy'), icon: 'management', roles: ['Admin', 'Executive', 'Manager', 'HR', 'HR Manager', 'HR Officer', 'Payroll Manager'] },
-    { id: View.Insights, label: t('insights'), icon: 'sparkles', roles: ['Admin', 'Manager', 'HR'] },
-    { id: View.Compliance, label: t('compliance'), icon: 'scale', roles: ['Admin', 'HR'] },
-    { id: View.Whitepaper, label: t('whitepaper'), icon: 'book-open', roles: ['Admin', 'HR'] },
+    // --- Employee Level (Base) ---
+    { id: View.Profile, label: t('profile'), icon: 'user', roles: allRoles },
+    { id: View.Attendance, label: t('attendance'), icon: 'map-pin', roles: allRoles },
+    { id: View.Leaves, label: t('leaves'), icon: 'calendar', roles: allRoles },
+
+    // --- Enterprise Dashboards ---
+    { id: View.Dashboard, label: t('dashboard'), icon: 'layout-grid', roles: ['Admin', 'Manager', 'HR', 'Mandoob', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'Payroll Officer'] },
+
+    // --- Management & Approvals ---
     { id: View.Approvals, label: t('approvals'), icon: 'check-circle', roles: ['Admin', 'Manager', 'HR', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager'] },
-    { id: View.Performance, label: language === 'ar' ? 'تقييم الأداء' : 'Performance', icon: 'star', roles: ['Admin', 'Manager', 'HR', 'Executive'] },
-    { id: View.ProfitSharing, label: 'Profit Bonus', icon: 'trending-up', roles: ['Admin', 'HR', 'Executive', 'HR Manager'] },
+    { id: View.Performance, label: language === 'ar' ? 'تقييم الأداء' : 'Performance', icon: 'star', roles: ['Admin', 'Manager', 'HR', 'Executive', 'HR Manager'] },
+
+    // --- HR Ops & Mandoob ---
+    { id: View.Directory, label: t('directory'), icon: 'users', roles: ['Admin', 'Manager', 'HR', 'HR Manager', 'HR Officer'] },
+    { id: View.Mandoob, label: language === 'ar' ? 'أعمال المندوب' : 'Mandoob PRO', icon: 'passport', roles: ['Admin', 'HR', 'Mandoob', 'HR Manager', 'HR Officer'] },
+    { id: View.AdminCenter, label: t('adminCenter'), icon: 'shield', roles: ['Admin', 'HR', 'HR Manager', 'HR Officer'] },
+    { id: View.Compliance, label: t('compliance'), icon: 'scale', roles: ['Admin', 'HR', 'HR Manager', 'HR Officer', 'Executive'] },
+
+    // --- Payroll & Finance ---
+    { id: View.Payroll, label: t('payroll'), icon: 'banknote', roles: ['Admin', 'HR', 'HR Manager', 'Payroll Manager', 'Payroll Officer', 'Executive'] },
+    { id: View.Settlement, label: t('settlement'), icon: 'file-text', roles: ['Admin', 'HR', 'HR Manager', 'Payroll Manager', 'Payroll Officer'] },
+    { id: View.Finance, label: language === 'ar' ? 'المحاسبة' : 'Finance', icon: 'finance', roles: ['Admin', 'HR', 'HR Manager', 'Payroll Manager', 'Payroll Officer', 'Executive'] },
+    { id: View.ProfitSharing, label: 'Profit Bonus', icon: 'trending-up', roles: ['Admin', 'HR', 'Executive', 'HR Manager', 'Payroll Manager'] },
+
+    // --- Global Strategy & Support ---
+    { id: View.Management, label: t('strategy'), icon: 'management', roles: ['Admin', 'Executive', 'Manager', 'HR', 'HR Manager', 'HR Officer', 'Payroll Manager'] },
+    { id: View.Insights, label: t('insights'), icon: 'sparkles', roles: ['Admin', 'Manager', 'HR', 'Executive', 'HR Manager'] },
+    { id: View.Whitepaper, label: t('whitepaper'), icon: 'book-open', roles: ['Admin', 'HR', 'Executive'] },
     { id: View.UserManagement, label: 'Security & Roles', icon: 'lock', roles: ['Admin'] },
   ];
 
