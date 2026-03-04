@@ -20,6 +20,7 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
     const [kpiScores, setKpiScores] = useState<{ name: string, weight: number, score: number }[]>([]);
     const [quarter, setQuarter] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<'employee' | 'department' | 'company'>('employee');
 
     // For Executive / HR View
     const [pendingEvals, setPendingEvals] = useState<EmployeeEvaluation[]>([]);
@@ -165,176 +166,296 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user }) => {
 
     return (
         <div className="p-8 space-y-8 animate-fade-in text-start">
-            <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <span className="text-4xl">⭐</span> {t('performance_evaluations') || 'Performance Evaluations'}
                     </h2>
                     <p className="text-sm font-bold text-slate-400 mt-2 uppercase tracking-widest">{quarter} Cycle</p>
                 </div>
-            </div>
 
-            {(['Manager', 'Admin', 'HR Manager'].includes(user.role)) && (
-                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl">
-                    <h3 className="text-xl font-black text-slate-900 mb-6">Create New Evaluation</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Employee</label>
-                            <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}>
-                                <option value="">Select Employee</option>
-                                {employees.map(e => (
-                                    <option key={e.id} value={e.id}>{e.name} - {e.role}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">KPI Template</label>
-                            <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" value={selectedTemplate} onChange={e => handleTemplateSelect(e.target.value)}>
-                                <option value="">Select Template</option>
-                                {templates.map(t => (
-                                    <option key={t.id} value={t.id}>{t.title}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Quarter</label>
-                            <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-center" value={quarter} onChange={e => setQuarter(e.target.value)} />
-                        </div>
-                    </div>
-
-                    {kpiScores.length > 0 && (
-                        <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
-                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">KPI Scoring</h4>
-                            <div className="space-y-4">
-                                {kpiScores.map((kpi, idx) => (
-                                    <div key={idx} className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-xl border border-slate-100">
-                                        <div className="flex-1">
-                                            <p className="font-bold text-slate-800">{kpi.name}</p>
-                                        </div>
-                                        <div className="w-24 text-center">
-                                            <span className="text-xs font-black text-indigo-500 uppercase">Weight: {kpi.weight}%</span>
-                                        </div>
-                                        <div className="w-32 flex items-center gap-2">
-                                            <input
-                                                type="number"
-                                                min="0" max="150"
-                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-black"
-                                                placeholder="Achieved %"
-                                                value={kpi.score === 0 ? '' : kpi.score}
-                                                onChange={e => {
-                                                    const newScores = [...kpiScores];
-                                                    newScores[idx].score = Number(e.target.value);
-                                                    setKpiScores(newScores);
-                                                }}
-                                            />
-                                            <span className="text-xs font-black text-slate-400">%</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6">
-                                <div>
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Calculated Performance Factor</p>
-                                    <p className="text-3xl font-black text-indigo-600">{(calculateTotalScore() * 100).toFixed(1)}%</p>
-                                </div>
-                                <button
-                                    onClick={handleSubmitEvaluation}
-                                    className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg"
-                                >
-                                    Submit Evaluation
-                                </button>
-                            </div>
-                        </div>
+                <div className="flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
+                    <button
+                        onClick={() => setActiveTab('employee')}
+                        className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'employee' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        INDIVIDUAL
+                    </button>
+                    {(['Admin', 'Manager', 'Executive', 'HR Manager'].includes(user.role)) && (
+                        <button
+                            onClick={() => setActiveTab('department')}
+                            className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'department' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            DEPARTMENT
+                        </button>
+                    )}
+                    {(['Admin', 'Executive'].includes(user.role)) && (
+                        <button
+                            onClick={() => setActiveTab('company')}
+                            className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'company' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            COMPANY
+                        </button>
                     )}
                 </div>
+            </div>
+
+            {activeTab === 'employee' && (
+                <>
+                    {(['Manager', 'Admin', 'HR Manager'].includes(user.role)) && (
+                        <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl">
+                            <h3 className="text-xl font-black text-slate-900 mb-6">Create New Evaluation</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Employee</label>
+                                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}>
+                                        <option value="">Select Employee</option>
+                                        {employees.map(e => (
+                                            <option key={e.id} value={e.id}>{e.name} - {e.role}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">KPI Template</label>
+                                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" value={selectedTemplate} onChange={e => handleTemplateSelect(e.target.value)}>
+                                        <option value="">Select Template</option>
+                                        {templates.map(t => (
+                                            <option key={t.id} value={t.id}>{t.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Quarter</label>
+                                    <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-center" value={quarter} onChange={e => setQuarter(e.target.value)} />
+                                </div>
+                            </div>
+
+                            {kpiScores.length > 0 && (
+                                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
+                                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">KPI Scoring</h4>
+                                    <div className="space-y-4">
+                                        {kpiScores.map((kpi, idx) => (
+                                            <div key={idx} className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-xl border border-slate-100">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-slate-800">{kpi.name}</p>
+                                                </div>
+                                                <div className="w-24 text-center">
+                                                    <span className="text-xs font-black text-indigo-500 uppercase">Weight: {kpi.weight}%</span>
+                                                </div>
+                                                <div className="w-32 flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min="0" max="150"
+                                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-black"
+                                                        placeholder="Achieved %"
+                                                        value={kpi.score === 0 ? '' : kpi.score}
+                                                        onChange={e => {
+                                                            const newScores = [...kpiScores];
+                                                            newScores[idx].score = Number(e.target.value);
+                                                            setKpiScores(newScores);
+                                                        }}
+                                                    />
+                                                    <span className="text-xs font-black text-slate-400">%</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6">
+                                        <div>
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Calculated Performance Factor</p>
+                                            <p className="text-3xl font-black text-indigo-600">{(calculateTotalScore() * 100).toFixed(1)}%</p>
+                                        </div>
+                                        <button
+                                            onClick={handleSubmitEvaluation}
+                                            className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg"
+                                        >
+                                            Submit Evaluation
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {pendingEvals.length > 0 && (
+                        <div className="bg-white p-10 rounded-[40px] border border-amber-200 shadow-xl overflow-x-auto relative mt-8">
+                            <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none">📋</div>
+                            <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                                <span className="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
+                                Pending Sign-Offs
+                            </h3>
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
+                                        <th className="p-4">Employee</th>
+                                        <th className="p-4">Quarter</th>
+                                        <th className="p-4">Final Factor</th>
+                                        <th className="p-4">Pro-Rata</th>
+                                        <th className="p-4">Calc. Bonus KWD</th>
+                                        <th className="p-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {pendingEvals.map(ev => (
+                                        <tr key={ev.id} className="hover:bg-slate-50/50">
+                                            <td className="p-4">
+                                                <p className="font-bold text-slate-900">{ev.employeeName}</p>
+                                                <p className="text-[10px] text-slate-400">{ev.department}</p>
+                                            </td>
+                                            <td className="p-4 font-mono text-sm text-slate-600">{ev.quarter}</td>
+                                            <td className="p-4">
+                                                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-md font-black text-sm">{(ev.totalScore * 100).toFixed(1)}%</span>
+                                            </td>
+                                            <td className="p-4 text-xs font-bold text-slate-500">{ev.proRataFactor.toFixed(2)}x</td>
+                                            <td className="p-4 text-lg font-black text-emerald-600">{ev.calculatedKwd.toLocaleString()} KWD</td>
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => approveEvaluation(ev.id, ev.status)}
+                                                    className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-colors"
+                                                >
+                                                    {user.role === 'Executive' ? 'Sign & Approve' : 'Acknowledge (HR)'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Audit History */}
+                    <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm mt-8">
+                        <h3 className="text-lg font-black text-slate-800 mb-6">Historical Evaluations</h3>
+                        {evaluations.length === 0 ? (
+                            <p className="p-8 text-center text-slate-400 italic">No historical evaluations found.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
+                                            <th className="p-4">Employee</th>
+                                            <th className="p-4">Quarter</th>
+                                            <th className="p-4">Factor</th>
+                                            <th className="p-4">Award KWD</th>
+                                            <th className="p-4">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {evaluations.map(ev => (
+                                            <tr key={ev.id}>
+                                                <td className="p-4">
+                                                    <p className="font-bold text-slate-900">{ev.employeeName}</p>
+                                                    <p className="text-[10px] text-slate-400">{ev.department}</p>
+                                                </td>
+                                                <td className="p-4 font-mono text-xs">{ev.quarter}</td>
+                                                <td className="p-4 text-sm font-bold">{(ev.totalScore * 100).toFixed(1)}%</td>
+                                                <td className="p-4 text-sm font-black text-slate-900">{ev.calculatedKwd.toLocaleString()}</td>
+                                                <td className="p-4">
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md border ${ev.status === 'APPROVED_FOR_PAYROLL' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                                        {ev.status.replace(/_/g, ' ')}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
             )}
 
-            {pendingEvals.length > 0 && (
-                <div className="bg-white p-10 rounded-[40px] border border-amber-200 shadow-xl overflow-x-auto relative mt-8">
-                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none">📋</div>
+            {activeTab === 'department' && (
+                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl overflow-x-auto relative mt-8">
+                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none">🏢</div>
                     <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                        <span className="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
-                        Pending Sign-Offs
+                        Department Operational KPI Status
                     </h3>
+                    <p className="text-sm font-medium text-slate-500 mb-6">Department KPIs are dynamically aggregated from individual team member evaluations for the {quarter} cycle.</p>
+
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
-                                <th className="p-4">Employee</th>
-                                <th className="p-4">Quarter</th>
-                                <th className="p-4">Final Factor</th>
-                                <th className="p-4">Pro-Rata</th>
-                                <th className="p-4">Calc. Bonus KWD</th>
-                                <th className="p-4">Action</th>
+                                <th className="p-4">Department</th>
+                                <th className="p-4">Staff Evaluated</th>
+                                <th className="p-4">Aggregated Target Score</th>
+                                <th className="p-4">Operational Status</th>
+                                <th className="p-4">Sign-Off</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {pendingEvals.map(ev => (
-                                <tr key={ev.id} className="hover:bg-slate-50/50">
-                                    <td className="p-4">
-                                        <p className="font-bold text-slate-900">{ev.employeeName}</p>
-                                        <p className="text-[10px] text-slate-400">{ev.department}</p>
-                                    </td>
-                                    <td className="p-4 font-mono text-sm text-slate-600">{ev.quarter}</td>
-                                    <td className="p-4">
-                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-md font-black text-sm">{(ev.totalScore * 100).toFixed(1)}%</span>
-                                    </td>
-                                    <td className="p-4 text-xs font-bold text-slate-500">{ev.proRataFactor.toFixed(2)}x</td>
-                                    <td className="p-4 text-lg font-black text-emerald-600">{ev.calculatedKwd.toLocaleString()} KWD</td>
-                                    <td className="p-4">
-                                        <button
-                                            onClick={() => approveEvaluation(ev.id, ev.status)}
-                                            className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-colors"
-                                        >
-                                            {user.role === 'Executive' ? 'Sign & Approve' : 'Acknowledge (HR)'}
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {Array.from(new Set(evaluations.map(e => e.department).filter(Boolean))).map(dept => {
+                                const deptEvals = evaluations.filter(e => e.department === dept && e.quarter === quarter);
+                                if (deptEvals.length === 0) return null;
+
+                                const avgScore = deptEvals.reduce((sum, e) => sum + e.totalScore, 0) / deptEvals.length;
+
+                                return (
+                                    <tr key={dept} className="hover:bg-slate-50/50">
+                                        <td className="p-4">
+                                            <p className="font-bold text-slate-900">{dept}</p>
+                                        </td>
+                                        <td className="p-4 text-sm font-bold text-slate-600">{deptEvals.length} Members</td>
+                                        <td className="p-4">
+                                            <span className={`px-3 py-1 rounded-md font-black text-sm ${avgScore >= 0.85 ? 'bg-emerald-50 text-emerald-600' : avgScore >= 0.6 ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                {(avgScore * 100).toFixed(1)}%
+                                            </span>
+                                        </td>
+                                        <td className="p-4">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{avgScore >= 0.85 ? 'Exceeding' : avgScore >= 0.6 ? 'Meeting' : 'Underperforming'}</p>
+                                        </td>
+                                        <td className="p-4">
+                                            <button className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
+                                                Acknowledge
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
             )}
 
-            {/* Audit History */}
-            <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm mt-8">
-                <h3 className="text-lg font-black text-slate-800 mb-6">Historical Evaluations</h3>
-                {evaluations.length === 0 ? (
-                    <p className="p-8 text-center text-slate-400 italic">No historical evaluations found.</p>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
-                                    <th className="p-4">Employee</th>
-                                    <th className="p-4">Quarter</th>
-                                    <th className="p-4">Factor</th>
-                                    <th className="p-4">Award KWD</th>
-                                    <th className="p-4">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {evaluations.map(ev => (
-                                    <tr key={ev.id}>
-                                        <td className="p-4">
-                                            <p className="font-bold text-slate-900">{ev.employeeName}</p>
-                                            <p className="text-[10px] text-slate-400">{ev.department}</p>
-                                        </td>
-                                        <td className="p-4 font-mono text-xs">{ev.quarter}</td>
-                                        <td className="p-4 text-sm font-bold">{(ev.totalScore * 100).toFixed(1)}%</td>
-                                        <td className="p-4 text-sm font-black text-slate-900">{ev.calculatedKwd.toLocaleString()}</td>
-                                        <td className="p-4">
-                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md border ${ev.status === 'APPROVED_FOR_PAYROLL' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                                {ev.status.replace(/_/g, ' ')}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {activeTab === 'company' && (
+                <div className="bg-white p-10 rounded-[40px] border border-indigo-200 shadow-xl overflow-x-auto relative mt-8">
+                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none text-indigo-600">🏛️</div>
+                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                        Gross Company KPIs & Strategy Index
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500 mb-8 max-w-2xl">Enterprise-wide Key Performance Indicators reflect the holistic productivity, operational health, and aligned goal achievement across all business sectors for {quarter}.</p>
+
+                    {(() => {
+                        const allQ = evaluations.filter(e => e.quarter === quarter);
+                        const avgCompanyScore = allQ.length > 0 ? (allQ.reduce((sum, e) => sum + e.totalScore, 0) / allQ.length) : 0;
+                        const totalBonus = allQ.reduce((sum, e) => sum + e.calculatedKwd, 0);
+
+                        return (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Total Org Score</p>
+                                    <p className="text-4xl font-black text-indigo-700">{(avgCompanyScore * 100).toFixed(1)}%</p>
+                                </div>
+                                <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
+                                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Gross Performance Variance</p>
+                                    <p className="text-4xl font-black text-emerald-700">{totalBonus.toLocaleString()} KWD</p>
+                                </div>
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Evaluated Headcount</p>
+                                    <p className="text-4xl font-black text-slate-900">{allQ.length}</p>
+                                </div>
+                            </div>
+                        )
+                    })()}
+
+                    <div className="flex justify-end pt-6 border-t border-slate-100">
+                        <button className="px-8 py-4 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-600/20">
+                            Executive Sign-Off & Lock Quarter
+                        </button>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
         </div>
     );
