@@ -63,6 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     { id: View.Compliance, label: t('compliance'), icon: 'scale', roles: ['Admin', 'HR'] },
     { id: View.Whitepaper, label: t('whitepaper'), icon: 'book-open', roles: ['Admin', 'HR'] },
     { id: View.Approvals, label: t('approvals'), icon: 'check-circle', roles: ['Admin', 'Manager', 'HR', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager'] },
+    { id: View.Performance, label: language === 'ar' ? 'تقييم الأداء' : 'Performance', icon: 'star', roles: ['Admin', 'Manager', 'HR', 'Executive'] },
     { id: View.UserManagement, label: 'Security & Roles', icon: 'lock', roles: ['Admin'] },
   ];
 
@@ -83,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
       case 'scale': return '⚖️';
       case 'book-open': return '📑';
       case 'lock': return '🔐';
-      case 'check-circle': return '✅';
+      case 'star': return '⭐';
       default: return '•';
     }
   };

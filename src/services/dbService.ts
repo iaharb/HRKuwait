@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
-import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim } from '../types/types';
+import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim, KPITemplate, EmployeeEvaluation } from '../types/types';
 import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
 
 // Use standard UUIDs
@@ -2050,6 +2050,90 @@ export const dbService = {
       .update(updatePayload)
       .eq('id', id);
     if (error) throw error;
+  },
+
+  // ─── Performance Evaluations ──────────────────────────────────────────────
+
+  async getKPITemplates(): Promise<KPITemplate[]> {
+    const { data, error } = await supabase!.from('kpi_templates').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(d => ({
+      id: d.id,
+      title: d.title,
+      department: d.department,
+      roleName: d.role_name,
+      kpis: d.kpis,
+      createdAt: d.created_at
+    }));
+  },
+
+  async addKPITemplate(template: Omit<KPITemplate, 'id' | 'createdAt'>): Promise<void> {
+    const { error } = await supabase!.from('kpi_templates').insert([{
+      title: template.title,
+      department: template.department,
+      role_name: template.roleName,
+      kpis: template.kpis
+    }]);
+    if (error) throw error;
+  },
+
+  async getEmployeeEvaluations(managerId?: string, quarter?: string): Promise<EmployeeEvaluation[]> {
+    let query = supabase!.from('employee_evaluations').select('*, employees!employee_evaluations_employee_id_fkey(name, department, role)');
+    if (managerId) query = query.eq('evaluator_id', managerId);
+    if (quarter) query = query.eq('quarter', quarter);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data || []).map(d => ({
+      id: d.id,
+      employeeId: d.employee_id,
+      evaluatorId: d.evaluator_id,
+      quarter: d.quarter,
+      kpiScores: d.kpi_scores,
+      totalScore: Number(d.total_score),
+      proRataFactor: Number(d.pro_rata_factor),
+      calculatedKwd: Number(d.calculated_kwd),
+      status: d.status,
+      createdAt: d.created_at,
+      employeeName: d.employees?.name,
+      department: d.employees?.department,
+      role: d.employees?.role
+    }));
+  },
+
+  async submitEmployeeEvaluation(evalData: Omit<EmployeeEvaluation, 'id' | 'createdAt' | 'status'> & { status?: string }): Promise<void> {
+    const { error } = await supabase!.from('employee_evaluations').insert([{
+      employee_id: evalData.employeeId,
+      evaluator_id: evalData.evaluatorId,
+      quarter: evalData.quarter,
+      kpi_scores: evalData.kpiScores,
+      total_score: evalData.totalScore,
+      pro_rata_factor: evalData.proRataFactor,
+      calculated_kwd: evalData.calculatedKwd,
+      status: evalData.status || 'PENDING_EXEC'
+    }]);
+    if (error) throw error;
+  },
+
+  async updateEvaluationStatus(id: string, newStatus: string): Promise<void> {
+    const { error } = await supabase!.from('employee_evaluations').update({ status: newStatus }).eq('id', id);
+    if (error) throw error;
+
+    // If it's hitting approved for payroll, inject into variable compensation
+    if (newStatus === 'APPROVED_FOR_PAYROLL') {
+      const { data: ev, error: fetchErr } = await supabase!.from('employee_evaluations').select('*').eq('id', id).single();
+      if (!fetchErr && ev) {
+        await supabase!.from('variable_compensation').insert([{
+          employee_id: ev.employee_id,
+          comp_type: 'PERFORMANCE_BONUS',
+          sub_type: ev.quarter,
+          amount: ev.calculated_kwd,
+          status: 'APPROVED_FOR_PAYROLL',
+          notes: `Quarterly Performance Bonus for ${ev.quarter}`
+        }]);
+      }
+    }
   }
 };
 

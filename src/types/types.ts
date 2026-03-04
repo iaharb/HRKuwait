@@ -303,7 +303,8 @@ export enum View {
   Finance = 'finance',
   Management = 'management',
   UserManagement = 'user-management',
-  Approvals = 'approvals'
+  Approvals = 'approvals',
+  Performance = 'performance'
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -370,3 +371,39 @@ export interface FinancialRollup {
 export type AccountType = 'EXPENSE' | 'LIABILITY' | 'ASSET';
 export type NationalityGroup = 'LOCAL' | 'EXPAT' | 'ALL';
 export type EntryType = 'DR' | 'CR';
+
+export interface KPI {
+  name: string;
+  weight: number;
+}
+
+export interface KPITemplate {
+  id: string;
+  title: string;
+  department: string;
+  roleName: string;
+  kpis: KPI[];
+  createdAt?: string;
+}
+
+export interface KPIScore {
+  name: string;
+  weight: number;
+  score: number;
+}
+
+export interface EmployeeEvaluation {
+  id: string;
+  employeeId: string;
+  evaluatorId: string;
+  quarter: string;
+  kpiScores: KPIScore[];
+  totalScore: number;
+  proRataFactor: number;
+  calculatedKwd: number;
+  status: 'PENDING_EXEC' | 'PENDING_HR' | 'APPROVED_FOR_PAYROLL' | 'PROCESSED';
+  createdAt?: string;
+  employeeName?: string;
+  department?: string;
+  role?: string;
+}
