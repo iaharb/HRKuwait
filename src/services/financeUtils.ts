@@ -62,6 +62,7 @@ export async function generateJournalEntries(payrollRunId: string): Promise<void
             { type: 'other_allowances', amount: item.otherAllowances },
             { type: 'sick_leave', amount: item.sickLeavePay }, // Added
             { type: 'annual_leave', amount: item.annualLeavePay }, // Added
+            { type: 'overtime', amount: item.overtimeAmount }, // Added
             { type: 'net_salary_payable', amount: item.netSalary },
             { type: 'pifss_employer_share', amount: item.pifssEmployerShare },
             { type: 'pifss_deduction', amount: item.pifssDeduction },
