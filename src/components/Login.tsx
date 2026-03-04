@@ -56,7 +56,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
     const normalizedPass = password.trim();
     if ((normalizedInput === 'superadmin' || normalizedInput === 'admin') && (normalizedPass === 'admin@2026' || normalizedPass === '12345')) {
       onLogin({
-        id: 'super-admin-id',
+        id: '00000000-0000-0000-0000-000000000004',
         name: 'Master Admin',
         email: 'admin@enterprise.local',
         role: 'Admin',
