@@ -304,7 +304,8 @@ export enum View {
   Management = 'management',
   UserManagement = 'user-management',
   Approvals = 'approvals',
-  Performance = 'performance'
+  Performance = 'performance',
+  ProfitSharing = 'profit-sharing'
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -406,4 +407,34 @@ export interface EmployeeEvaluation {
   employeeName?: string;
   department?: string;
   role?: string;
+}
+
+export type ProfitBonusStatus = 'DRAFT' | 'EXECUTIVE_APPROVED' | 'HR_PROCESSED' | 'PAID';
+
+export interface ProfitBonusPool {
+  id: string;
+  periodName: string;
+  totalNetProfit: number;
+  recommendedPoolPct: number;
+  approvedPoolAmount: number;
+  distributionMethod: 'EQUAL_SPLIT' | 'PRO_RATA_SALARY';
+  eligibilityCutoffDate: string;
+  totalDistributed: number;
+  status: ProfitBonusStatus;
+  createdBy: string;
+  approvedBy?: string;
+  createdAt?: string;
+  creatorName?: string;
+  approverName?: string;
+}
+
+export interface EmployeeBonusAllocation {
+  id: string;
+  poolId: string;
+  employeeId: string;
+  allocatedAmount: number;
+  isPaid: boolean;
+  createdAt?: string;
+  employeeName?: string;
+  department?: string;
 }

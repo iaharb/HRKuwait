@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
-import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim, KPITemplate, EmployeeEvaluation } from '../types/types';
+import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim, KPITemplate, EmployeeEvaluation, ProfitBonusPool, EmployeeBonusAllocation } from '../types/types';
 import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
 
 // Use standard UUIDs
@@ -2134,6 +2134,130 @@ export const dbService = {
         }]);
       }
     }
+  },
+
+  // ─── Profit Sharing & Bonuses ──────────────────────────────────────────────
+
+  async getProfitBonusPools(): Promise<ProfitBonusPool[]> {
+    const { data, error } = await supabase!.from('profit_bonus_pools').select(`
+      *,
+      creator:created_by(name),
+      approver:approved_by(name)
+    `).order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(d => ({
+      id: d.id,
+      periodName: d.period_name,
+      totalNetProfit: Number(d.total_net_profit),
+      recommendedPoolPct: Number(d.recommended_pool_pct),
+      approvedPoolAmount: Number(d.approved_pool_amount),
+      distributionMethod: d.distribution_method,
+      eligibilityCutoffDate: d.eligibility_cutoff_date,
+      totalDistributed: Number(d.total_distributed),
+      status: d.status,
+      createdBy: d.created_by,
+      approvedBy: d.approved_by,
+      createdAt: d.created_at,
+      creatorName: d.creator?.name,
+      approverName: d.approver?.name
+    }));
+  },
+
+  async createProfitBonusPool(pool: Partial<ProfitBonusPool>): Promise<ProfitBonusPool> {
+    const { data, error } = await supabase!.from('profit_bonus_pools').insert([{
+      period_name: pool.periodName,
+      total_net_profit: pool.totalNetProfit,
+      recommended_pool_pct: pool.recommendedPoolPct,
+      approved_pool_amount: pool.approvedPoolAmount,
+      distribution_method: pool.distributionMethod,
+      eligibility_cutoff_date: pool.eligibilityCutoffDate,
+      status: 'DRAFT',
+      created_by: pool.createdBy
+    }]).select().single();
+    if (error) throw error;
+    return {
+      id: data.id,
+      periodName: data.period_name,
+      totalNetProfit: Number(data.total_net_profit),
+      recommendedPoolPct: Number(data.recommended_pool_pct),
+      approvedPoolAmount: Number(data.approved_pool_amount),
+      distributionMethod: data.distribution_method,
+      eligibilityCutoffDate: data.eligibility_cutoff_date,
+      totalDistributed: Number(data.total_distributed),
+      status: data.status,
+      createdBy: data.created_by,
+      approvedBy: data.approved_by,
+      createdAt: data.created_at
+    };
+  },
+
+  async updateProfitBonusPoolStatus(id: string, newStatus: string, approverId?: string, overrideAmount?: number): Promise<void> {
+    const updatePayload: any = { status: newStatus };
+    if (approverId) updatePayload.approved_by = approverId;
+    if (overrideAmount !== undefined) updatePayload.approved_pool_amount = overrideAmount;
+
+    const { error } = await supabase!.from('profit_bonus_pools').update(updatePayload).eq('id', id);
+    if (error) throw error;
+
+    // If Executives approved, we need to generate Accrual Journal Entry here!
+    if (newStatus === 'EXECUTIVE_APPROVED') {
+      const { data: pool } = await supabase!.from('profit_bonus_pools').select('*').eq('id', id).single();
+      if (pool) {
+        // Create Accrual Journal Entry linking to the pool
+        const costCenterId = '00000000-0000-0000-0000-000000000000'; // Default Company CC
+        try {
+          await supabase!.from('journal_entries').insert([
+            { payroll_run_id: pool.id, employee_id: pool.created_by, cost_center_id: costCenterId, gl_account_id: '510400', amount: pool.approved_pool_amount, entry_date: new Date().toISOString(), entry_type: 'DR' },
+            { payroll_run_id: pool.id, employee_id: pool.created_by, cost_center_id: costCenterId, gl_account_id: '210500', amount: pool.approved_pool_amount, entry_date: new Date().toISOString(), entry_type: 'CR' }
+          ]);
+        } catch (e) { console.error('Failed to post accrual JE', e); }
+      }
+    }
+  },
+
+  async getEmployeeBonusAllocations(poolId: string): Promise<EmployeeBonusAllocation[]> {
+    const { data, error } = await supabase!.from('employee_bonus_allocations').select('*, employees(name, department)').eq('pool_id', poolId);
+    if (error) throw error;
+    return (data || []).map(d => ({
+      id: d.id,
+      poolId: d.pool_id,
+      employeeId: d.employee_id,
+      allocatedAmount: Number(d.allocated_amount),
+      isPaid: d.is_paid,
+      createdAt: d.created_at,
+      employeeName: d.employees?.name,
+      department: d.employees?.department
+    }));
+  },
+
+  async createEmployeeBonusAllocations(allocations: Omit<EmployeeBonusAllocation, 'id' | 'createdAt' | 'isPaid'>[], poolId: string): Promise<void> {
+    const payload = allocations.map(a => ({
+      pool_id: a.poolId,
+      employee_id: a.employeeId,
+      allocated_amount: a.allocatedAmount
+    }));
+
+    const { error } = await supabase!.from('employee_bonus_allocations').insert(payload);
+    if (error) throw error;
+
+    // After inserting arrays, update the pool to HR_PROCESSED and sum total_distributed
+    const totalDist = allocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
+    await supabase!.from('profit_bonus_pools').update({
+      status: 'HR_PROCESSED',
+      total_distributed: totalDist
+    }).eq('id', poolId);
+
+    // Also push to variable_compensation for payroll ingestion!
+    const varCompPayload = allocations.map(a => ({
+      employee_id: a.employeeId,
+      comp_type: 'COMPANY_BONUS',
+      sub_type: poolId,
+      amount: a.allocatedAmount,
+      status: 'APPROVED_FOR_PAYROLL',
+      notes: `Profit Sharing Bonus`
+    }));
+    await supabase!.from('variable_compensation').insert(varCompPayload);
   }
 };
 
