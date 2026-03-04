@@ -1895,7 +1895,7 @@ export const dbService = {
   },
 
   async getProfileUpdateRequests(employeeId?: string): Promise<any[]> {
-    let query = supabase!.from('profile_change_requests').select('*, employees(name)');
+    let query = supabase!.from('profile_change_requests').select('*, employees(name, department, manager_id)');
     if (employeeId) query = query.eq('employee_id', employeeId);
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;

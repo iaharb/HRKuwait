@@ -15,18 +15,34 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user }) => {
     const { notify } = useNotifications();
     const [activeTab, setActiveTab] = useState<'overtime' | 'leaves' | 'profile'>('overtime');
     const [overtimeRequests, setOvertimeRequests] = useState<any[]>([]);
+    const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+    const [profileRequests, setProfileRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            // For managers, we only show their team's overtime
-            // For HR/Admin/Executives, we show all
-            const isExecOrHr = ['Admin', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager'].includes(user.role);
-            const managerId = isExecOrHr ? undefined : user.id;
+            const isExecOrHr = ['Admin', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'HR'].includes(user.role);
 
-            const ot = await dbService.getOvertimeApprovals(managerId);
-            setOvertimeRequests(ot);
+            const [ot, leaves, prof] = await Promise.all([
+                dbService.getOvertimeApprovals(),
+                dbService.getLeaveRequests(),
+                dbService.getProfileUpdateRequests()
+            ]);
+
+            const filterItems = (items: any[], empDeptPath: string, empMgrIdPath: string) => {
+                if (isExecOrHr) return items;
+                return items.filter((item: any) => {
+                    const getNested = (obj: any, path: string) => path.split('.').reduce((o, i) => o?.[i], obj);
+                    const dept = getNested(item, empDeptPath);
+                    const mgrId = getNested(item, empMgrIdPath);
+                    return mgrId === user.id || dept === user.department;
+                });
+            };
+
+            setOvertimeRequests(filterItems(ot, 'employees.department', 'employees.manager_id'));
+            setLeaveRequests(filterItems(leaves, 'department', 'managerId'));
+            setProfileRequests(filterItems(prof, 'employees.department', 'employees.manager_id'));
         } catch (error) {
             console.error('Failed to fetch approvals:', error);
         } finally {
@@ -42,6 +58,27 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user }) => {
         try {
             await dbService.updateVariableCompStatus(item.id, newStatus);
             notify(t('success'), successMsg, 'success');
+            fetchData();
+        } catch (error) {
+            notify(t('error'), 'Update failed', 'error');
+        }
+    };
+
+    const handleUpdateLeave = async (item: any, newStatus: 'Pending' | 'Manager_Approved' | 'HR_Approved' | 'Resumed' | 'Rejected' | 'HR_Finalized' | 'Paid' | 'Pushed_To_Payroll', note: string) => {
+        try {
+            await dbService.updateLeaveRequestStatus(item.id, newStatus, user, note);
+            notify(t('success'), `Leave ${newStatus.replace('_', ' ')}`, 'success');
+            fetchData();
+        } catch (error) {
+            notify(t('error'), 'Update failed', 'error');
+        }
+    };
+
+    const handleUpdateProfile = async (item: any, action: 'approve' | 'reject') => {
+        try {
+            if (action === 'approve') await dbService.approveProfileUpdate(item.id, user.id);
+            else await dbService.rejectProfileUpdate(item.id, 'Rejected by ' + user.id);
+            notify(t('success'), `Profile ${action}d`, 'success');
             fetchData();
         } catch (error) {
             notify(t('error'), 'Update failed', 'error');
@@ -171,15 +208,135 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user }) => {
                     </table>
                 </div>
             ) : activeTab === 'leaves' ? (
-                <div className="bg-white rounded-[40px] p-40 border border-slate-200 text-center grayscale opacity-40">
-                    <span className="text-4xl mb-4 block">🏝️</span>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Leave approvals coming soon to this consolidated view</p>
-                    <p className="text-[10px] mt-2 italic">Use the Leaves module for now</p>
+                <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] overflow-hidden">
+                    <table className="w-full text-start">
+                        <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                            <tr>
+                                <th className="px-8 py-6">{t('employee')}</th>
+                                <th className="px-8 py-6">{t('leaveType')}</th>
+                                <th className="px-8 py-6">{t('duration')}</th>
+                                <th className="px-8 py-6">{t('status')}</th>
+                                <th className="px-8 py-6 text-end">{t('actions')}</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {leaveRequests.length > 0 ? leaveRequests.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="px-8 py-6">
+                                        <p className="font-black text-slate-900 text-base">{item.employeeName}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.department}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xl">{item.type === 'Annual' ? '🌴' : item.type === 'Sick' ? '🤒' : '🚶'}</span>
+                                            <p className="text-xs font-black text-slate-600 uppercase tracking-widest">{item.type}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <p className="text-lg font-black text-indigo-600 leading-none">{item.days ? item.days : item.durationHours}</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mt-1">{item.days ? t('members') : t('hours')}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        {getStatusBadge(item.status)}
+                                    </td>
+                                    <td className="px-8 py-6 text-end">
+                                        <div className="flex justify-end gap-3">
+                                            {(item.status === 'Pending' || item.status === 'Pending_Manager') && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleUpdateLeave(item, 'Manager_Approved', 'Manager generic approval')}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateLeave(item, 'Rejected', 'Rejected by Manager')}
+                                                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-200 transition-all active:scale-95"
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                </>
+                                            )}
+                                            {item.status === 'Manager_Approved' && ['Admin', 'HR', 'HR Manager', 'Executive'].includes(user.role) && (
+                                                <button
+                                                    onClick={() => handleUpdateLeave(item, 'HR_Approved', 'HR final review')}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                                                >
+                                                    HR Sign-off
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={5} className="px-8 py-32 text-center text-slate-300 italic font-medium uppercase tracking-[0.3em]">
+                                        {t('clearSet')}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             ) : (
-                <div className="bg-white rounded-[40px] p-40 border border-slate-200 text-center grayscale opacity-40">
-                    <span className="text-4xl mb-4 block">👤</span>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Profile update approvals coming soon</p>
+                <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] overflow-hidden">
+                    <table className="w-full text-start">
+                        <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                            <tr>
+                                <th className="px-8 py-6">{t('employee')}</th>
+                                <th className="px-8 py-6">Update Field</th>
+                                <th className="px-8 py-6">New Value</th>
+                                <th className="px-8 py-6">{t('status')}</th>
+                                <th className="px-8 py-6 text-end">{t('actions')}</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {profileRequests.length > 0 ? profileRequests.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="px-8 py-6">
+                                        <p className="font-black text-slate-900 text-base">{item.employees?.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.employees?.department}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="px-3 py-1 bg-slate-100 text-slate-600 font-mono text-xs rounded-lg">{item.field_name}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <p className="text-sm font-black text-emerald-600 truncate max-w-[200px]">{item.new_value}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 line-through mt-0.5 truncate max-w-[200px]">{item.old_value}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        {getStatusBadge(item.status)}
+                                    </td>
+                                    <td className="px-8 py-6 text-end">
+                                        <div className="flex justify-end gap-3">
+                                            {item.status === 'PENDING' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleUpdateProfile(item, 'approve')}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateProfile(item, 'reject')}
+                                                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-200 transition-all active:scale-95"
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={5} className="px-8 py-32 text-center text-slate-300 italic font-medium uppercase tracking-[0.3em]">
+                                        {t('clearSet')}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>
