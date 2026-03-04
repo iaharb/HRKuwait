@@ -18,8 +18,21 @@
 body {
   @apply bg-[#f8fafc] text-[#0f172a] antialiased selection:bg-indigo-100 selection:text-indigo-900;
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 15px; /* Paragraph/body: 14–15px */
+  line-height: 1.5; /* Reduce line height for body text */
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+h1 {
+  font-size: 32px; /* H1: 28–32px */
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 24px; /* H2: 20–24px */
+  font-weight: 800;
 }
 
 [dir="rtl"],
@@ -173,36 +186,49 @@ body {
 /* Compact Mode Overrides */
 .compact-ui {
   --portal-px: 24px;
-  --portal-gap: 12px;
+  --portal-gap: 8px;
+  --header-height: 48px;
 }
 
 .compact-ui .grid {
   gap: var(--portal-gap) !important;
 }
 
-.compact-ui .space-y-12> :not([hidden])~ :not([hidden]) {
-  margin-top: calc(var(--portal-gap) * 2) !important;
-}
-
 /* Container Adjustments */
-.compact-ui .p-20 {
-  padding: 2.5rem !important;
+.compact-ui .p-20 { padding: 1.5rem !important; }
+.compact-ui .p-16 { padding: 1.25rem !important; }
+.compact-ui .p-12 { padding: 1rem !important; }
+.compact-ui .p-10 { padding: 0.75rem !important; }
+.compact-ui .p-8 { padding: 0.5rem !important; }
+
+/* Smarter Typography density */
+.compact-ui {
+  font-size: 13.5px;
 }
 
-.compact-ui .p-16 {
-  padding: 2rem !important;
+.compact-ui h1 { font-size: 24px !important; }
+.compact-ui h2 { font-size: 18px !important; }
+.compact-ui h3 { font-size: 16px !important; }
+
+.compact-ui .text-6xl { font-size: 2.5rem !important; }
+.compact-ui .text-4xl { font-size: 1.75rem !important; }
+.compact-ui .text-2xl { font-size: 1.125rem !important; }
+.compact-ui .text-xl { font-size: 1rem !important; }
+.compact-ui .text-lg { font-size: 0.875rem !important; }
+.compact-ui .text-sm { font-size: 0.75rem !important; }
+.compact-ui .text-xs { font-size: 0.7rem !important; }
+
+/* Compact Button Heights */
+.compact-ui button {
+  height: 32px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  @apply rounded-xl;
 }
 
-.compact-ui .p-12 {
-  padding: 1.5rem !important;
-}
-
-.compact-ui .p-10 {
-  padding: 1.25rem !important;
-}
-
-.compact-ui .p-8 {
-  padding: 1rem !important;
+.compact-ui button.h-14, 
+.compact-ui button.h-12 {
+  height: 36px !important;
 }
 
 /* Fix decorative absolute graphics scale/position to prevent clipping */
@@ -211,101 +237,52 @@ body {
 .compact-ui .absolute.p-12,
 .compact-ui .absolute.p-10,
 .compact-ui .absolute.p-8 {
-  padding: 1rem !important;
-  transform: scale(0.65);
+  padding: 0.5rem !important;
+  transform: scale(0.5);
   transform-origin: top right;
-  opacity: 0.1 !important;
+  opacity: 0.05 !important;
 }
 
 .compact-ui .py-6 {
-  padding-top: 0.5rem !important;
-  padding-bottom: 0.5rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
 }
 
-.compact-ui .mb-12 {
-  margin-bottom: 1.5rem !important;
-}
+.compact-ui .mb-12 { margin-bottom: 1.5rem !important; }
+.compact-ui .mb-10 { margin-bottom: 1rem !important; }
+.compact-ui .mb-8 { margin-bottom: 0.75rem !important; }
 
-.compact-ui .mb-10 {
-  margin-bottom: 1rem !important;
-}
-
-/* Gentle border radius reduction to prevent clipping corners in Compact */
-.compact-ui .rounded-\[64px\] {
-  border-radius: 2.5rem !important;
-}
-
-.compact-ui .rounded-\[56px\] {
-  border-radius: 2rem !important;
-}
-
-.compact-ui .rounded-\[48px\] {
-  border-radius: 1.5rem !important;
-}
-
-.compact-ui .rounded-\[40px\] {
-  border-radius: 1.25rem !important;
-}
-
-/* Global Border Radius Re-reduction */
-/* Caps massive pill-like borders back to modern rounded-3xl / rounded-2xl sizes globally */
+/* Global Border Radius Standardization */
 .rounded-\[64px\],
 .rounded-\[56px\],
 .rounded-\[48px\] {
-  border-radius: 1.5rem !important;
-  /* Cap at 24px */
+  border-radius: 1.25rem !important; /* Cap at 20px */
 }
 
 .rounded-\[40px\],
-.rounded-\[32px\] {
-  border-radius: 1.25rem !important;
-  /* Cap at 20px */
+.rounded-\[32px\],
+.rounded-\[28px\] {
+  border-radius: 1rem !important; /* Cap at 16px */
 }
 
-/* Typography Scaling */
-.compact-ui .text-6xl {
-  font-size: 3rem !important;
-  line-height: 1 !important;
+.rounded-\[24px\],
+.rounded-\[20px\] {
+  border-radius: 0.75rem !important; /* Cap at 12px */
 }
 
-.compact-ui .text-4xl {
-  font-size: 2rem !important;
+/* Custom Scrollbar Thinning */
+.compact-ui ::-webkit-scrollbar {
+  width: 4px;
 }
 
-.compact-ui .text-2xl {
-  font-size: 1.25rem !important;
-}
+/* Component specific density fixes */
+.compact-ui .h-56 { height: 8rem !important; }
+.compact-ui .min-h-\[550px\] { min-height: 300px !important; }
+.compact-ui .gap-12 { gap: 1rem !important; }
+.compact-ui .gap-8 { gap: 0.75rem !important; }
 
-.compact-ui .text-xl {
-  font-size: 1.1rem !important;
-}
-
-/* Component specific fixes */
-.compact-ui .h-56 {
-  height: 10rem !important;
-}
-
-.compact-ui .min-h-\[550px\] {
-  min-height: 350px !important;
-}
-
-.compact-ui .gap-12 {
-  gap: 1.5rem !important;
-}
-
-.compact-ui .gap-8 {
-  gap: 1rem !important;
-}
-
-.compact-ui .w-14.h-14 {
-  width: 3.5rem !important;
-  height: 3.5rem !important;
-}
-
-.compact-ui .w-20.h-20 {
-  width: 4.5rem !important;
-  height: 4.5rem !important;
-}
+.compact-ui .w-14.h-14 { width: 2.5rem !important; height: 2.5rem !important; }
+.compact-ui .w-20.h-20 { width: 3.5rem !important; height: 3.5rem !important; }
 
 /* Presentation Mode (16:9 PPT Style) */
 .presentation-stage {

@@ -41,8 +41,8 @@ const IntelligentTicker: React.FC = () => {
   if (announcements.length === 0) return null;
 
   return (
-    <div className="relative h-11 bg-white border border-slate-200/60 rounded-2xl overflow-hidden flex items-center mb-8 shrink-0 shadow-sm" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className={`absolute ${isAr ? 'right-0' : 'left-0'} top-0 bottom-0 px-5 bg-indigo-600 text-white flex items-center z-10 font-black text-[9px] uppercase tracking-[0.2em] shadow-[10px_0_30px_rgba(0,0,0,0.1)]`}>
+    <div className="relative h-8 bg-white border border-slate-200/40 rounded-xl overflow-hidden flex items-center mb-6 shrink-0 shadow-sm" dir={isAr ? 'rtl' : 'ltr'}>
+      <div className={`absolute ${isAr ? 'right-0' : 'left-0'} top-0 bottom-0 px-4 bg-indigo-600 text-white flex items-center z-10 font-black text-[8px] uppercase tracking-[0.2em]`}>
         {t('registryIntelligence')}
       </div>
 
@@ -53,11 +53,11 @@ const IntelligentTicker: React.FC = () => {
             const title = isAr && ann.titleArabic ? ann.titleArabic : ann.title;
             const content = isAr && ann.contentArabic ? ann.contentArabic : ann.content;
             return (
-              <div key={`${ann.id}-${idx}`} className="inline-flex items-center gap-4 mx-12 text-[11px] font-bold text-slate-500">
-                <div className={`w-2 h-2 rounded-full ${ann.priority === 'Urgent' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse' : 'bg-indigo-400'}`}></div>
+              <div key={`${ann.id}-${idx}`} className="inline-flex items-center gap-3 mx-8 text-[10px] font-bold text-slate-500">
+                <div className={`w-1.5 h-1.5 rounded-full ${ann.priority === 'Urgent' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-400'}`}></div>
                 <span className="text-slate-900 font-black uppercase tracking-tight">{title}</span>
                 <span className="opacity-30">/</span>
-                <span className="font-medium">{content}</span>
+                <span className="font-medium whitespace-nowrap">{content}</span>
               </div>
             );
           })}

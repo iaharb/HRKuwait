@@ -11,14 +11,15 @@ interface SidebarProps {
   onLogout: () => void;
   onToggleMobile?: () => void;
   onAddMember: () => void;
+  compactMode: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout, onToggleMobile, onAddMember }) => {
+const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout, onToggleMobile, onAddMember, compactMode }) => {
   const location = useLocation();
   const activePath = location.pathname.split('/')[1]?.toLowerCase() || 'dashboard';
   const { t } = useTranslation();
   const [dbStatus, setDbStatus] = useState<{ type: 'testing' | 'live' | 'mock', latency?: number }>({ type: 'testing' });
-  const [isPending, startTransition] = React.useTransition();
+  const [isHovered, setIsHovered] = useState(false);
 
   const [rolePermissions, setRolePermissions] = useState<any[]>([]);
 
@@ -92,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
       case 'users': return '👥';
       case 'banknote': return '💰';
       case 'file-text': return '📜';
-      case 'finance': return '🏦'; // Added Icon for Finance
+      case 'finance': return '🏦';
       case 'management': return '📈';
       case 'sparkles': return '✨';
       case 'scale': return '⚖️';
@@ -117,112 +118,169 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     return item.roles.map(r => r.toLowerCase()).includes(user.role.toLowerCase());
   });
 
+  const [expandedFolders, setExpandedFolders] = useState<string[]>(['core']);
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev =>
+      prev.includes(folderId) ? prev.filter(f => f !== folderId) : [...prev, folderId]
+    );
+  };
+
+  const coreItems = filteredItems.filter(item =>
+    [View.Dashboard, View.Profile, View.Attendance, View.Leaves, View.Approvals, View.Performance].includes(item.id)
+  );
+
+  const opsItems = filteredItems.filter(item =>
+    [View.Directory, View.Mandoob, View.AdminCenter, View.Compliance, View.Payroll, View.Settlement, View.Finance, View.ProfitSharing].includes(item.id)
+  );
+
+  const strategyItems = filteredItems.filter(item =>
+    [View.Management, View.Insights, View.Whitepaper, View.UserManagement].includes(item.id)
+  );
+
+  const sidebarWidth = compactMode ? (isHovered ? 'w-64' : 'w-20') : 'w-64';
+
+  const renderNavGroup = (title: string, items: any[], folderId: string) => {
+    if (items.length === 0) return null;
+    const isExpanded = expandedFolders.includes(folderId);
+    const showHeader = !compactMode || isHovered;
+
+    return (
+      <div className="space-y-1 py-1">
+        {showHeader && (
+          <button
+            onClick={() => toggleFolder(folderId)}
+            className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+          >
+            <span>{title}</span>
+            <span className={`text-[8px] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+        )}
+
+        {(!showHeader || isExpanded) && (
+          <div className={`space-y-0.5 animate-in slide-in-from-top-2 duration-300 ${!isExpanded && showHeader ? 'hidden' : 'block'}`}>
+            {items.map((item) => {
+              const isActive = activePath === item.id.toLowerCase();
+              return (
+                <Link
+                  key={item.id}
+                  to={`/${item.id.toLowerCase()}`}
+                  className={`w-full flex items-center ${compactMode && !isHovered ? 'justify-center h-10 w-10 mx-auto' : 'gap-3 px-4 py-2'} rounded-xl text-sm font-bold transition-all group relative overflow-hidden ${isActive
+                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                  title={item.label}
+                >
+                  {isActive && (
+                    <div className="absolute inset-y-0 left-0 w-1 bg-indigo-500 rounded-full my-2"></div>
+                  )}
+                  <span className={`text-lg transition-all duration-300 group-hover:scale-110 ${isActive ? '' : 'opacity-60'}`}>
+                    {getIcon(item.icon)}
+                  </span>
+                  {(!compactMode || isHovered) && (
+                    <span className={`tracking-tight text-start flex-1 text-[13px] whitespace-nowrap animate-in fade-in duration-300 ${isActive ? 'font-black' : 'font-medium'}`}>
+                      {item.label}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <><div className="w-80 bg-white border-e border-slate-200/50 h-screen sticky top-0 flex flex-col z-[80] shadow-[1px_0_10px_0_rgba(0,0,0,0.01)] no-print">
-      <div className="p-10 pb-6 text-start">
-        <h1 className="text-2xl font-black text-slate-900 flex items-center gap-4 tracking-tighter">
-          <div className="w-12 h-12 bg-indigo-600 text-white rounded-[18px] flex items-center justify-center shadow-xl shadow-indigo-600/20 text-2xl relative group overflow-hidden">
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`${sidebarWidth} bg-white border-e border-slate-200/50 h-screen sticky top-0 flex flex-col z-[80] shadow-[1px_0_10px_0_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out no-print overflow-hidden`}
+    >
+      <div className={`${compactMode && !isHovered ? 'p-4' : 'p-6'} pb-2 text-start transition-all`}>
+        <h1 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tighter">
+          <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20 text-xl relative group overflow-hidden shrink-0">
             <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
             🇰🇼
           </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Portal</span>
-            <span>Enterprise<span className="text-indigo-600">HR</span></span>
-          </div>
+          {(!compactMode || isHovered) && (
+            <div className="flex flex-col leading-none animate-in fade-in duration-300">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Portal</span>
+              <span className="text-lg">Enterprise<span className="text-indigo-600">HR</span></span>
+            </div>
+          )}
         </h1>
 
-        <div
-          onClick={checkConnection}
-          className="inline-flex items-center gap-2.5 mt-8 px-4 py-2 bg-slate-50/50 rounded-2xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all active:scale-95 group"
-        >
-          <div className={`w-2.5 h-2.5 rounded-full ${dbStatus.type === 'testing' ? 'bg-slate-300 animate-pulse' :
-            dbStatus.type === 'live' ? 'bg-indigo-500 shadow-[0_0_12px_rgba(79,70,229,0.5)]' : 'bg-rose-500'} group-hover:scale-110 transition-transform`}></div>
-          <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
-            {dbStatus.type === 'testing' ? t('syncing') :
-              dbStatus.type === 'live' ? `${dbStatus.latency}ms Latency` : 'Cloud Offline'}
-          </span>
-        </div>
+        {(!compactMode || isHovered) && (
+          <div
+            onClick={checkConnection}
+            className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all active:scale-95 group animate-in fade-in duration-300"
+          >
+            <div className={`w-2 h-2 rounded-full ${dbStatus.type === 'testing' ? 'bg-slate-300 animate-pulse' :
+              dbStatus.type === 'live' ? 'bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]' : 'bg-rose-500'} group-hover:scale-110 transition-transform`}></div>
+            <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest whitespace-nowrap">
+              {dbStatus.type === 'testing' ? t('syncing') :
+                dbStatus.type === 'live' ? `${dbStatus.latency}ms` : 'Offline'}
+            </span>
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 px-6 space-y-1.5 overflow-y-auto mt-8 custom-scrollbar">
+      <nav className={`flex-1 ${compactMode && !isHovered ? 'px-2' : 'px-3'} space-y-1 overflow-y-auto mt-4 custom-scrollbar`}>
         {(user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'hr' || user.role.toLowerCase() === 'hr manager') && (
           <button
             onClick={onAddMember}
-            className="w-full flex items-center gap-4 px-5 py-5 rounded-[24px] text-sm font-black transition-all bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 mb-8 hover:bg-indigo-700 active:scale-95 group border border-indigo-500/50 overflow-hidden relative"
+            className={`w-full flex items-center ${compactMode && !isHovered ? 'justify-center p-0 h-10 w-10 mx-auto mb-4' : 'gap-3 px-4 py-2.5 mb-6'} rounded-xl text-sm font-black transition-all bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95 group border border-indigo-500/50 overflow-hidden relative`}
+            title={t('addMember')}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            <div className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center transition-all group-hover:rotate-12 group-hover:scale-110">
-              <span className="text-white font-black text-xl">+</span>
-            </div>
-            <span className="tracking-tight uppercase text-[11px] font-black">{t('addMember')}</span>
+            <span className="text-white font-black text-lg">+</span>
+            {(!compactMode || isHovered) && <span className="tracking-tight uppercase text-[10px] font-black animate-in fade-in duration-300">{t('addMember')}</span>}
           </button>
         )}
-        {filteredItems.map((item) => {
-          const isActive = activePath === item.id.toLowerCase();
-          return (
-            <Link
-              key={item.id}
-              to={`/${item.id.toLowerCase()}`}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] text-sm font-bold transition-all group relative overflow-hidden ${isActive
-                ? 'bg-slate-900 text-white shadow-2xl shadow-slate-900/10'
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              {isActive && (
-                <div className="absolute inset-y-0 left-0 w-1 bg-indigo-500 rounded-full my-3"></div>
-              )}
-              <span className={`text-xl transition-all duration-500 group-hover:scale-125 group-hover:rotate-3 ${isActive ? '' : 'opacity-60'}`}>
-                {getIcon(item.icon)}
-              </span>
-              <span className={`tracking-tight text-start flex-1 text-[13px] ${isActive ? 'font-black' : 'font-bold'}`}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+
+        {renderNavGroup('Main Ops', coreItems, 'core')}
+        {renderNavGroup('Resource Mgmt', opsItems, 'ops')}
+        {renderNavGroup('Strategy & Intel', strategyItems, 'strategy')}
       </nav>
-      <div className="p-6 space-y-4 mt-auto mb-6">
-        {onToggleMobile && (
-          <button
-            onClick={onToggleMobile}
-            className="w-full py-4 bg-indigo-50/50 text-indigo-700 rounded-2xl text-[10px] font-black hover:bg-indigo-50 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-3 border border-indigo-100/50"
-          >
-            <span className="text-base">📱</span> {t('switchToMobile')}
-          </button>
-        )}
-        <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-200/50">
+
+      <div className={`${compactMode && !isHovered ? 'p-3' : 'p-4'} space-y-3 mt-auto mb-4 border-t border-slate-50 pt-4`}>
+        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200/50 overflow-hidden">
           <button
             onClick={() => setLanguage('en')}
-            className={`flex-1 py-2 text-[10px] font-extrabold rounded-xl transition-all ${language === 'en' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
+            className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all ${language === 'en' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
           >
-            ENG
+            {compactMode && !isHovered ? 'EN' : 'ENG'}
           </button>
           <button
             onClick={() => setLanguage('ar')}
-            className={`flex-1 py-2 text-[10px] font-extrabold rounded-xl transition-all ${language === 'ar' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
+            className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all ${language === 'ar' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
           >
-            ARA
+            {compactMode && !isHovered ? 'AR' : 'ARA'}
           </button>
         </div>
 
-        <div className="pt-6 border-t border-slate-100">
-          <div className="flex items-center gap-4 mb-6 px-1 text-start">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-black text-sm shadow-inner shrink-0">
-              {user.name[0]}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-black text-slate-900 truncate tracking-tight">{language === 'ar' ? (user as any).nameArabic || user.name : user.name}</p>
-              <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1.5">{user.role}</p>
-            </div>
+        <div className="flex items-center gap-3 px-1 text-start overflow-hidden">
+          <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-black text-xs shadow-inner shrink-0 cursor-pointer hover:bg-indigo-100 transition-colors">
+            {user.name[0]}
           </div>
+          {(!compactMode || isHovered) && (
+            <div className="min-w-0 flex-1 animate-in slide-in-from-left-2 duration-300">
+              <p className="text-[11px] font-black text-slate-900 truncate tracking-tight">{language === 'ar' ? (user as any).nameArabic || user.name : user.name}</p>
+              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{user.role}</p>
+            </div>
+          )}
+        </div>
+
+        {(!compactMode || isHovered) && (
           <button
             onClick={onLogout}
-            className="w-full py-3.5 text-[10px] font-black text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 rounded-2xl transition-all uppercase tracking-[0.2em] border border-transparent hover:border-rose-100"
+            className="w-full py-2.5 text-[9px] font-black text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all uppercase tracking-[0.1em] border border-transparent hover:border-rose-100 animate-in fade-in duration-300"
           >
             {t('terminateSession')}
           </button>
-        </div>
+        )}
       </div>
-    </div></>
+    </div>
   );
 };
 

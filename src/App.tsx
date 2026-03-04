@@ -127,9 +127,10 @@ const App: React.FC = () => {
           onLogout={handleAuthLogout}
           onToggleMobile={toggleViewMode}
           onAddMember={() => { setEmployeeToEdit(null); setIsModalOpen(true); }}
+          compactMode={compactMode}
         />
         <main className={`flex-1 min-w-0 overflow-y-auto transition-all duration-500 ${compactMode ? 'compact-ui' : ''} ${presentationMode ? 'presentation-main' : ''}`}>
-          <div className={`h-full ${compactMode ? 'px-6 py-4' : 'px-12 py-8'} ${presentationMode ? 'max-w-full' : 'max-w-[1500px] mx-auto'}`}>
+          <div className={`h-full ${compactMode ? 'px-6 py-2' : 'px-8 py-6'} ${presentationMode ? 'max-w-full' : 'max-w-[1500px] mx-auto'}`}>
             <MainHeader
               user={currentUser}
               language={language}
