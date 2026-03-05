@@ -26,6 +26,8 @@ export const UserManagement: React.FC = () => {
     const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
     const [templates, setTemplates] = useState<any[]>([]);
     const [applyingTemplate, setApplyingTemplate] = useState(false);
+    const [isProvisioning, setIsProvisioning] = useState<string | null>(null);
+    const [authUsers, setAuthUsers] = useState<any[]>([]);
 
     const roles = STANDARD_ROLES.map(r => r.id as UserRole);
 
@@ -48,6 +50,11 @@ export const UserManagement: React.FC = () => {
 
             const requests = await dbService.getProfileUpdateRequests();
             setProfileRequests(requests);
+
+            if (supabase) {
+                const { data: { users } } = await supabase.auth.admin.listUsers();
+                setAuthUsers(users || []);
+            }
 
             setIsSetupNeeded(false);
         } catch (err: any) {
@@ -192,8 +199,25 @@ export const UserManagement: React.FC = () => {
         }
     };
 
+    const handleProvision = async (emp: Employee) => {
+        setIsProvisioning(emp.id);
+        const res = await dbService.provisionAuthUser(emp);
+        if (res.success) {
+            alert(res.message);
+            loadData();
+        } else {
+            alert("Provisioning failed: " + res.message);
+        }
+        setIsProvisioning(null);
+    };
+
     const filteredEmployees = employees.filter(emp => {
+        const firstName = emp.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        const testEmail = `${firstName}@test.com`;
+
         if (systemUsers.some(u => u.employee_id === emp.id)) return false;
+        if (authUsers.some(u => u.email === testEmail)) return false;
+
         if (aiFilteredIds !== null) return aiFilteredIds.includes(emp.id);
         return emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery);
     });
@@ -373,7 +397,16 @@ export const UserManagement: React.FC = () => {
                                                 <p className="font-bold text-slate-800">{emp.name}</p>
                                                 <p className="text-[10px] text-slate-400 uppercase">{emp.position} • {emp.department}</p>
                                             </div>
-                                            <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Upgrade</button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleProvision(emp)}
+                                                    disabled={isProvisioning === emp.id}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isProvisioning === emp.id ? 'bg-slate-100 text-slate-400' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/10'}`}
+                                                >
+                                                    {isProvisioning === emp.id ? '...' : 'Grant Auth'}
+                                                </button>
+                                                <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Legacy</button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

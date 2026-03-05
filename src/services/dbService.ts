@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabaseClient.ts';
+import { supabase, isSupabaseConfigured, supabaseAdmin } from './supabaseClient.ts';
 import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim, KPITemplate, EmployeeEvaluation, ProfitBonusPool, EmployeeBonusAllocation } from '../types/types';
 import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
 
@@ -1997,7 +1997,38 @@ export const dbService = {
         ? `Enterprise Security Hub: Identified ${activeEmployees.length} employees ready for secure RLS provisioning. Use the Bulk Invite script to link these to Supabase Auth.`
         : `Database is currently empty. Please click 'SYNC MOCK DB' first to populate the employee registry.`
     };
-  }
+  },
+
+  /** Create a Supabase Auth account for an employee using Admin API */
+  provisionAuthUser: async (emp: Employee): Promise<{ success: boolean; message: string }> => {
+    if (!supabaseAdmin) return { success: false, message: 'Admin API not available. Check VITE_SUPABASE_SERVICE_ROLE_KEY.' };
+
+    try {
+      const firstName = emp.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      const testEmail = `${firstName}@test.com`;
+
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email: testEmail,
+        password: '12345',
+        email_confirm: true,
+        user_metadata: {
+          employee_id: emp.id,
+          name: emp.name,
+          role: emp.role || 'Employee',
+          department: emp.department || 'General'
+        }
+      });
+
+      if (error) {
+        if (error.message.includes('already registered')) {
+          return { success: false, message: `${testEmail} is already provisioned.` };
+        }
+        throw error;
+      }
+
+      return { success: true, message: `Access granted for ${emp.name} (${testEmail})` };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  },
 };
-
-

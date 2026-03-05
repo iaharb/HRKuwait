@@ -19,6 +19,13 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
 
+const serviceRoleKey = isMeta ? import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY : process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+export const supabaseAdmin = isSupabaseConfigured && serviceRoleKey
+  ? createClient(supabaseUrl!, serviceRoleKey)
+  : null;
+
 if (isSupabaseConfigured) {
   console.log(`[Supabase] Online registry linked: ${supabaseUrl}`);
+  if (supabaseAdmin) console.log(`[Supabase] Admin role active: User provisioning enabled.`);
 }
