@@ -2004,29 +2004,51 @@ export const dbService = {
     if (!supabaseAdmin) return { success: false, message: 'Admin API not available. Check VITE_SUPABASE_SERVICE_ROLE_KEY.' };
 
     try {
-      const firstName = emp.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      const testEmail = `${firstName}@test.com`;
+      // 1. Intelligent Email Generation (Skip prefixes like Dr., Eng., etc.)
+      let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
+      let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
 
+      // Manual override for common cases to ensure consistency with repair script
+      if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
+      if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+
+      const testEmail = `${firstName}@test.com`;
+      const metadata = {
+        employee_id: emp.id,
+        name: emp.name,
+        role: emp.role || 'Employee',
+        department: emp.department || 'General'
+      };
+
+      // 2. Attempt Create
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email: testEmail,
         password: '12345',
         email_confirm: true,
-        user_metadata: {
-          employee_id: emp.id,
-          name: emp.name,
-          role: emp.role || 'Employee',
-          department: emp.department || 'General'
-        }
+        user_metadata: metadata
       });
 
+      // 3. Handle Already Registered (Auto-Repair)
       if (error) {
         if (error.message.includes('already registered')) {
-          return { success: false, message: `${testEmail} is already provisioned.` };
+          // Find the existing user to get their ID for re-linking
+          const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+          const existing = users.find(u => u.email === testEmail);
+
+          if (existing) {
+            const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+              user_metadata: metadata
+            });
+            if (updateError) throw updateError;
+            return { success: true, message: `Access repaired: ${emp.name} re-linked to ${testEmail}.` };
+          }
+          return { success: false, message: `${testEmail} is registered but lookup failed.` };
         }
         throw error;
       }
 
-      // Trigger Welcome Email Edge Function
+      // 4. Trigger Welcome Email Edge Function
       try {
         await supabase!.functions.invoke('welcome-email', {
           body: {
