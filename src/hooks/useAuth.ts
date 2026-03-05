@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient.ts';
-import { User } from '../types/types.ts';
+import { User, UserRole } from '../types/types.ts';
 
 export const useAuth = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -22,11 +22,13 @@ export const useAuth = () => {
         const initializeAuth = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
+                const metadata = session.user.user_metadata;
                 setCurrentUser({
-                    id: session.user.id,
-                    name: session.user.user_metadata.name || session.user.email,
-                    role: session.user.user_metadata.role || 'Employee',
-                    department: session.user.user_metadata.department || 'Global',
+                    id: metadata.employee_id || session.user.id,
+                    name: metadata.name || session.user.email,
+                    role: metadata.role || 'Employee',
+                    department: metadata.department || 'Global',
+                    email: session.user.email
                 } as User);
             }
             setLoading(false);
@@ -35,11 +37,13 @@ export const useAuth = () => {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
+                const metadata = session.user.user_metadata;
                 setCurrentUser({
-                    id: session.user.id,
-                    name: session.user.user_metadata.name || session.user.email,
-                    role: session.user.user_metadata.role || 'Employee',
-                    department: session.user.user_metadata.department || 'Global',
+                    id: metadata.employee_id || session.user.id,
+                    name: metadata.name || session.user.email,
+                    role: metadata.role || 'Employee',
+                    department: metadata.department || 'Global',
+                    email: session.user.email
                 } as User);
             } else {
                 const hasMockSession = localStorage.getItem('app_user_session');
@@ -92,7 +96,7 @@ export const useAuth = () => {
             'payroll officer': 'Payroll Officer',
             'payroll manager': 'Payroll Manager',
         };
-        if (roleMap[roleLower]) updatedUser.role = roleMap[roleLower];
+        if (roleMap[roleLower]) updatedUser.role = roleMap[roleLower] as UserRole;
         setCurrentUser(updatedUser);
     };
 

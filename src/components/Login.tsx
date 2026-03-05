@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types/types';
 import { MOCK_EMPLOYEES } from '../constants.tsx';
 import { dbService } from '../services/dbService.ts';
-import { isSupabaseConfigured } from '../services/supabaseClient.ts';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient.ts';
 import { translations } from '../translations.ts';
 
 interface LoginProps {
@@ -66,29 +66,48 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
       return;
     }
 
-    // 1. Primary path: Unified User Table (Supabase)
+    // 1. Primary path: Supabase Auth (Enables RLS)
     try {
+      // We assume username is email for auth, or we try to find the email first
+      let email = normalizedInput;
+      if (!email.includes('@')) {
+        // Look up email from app_users or employees if they just entered username
+        const systemUser = await dbService.getUserByUsername(normalizedInput);
+        if (systemUser && systemUser.employees?.email) {
+          email = systemUser.employees.email;
+        } else {
+          email = `${normalizedInput}@enterprise-hr.kw`; // Default domain guess
+        }
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: normalizedPass,
+      });
+
+      if (data?.user && !error) {
+        // Success! Component parent will handle the session change via useAuth hook
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fallback Path: Legacy/Mock Login (RLS will NOT work)
       const systemUser = await dbService.getUserByUsername(normalizedInput);
       if (systemUser) {
-        // Direct credential verification
         if (normalizedPass === systemUser.password || normalizedPass === '12345') {
           onLogin({
             id: systemUser.employee_id || systemUser.id,
             name: systemUser.employees?.name || systemUser.username,
-            email: systemUser.employees ? `${normalizedInput}@enterprise-hr.kw` : 'admin@enterprise.local',
+            email: systemUser.employees?.email || `${normalizedInput}@enterprise-hr.kw`,
             role: systemUser.role as UserRole,
             department: systemUser.employees?.department || 'IT'
           });
           setLoading(false);
           return;
-        } else {
-          setError('Invalid identity credentials.');
-          setLoading(false);
-          return;
         }
-      } else {
-        setError(`Access denied. No system record for "${username}".`);
       }
+
+      setError(error?.message || `Access denied. No record for "${username}".`);
     } catch (err: any) {
       setError("Identity synchronization error. Please try again.");
     } finally {
@@ -213,9 +232,26 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
               <button
                 onClick={handleSeed}
                 disabled={isSeeding}
-                className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-black active:scale-95 disabled:opacity-50"
+                className="px-8 py-3 bg-slate-100 text-slate-900 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 active:scale-95 disabled:opacity-50"
               >
-                {isSeeding ? 'Synchronizing...' : 'Seed Database'}
+                {isSeeding ? 'Synchronizing...' : 'Sync Mock DB'}
+              </button>
+              <button
+                onClick={async () => {
+                  setIsSeeding(true);
+                  try {
+                    const res = await dbService.provisionAuthUsers();
+                    setError(res.message);
+                  } catch (e: any) {
+                    setError(e.message);
+                  } finally {
+                    setIsSeeding(false);
+                  }
+                }}
+                disabled={isSeeding}
+                className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
+              >
+                {isSeeding ? 'Provisioning...' : 'Provision Auth Users (RLS)'}
               </button>
               <button
                 onClick={() => setShowSystemConsole(false)}

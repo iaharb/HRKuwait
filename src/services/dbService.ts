@@ -1017,320 +1017,38 @@ export const dbService = {
   },
 
   async generatePayrollDraft(periodKey: string, cycle: 'Monthly' | 'Bi-Weekly'): Promise<PayrollRun> {
-    const employees = await this.getEmployees();
-    const allFinalizedLeaves = await this.getLeaveRequests();
-    const allRuns = await this.getPayrollRuns();
+    if (!supabase) throw new Error('Supabase not configured');
 
-    // Get all finalized leave runs to check for HUB-SETTLED employees
-    const hubSettledRuns = allRuns.filter(r => r.cycleType === 'Leave_Run' && r.status === 'Finalized');
-
-    // Pre-fetch all payload items belonging to these historical Hub runs
-    let allHubItems: PayrollItem[] = [];
-    const hubRunIds = hubSettledRuns.map(r => r.id);
-    if (hubRunIds.length > 0) {
-      const { data } = await supabase!.from('payroll_items').select('*').in('run_id', hubRunIds);
-      allHubItems = (data || []).map(mapPayrollItem);
-    }
-
-    // Fetch pending approved variable compensation
-    let variableComp: any[] = [];
-    const { data: vcData } = await supabase!.from('variable_compensation')
-      .select('*')
-      .eq('status', 'APPROVED_FOR_PAYROLL')
-      .is('payroll_run_id', null);
-    if (vcData) variableComp = vcData;
-
-    await supabase!.from('payroll_runs').delete().eq('period_key', periodKey).eq('status', 'Draft');
-
-    const runId = gid();
-    const [year, month] = periodKey.split('-').map(Number);
-
-    const dbItems: any[] = employees.map(emp => {
-      // RULE 1: Detect if 'Current Month Hub' exists (Hub run starting THIS month)
-      const currentMonthHub = hubSettledRuns.find((hr: any) => {
-        let leaf = allFinalizedLeaves.find(l => l.id === hr.target_leave_id);
-        if (!leaf) {
-          const potentialDate = hr.periodKey ? hr.periodKey.split('-').slice(2).join('-') : null;
-          leaf = allFinalizedLeaves.find(l => l.employeeId === emp.id && l.startDate === potentialDate);
-        }
-        const itemEmployeeId = leaf?.employeeId;
-        const dStr = hr.locked_start || leaf?.startDate;
-        const d = dStr ? new Date(dStr) : null;
-        return itemEmployeeId === emp.id && d && d.getMonth() + 1 === month && d.getFullYear() === year;
-      });
-
-      // RULE 2: Detect if 'Forward Offset' exists from PREVIOUS month Hub (Straddle)
-      const forwardOffsetHub = hubSettledRuns.find((hr: any) => {
-        let leaf = allFinalizedLeaves.find(l => l.id === hr.target_leave_id);
-        if (!leaf) {
-          const potentialDate = hr.periodKey ? hr.periodKey.split('-').slice(2).join('-') : null;
-          leaf = allFinalizedLeaves.find(l => l.employeeId === emp.id && l.startDate === potentialDate);
-        }
-        const itemEmployeeId = leaf?.employeeId;
-        const dEndStr = hr.locked_end || leaf?.endDate;
-        const dStartStr = hr.locked_start || leaf?.startDate;
-
-        const dEnd = dEndStr ? new Date(dEndStr) : null;
-        const dStart = dStartStr ? new Date(dStartStr) : null;
-
-        return itemEmployeeId === emp.id && dEnd && dEnd.getMonth() + 1 === month && dEnd.getFullYear() === year &&
-          dStart && dStart.getMonth() + 1 !== month;
-      });
-
-      const basic = Number(emp.salary) || 0;
-      const allowances = emp.allowances || [];
-      let housingAmount = 0;
-      let otherAllowancesTotal = 0;
-
-      const allowanceBreakdown: BreakdownItem[] = [];
-      allowances.forEach(a => {
-        const val = a.type === 'Fixed' ? Number(a.value) : (basic * (Number(a.value) / 100));
-        allowanceBreakdown.push({ name: a.name, nameArabic: a.nameArabic, value: val });
-        if (a.isHousing) housingAmount += val; else otherAllowancesTotal += val;
-      });
-
-      // Inject Variable Compensation (Bonus/OT)
-      const empVarComp = variableComp.filter(vc => vc.employee_id === emp.id);
-
-      const hourlyRate = (basic / 30) / 8; // Kuwaiti standard base hourly rate
-      let overtimeAmount = 0;
-      let performanceBonusAmount = 0;
-      let companyBonusAmount = 0;
-
-      empVarComp.forEach(vc => {
-        const val = Number(vc.amount);
-        if (vc.comp_type === 'OVERTIME') {
-          const hours = Number(vc.amount);
-          const multiplier = vc.sub_type === 'Holiday_OT' ? 2.0 : 1.5;
-          const kwd = hours * hourlyRate * multiplier;
-          allowanceBreakdown.push({ name: `OVERTIME (${vc.sub_type.replace('_', ' ')}) - ${hours} hrs`, nameArabic: 'عمل إضافي', value: kwd });
-          overtimeAmount += kwd;
-        } else if (vc.comp_type === 'PERFORMANCE_BONUS') {
-          allowanceBreakdown.push({ name: `PERFORMANCE BONUS (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة أداء', value: val });
-          performanceBonusAmount += val;
-        } else if (['COMPANY_BONUS', 'PROFIT_SHARING', 'PROFIT_BONUS'].includes(vc.comp_type)) {
-          allowanceBreakdown.push({ name: `COMPANY BONUS (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة الأرباح', value: val });
-          companyBonusAmount += val;
-        } else {
-          allowanceBreakdown.push({ name: `VARIABLE COMP (${vc.sub_type.replace('_', ' ')})`, nameArabic: 'مكافأة إضافية', value: val });
-          otherAllowancesTotal += val;
-        }
-      });
-
-      let pifssPaidInHub = !!currentMonthHub;
-
-      const fullGrossParams = basic + housingAmount + otherAllowancesTotal + overtimeAmount + performanceBonusAmount + companyBonusAmount;
-      const dailyGrossFull = fullGrossParams / 26;
-      const dailyBasePlusHousing = (basic + housingAmount) / 26;
-
-      let pifssDeduction = emp.nationality === 'Kuwaiti' ? basic * 0.115 : 0;
-      if (pifssPaidInHub) {
-        pifssDeduction = 0;
-      }
-      const pifssEmployerShare = emp.nationality === 'Kuwaiti' ? basic * 0.125 : 0;
-      const indemnityAccrual = emp.nationality !== 'Kuwaiti' ? (basic / 24) : 0; // 15 days per year accrual
-
-      const deductionBreakdown: BreakdownItem[] = [];
-      let totalExplicitHubDeduction = 0;
-
-      if (currentMonthHub || forwardOffsetHub) {
-        const activeHub = currentMonthHub || forwardOffsetHub;
-
-        let dEndStr = activeHub.locked_end;
-        if (!dEndStr) {
-          const possibleDate = activeHub.periodKey ? activeHub.periodKey.split('-').slice(2).join('-') : null;
-          const oldLeaf = allFinalizedLeaves.find(l => l.employeeId === emp.id && l.startDate === possibleDate);
-          if (oldLeaf) dEndStr = oldLeaf.endDate;
-        }
-
-        const dEnd = new Date(dEndStr as string);
-        dEnd.setHours(23, 59, 59, 999);
-        const monthEnd = new Date(year, month, 0);
-        monthEnd.setHours(23, 59, 59, 999);
-
-        let daysRemaining = 0;
-        let cDate = new Date(dEnd);
-        cDate.setDate(cDate.getDate() + 1);
-        cDate.setHours(12, 0, 0, 0);
-
-        while (cDate.getTime() <= monthEnd.getTime()) {
-          if (cDate.getDay() !== 5) daysRemaining++;
-          cDate.setDate(cDate.getDate() + 1);
-        }
-
-        const bucket3Pay = daysRemaining * dailyGrossFull;
-
-        // Offset so they effectively get Bucket 3 pay
-        totalExplicitHubDeduction = Math.max(0, fullGrossParams - bucket3Pay);
-
-        if (totalExplicitHubDeduction > 0) {
-          deductionBreakdown.push({ name: `Hub Payout Offset (Bucket 3: ${daysRemaining} workdays remaining)`, value: totalExplicitHubDeduction });
-        }
-      }
-
-      // Consolidate non-Hub-settled leaves (Deferred to Monthly Payroll)
-      // Including historically "Short" leaves OR any leaf specifically pushed to payroll
-      const deferredLeaves = allFinalizedLeaves.filter(l =>
-        l.employeeId === emp.id && (l.status === 'HR_Finalized' || l.status === 'Paid' || l.status === 'Pushed_To_Payroll') &&
-        !hubSettledRuns.find((hr: any) => hr.target_leave_id === l.id && hr.status === 'Finalized') &&
-        (
-          (new Date(l.startDate).getFullYear() === year && new Date(l.startDate).getMonth() + 1 === month) ||
-          (new Date(l.endDate).getFullYear() === year && new Date(l.endDate).getMonth() + 1 === month)
-        )
-      );
-
-      let totalShortLeaveDeduction = 0;
-      let sickLeavePayTotal = 0;
-      let annualLeavePayTotal = 0;
-      let leaveDaysTotalStandardPay = 0;
-
-      deferredLeaves.forEach(l => {
-        const start = new Date(l.startDate);
-        const end = new Date(l.endDate);
-
-        // Straddle constraint: For the CURRENT payroll month, only deduct days that actually fall in this month.
-        const activeMonthStart = new Date(year, month - 1, 1);
-        const activeMonthEnd = new Date(year, month, 0);
-
-        const effectiveStart = start < activeMonthStart ? activeMonthStart : start;
-        const effectiveEnd = end > activeMonthEnd ? activeMonthEnd : end;
-
-        // If the leave doesn't touch this month at all after boundaries are applied, ignore
-        if (effectiveStart > effectiveEnd) return;
-
-        const effectiveFridays = countFridays(effectiveStart, effectiveEnd);
-        const effectiveDuration = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        const payableLeaveDays = Math.max(0, effectiveDuration - effectiveFridays);
-
-        let leavePay = 0;
-
-        if (l.type === 'Sick') {
-          const pastSickDays = emp.leaveBalances?.sickUsed || 0;
-          let curr = new Date(effectiveStart);
-          let payableDayIndex = 0;
-          while (curr <= effectiveEnd) {
-            if (curr.getDay() !== 5) {
-              const sickDayNumber = pastSickDays + payableDayIndex + 1;
-              let deductionFactor = 0;
-              if (sickDayNumber <= 15) deductionFactor = 0;
-              else if (sickDayNumber <= 30) deductionFactor = 0.25;
-              else if (sickDayNumber <= 45) deductionFactor = 0.75;
-              else deductionFactor = 1.0;
-
-              const dailySickDeduct = dailyBasePlusHousing * deductionFactor;
-              leavePay += (dailyBasePlusHousing - dailySickDeduct);
-              payableDayIndex++;
-            }
-            curr.setDate(curr.getDate() + 1);
-          }
-        } else {
-          leavePay = payableLeaveDays * dailyBasePlusHousing;
-        }
-
-        const standardPayForTheseDays = payableLeaveDays * dailyGrossFull;
-        const lossFromTakingLeave = standardPayForTheseDays - leavePay;
-        totalShortLeaveDeduction += lossFromTakingLeave;
-
-        // Track for accounting split (Pooled vs Sick)
-        leaveDaysTotalStandardPay += standardPayForTheseDays;
-        if (l.type === 'Sick') {
-          sickLeavePayTotal += leavePay;
-        } else if (l.type !== 'Hajj') {
-          // All other types (Emergency, Maternity, Annual etc.) pool into annual_leave_pay
-          // This aligns with the "most types deduct from annual" policy
-          annualLeavePayTotal += leavePay;
-        }
-      });
-
-      if (totalShortLeaveDeduction > 0) {
-        deductionBreakdown.push({ name: 'Short Leave Math Adjustment (Allowances Excluded)', value: totalShortLeaveDeduction });
-      }
-
-      if (pifssDeduction > 0) deductionBreakdown.push({ name: 'PIFSS Filing (11.5%)', value: pifssDeduction });
-
-      const totalDeductions = pifssDeduction + totalShortLeaveDeduction + totalExplicitHubDeduction;
-      const net = Math.max(0, fullGrossParams - totalDeductions);
-
-      return {
-        id: gid(), run_id: runId, employee_id: emp.id, employee_name: emp.name,
-        basic_salary: Math.max(0, basic - leaveDaysTotalStandardPay), // Reclassify leave portion
-        housing_allowance: housingAmount,
-        other_allowances: otherAllowancesTotal,
-        overtime_amount: overtimeAmount,
-        performance_bonus: performanceBonusAmount,
-        company_bonus: companyBonusAmount,
-        leave_deductions: totalShortLeaveDeduction,
-        sick_leave_pay: sickLeavePayTotal,
-        annual_leave_pay: annualLeavePayTotal,
-        short_permission_deductions: 0,
-        pifss_deduction: pifssDeduction,
-        pifss_employer_share: pifssEmployerShare,
-        indemnity_accrual: indemnityAccrual,
-        net_salary: net,
-        verified_by_hr: false, variance: 0,
-        allowance_breakdown: allowanceBreakdown,
-        deduction_breakdown: deductionBreakdown
-      };
+    // Call the server-side RPC for atomic generation
+    const { data, error } = await supabase.rpc('generate_payroll_draft', {
+      p_period_key: periodKey,
+      p_cycle_type: cycle
     });
 
-    const dbRun = {
-      id: runId, period_key: periodKey, cycle_type: cycle, status: 'Draft',
-      total_disbursement: dbItems.reduce((acc, curr) => acc + curr.net_salary, 0), created_at: new Date().toISOString()
-    };
+    if (error) throw error;
 
-    await supabase!.from('payroll_runs').insert([dbRun]);
-    await supabase!.from('payroll_items').insert(dbItems.map(i => ({
-      run_id: i.run_id,
-      employee_id: i.employee_id,
-      employee_name: i.employee_name,
-      basic_salary: i.basic_salary,
-      housing_allowance: i.housing_allowance,
-      other_allowances: i.other_allowances,
-      overtime_amount: i.overtime_amount,
-      performance_bonus: i.performance_bonus,
-      company_bonus: i.company_bonus,
-      leave_deductions: i.leave_deductions,
-      sick_leave_pay: i.sick_leave_pay,
-      annual_leave_pay: i.annual_leave_pay,
-      short_permission_deductions: i.short_permission_deductions,
-      pifss_deduction: i.pifss_deduction,
-      pifss_employer_share: i.pifss_employer_share,
-      indemnity_accrual: (i as any).indemnity_accrual,
-      net_salary: i.net_salary,
-      verified_by_hr: i.verified_by_hr,
-      variance: i.variance,
-      allowance_breakdown: i.allowance_breakdown,
-      deduction_breakdown: i.deduction_breakdown
-    })));
-    return mapPayrollRun(dbRun);
+    // Fetch the generated run to return it
+    const { data: runData, error: runError } = await supabase
+      .from('payroll_runs')
+      .select('*')
+      .eq('id', data.id)
+      .single();
+
+    if (runError) throw runError;
+    return mapPayrollRun(runData);
   },
 
   async finalizePayrollRun(runId: string, user: User): Promise<void> {
-    const runs = await this.getPayrollRuns();
-    const targetRun = runs.find(r => r.id === runId);
-    if (!targetRun) throw new Error("Run not found");
+    if (!supabase) throw new Error('Supabase not configured');
 
-    await supabase!.from('payroll_runs').update({ status: 'Finalized' }).eq('id', runId);
+    // Call the server-side RPC for atomic finalization
+    const { error } = await supabase.rpc('finalize_payroll_run', {
+      p_run_id: runId,
+      p_actor_name: user.name,
+      p_actor_role: user.role
+    });
 
-    // Also lock in any variable compensation
-    await supabase!.from('variable_compensation')
-      .update({ status: 'PROCESSED', payroll_run_id: runId })
-      .eq('status', 'APPROVED_FOR_PAYROLL')
-      .is('payroll_run_id', null);
-
-    // IF Monthly Run: Finalize all Month-End Path leaves associated with this period
-    if (targetRun.cycleType === 'Monthly' || targetRun.cycleType === 'Bi-Weekly') {
-      const [year, month] = targetRun.periodKey.split('-').map(Number);
-      const leaves = await this.getLeaveRequests();
-      const consolidatedLeaves = leaves.filter(l =>
-        (l.status === 'HR_Finalized' || l.status === 'Pushed_To_Payroll') &&
-        new Date(l.startDate).getMonth() + 1 === month
-      );
-
-      for (const leaf of consolidatedLeaves) {
-        await this.updateLeaveRequestStatus(leaf.id, 'Paid', user, "Settled via Consolidated Monthly Registry.");
-      }
-    }
+    if (error) throw error;
   },
 
   async rollbackPayrollRun(periodKey: string): Promise<{ success: boolean; message: string }> {
@@ -1483,118 +1201,105 @@ export const dbService = {
   },
 
   async generateHistoricalAttendance(): Promise<{ generated: number }> {
-    const sql = `
-      DO $$
-      DECLARE
-          emp RECORD;
-          d DATE;
-          clock_in TIME;
-          clock_out TIME;
-          lateness_chance NUMERIC;
-          ot_chance NUMERIC;
-          generated_count INTEGER := 0;
-      BEGIN
-          FOR emp IN SELECT id, name FROM employees LOOP
-              -- For each day from Jan 1st to March 3rd 2026
-              FOR d IN SELECT generate_series('2026-01-01'::date, '2026-03-03'::date, '1 day'::interval)::date LOOP
-                  -- Skip Fridays (Kuwait Weekend)
-                  IF EXTRACT(DOW FROM d) = 5 THEN
-                      CONTINUE;
-                  END IF;
-                  
-                  -- Skip if already exists
-                  IF EXISTS (SELECT 1 FROM attendance WHERE employee_id = emp.id AND date = d) THEN
-                      CONTINUE;
-                  END IF;
-
-                  -- Randomized Lateness (25% chance)
-                  lateness_chance := random();
-                  IF lateness_chance < 0.25 THEN
-                      -- Late: 07:45 to 09:30
-                      clock_in := '07:45:00'::time + (random() * interval '1 hour 45 minutes');
-                  ELSE
-                      -- On Time: 07:15 to 07:40
-                      clock_in := '07:15:00'::time + (random() * interval '25 minutes');
-                  END IF;
-
-                  -- Randomized Overtime (40% chance)
-                  ot_chance := random();
-                  IF ot_chance < 0.4 THEN
-                      -- Overtime: 16:30 to 20:30
-                      clock_out := '16:30:00'::time + (random() * interval '4 hours');
-                  ELSE
-                      -- Standard: 15:30 to 16:15
-                      clock_out := '15:30:00'::time + (random() * interval '45 minutes');
-                  END IF;
-
-                  INSERT INTO attendance (id, employee_id, employee_name, date, clock_in, clock_out, location, status, source)
-                  VALUES (uuid_generate_v4(), emp.id, emp.name, d, clock_in, clock_out, 'Al Hamra Tower HQ', 'On-Site', 'Hardware');
-                  
-                  generated_count := generated_count + 1;
-              END LOOP;
-          END LOOP;
-      END $$;
-      `;
-
     if (!supabase) throw new Error('Supabase not configured');
+    const employees = await this.getEmployees();
+    let totalGenerated = 0;
 
-    const { error } = await supabase.rpc('run_sql', { sql_query: sql });
-    if (error) throw error;
+    const startDate = new Date('2026-01-01');
+    const endDate = new Date();
 
-    return { generated: 1 }; // Return dummy success count, client-side will refresh
+    for (const emp of employees) {
+      const logs = [];
+      let currentDate = new Date(startDate);
+
+      while (currentDate <= endDate) {
+        if (currentDate.getDay() !== 5) { // Skip Fridays
+          const dateStr = currentDate.toISOString().split('T')[0];
+
+          let clockIn = '07:15:00';
+          let clockOut = '15:30:00';
+
+          if (Math.random() < 0.25) {
+            const lateMin = Math.floor(Math.random() * 60) + 15;
+            clockIn = `08:${lateMin.toString().padStart(2, '0')}:00`;
+          }
+          if (Math.random() < 0.4) {
+            const otHour = Math.floor(Math.random() * 3) + 17;
+            clockOut = `${otHour}:00:00`;
+          }
+
+          logs.push({
+            id: gid(),
+            employee_id: emp.id,
+            employee_name: emp.name,
+            date: dateStr,
+            clock_in: clockIn,
+            clock_out: clockOut,
+            location: 'Al Hamra Tower HQ',
+            status: 'On-Site',
+            source: 'Hardware'
+          });
+          totalGenerated++;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      if (logs.length > 0) {
+        await supabase.from('attendance').upsert(logs);
+      }
+    }
+    return { generated: totalGenerated };
   },
 
   async calculateOvertimeFromLogs(): Promise<{ processed: number }> {
-    const sql = `
-      DO $$
-      DECLARE
-          rec RECORD;
-          shift_duration INTERVAL;
-          ot_hours NUMERIC;
-          standard_shift INTERVAL := '8 hours'::interval;
-          ot_count INTEGER := 0;
-      BEGIN
-          -- Only process attendance records with both clock_in and clock_out
-          -- And only those not already processed into variable_compensation
-          FOR rec IN 
-            SELECT a.*
-            FROM attendance a
-            WHERE a.clock_in IS NOT NULL 
-              AND a.clock_out IS NOT NULL
-              AND NOT EXISTS (
-                SELECT 1 FROM variable_compensation vc 
-                WHERE vc.employee_id = a.employee_id 
-                  AND vc.comp_type = 'OVERTIME'
-                  AND vc.notes LIKE '%' || a.id || '%'
-              )
-          LOOP
-              shift_duration := rec.clock_out::time - rec.clock_in::time;
-              
-              IF shift_duration > standard_shift THEN
-                  -- Calculate OT hours
-                  ot_hours := EXTRACT(EPOCH FROM (shift_duration - standard_shift)) / 3600;
-                  
-                  INSERT INTO variable_compensation (
-                    employee_id, comp_type, sub_type, amount, status, notes
-                  ) VALUES (
-                    rec.employee_id, 'OVERTIME', 'Workday_OT', ot_hours, 'PENDING_MANAGER', 
-                    'Generated from Attendance ID: ' || rec.id || ' on ' || rec.date
-                  );
-                  
-                  ot_count := ot_count + 1;
-              END IF;
-          END LOOP;
-      END $$;
-      `;
-
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { error } = await supabase.rpc('run_sql', { sql_query: sql });
-    if (error) throw error;
+    // Fetch records needing OT processing
+    const { data: records, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .not('clock_in', 'is', null)
+      .not('clock_out', 'is', null);
 
-    return {
-      processed: 1
-    };
+    if (error) throw error;
+    if (!records) return { processed: 0 };
+
+    let processedCount = 0;
+    const standardShift = 8 * 3600; // 8 hours in seconds
+
+    for (const rec of records) {
+      const [hIn, mIn, sIn] = rec.clock_in.split(':').map(Number);
+      const [hOut, mOut, sOut] = rec.clock_out.split(':').map(Number);
+
+      const inSec = hIn * 3600 + mIn * 60 + sIn;
+      const outSec = hOut * 3600 + mOut * 60 + sOut;
+      const duration = outSec - inSec;
+
+      if (duration > standardShift) {
+        const otHours = (duration - standardShift) / 3600;
+
+        const { count } = await supabase
+          .from('variable_compensation')
+          .select('id', { count: 'exact', head: true })
+          .eq('employee_id', rec.employee_id)
+          .eq('comp_type', 'OVERTIME')
+          .ilike('notes', `%${rec.id}%`);
+
+        if (!count || count === 0) {
+          await supabase.from('variable_compensation').insert([{
+            employee_id: rec.employee_id,
+            comp_type: 'OVERTIME',
+            sub_type: 'Workday_OT',
+            amount: otHours,
+            status: 'PENDING_MANAGER',
+            notes: `Generated from Attendance ID: ${rec.id} on ${rec.date}`
+          }]);
+          processedCount++;
+        }
+      }
+    }
+
+    return { processed: processedCount };
   },
 
   async getOfficeLocations(): Promise<OfficeLocation[]> {
@@ -2277,6 +1982,15 @@ export const dbService = {
       notes: `Profit Sharing Bonus`
     }));
     await supabase!.from('variable_compensation').insert(varCompPayload);
+  },
+
+  async provisionAuthUsers(): Promise<{ message: string }> {
+    const employees = await this.getEmployees();
+    const activeEmployees = employees.filter(e => e.status === 'Active');
+
+    return {
+      message: `Enterprise Security Hub: Identified ${activeEmployees.length} active employees for RLS provisioning. Please use the Supabase Auth Dashboard or a 'bulk_invite' script to complete the linkage for production status.`
+    };
   }
 };
 
