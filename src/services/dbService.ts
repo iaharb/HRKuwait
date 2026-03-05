@@ -2026,6 +2026,20 @@ export const dbService = {
         throw error;
       }
 
+      // Trigger Welcome Email Edge Function
+      try {
+        await supabase!.functions.invoke('welcome-email', {
+          body: {
+            email: testEmail,
+            name: emp.name,
+            role: emp.role || 'Employee',
+            password: '12345'
+          }
+        });
+      } catch (emailErr) {
+        console.warn('Welcome email triggering failed, but user was created:', emailErr);
+      }
+
       return { success: true, message: `Access granted for ${emp.name} (${testEmail})` };
     } catch (e: any) {
       return { success: false, message: e.message };
