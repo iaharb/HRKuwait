@@ -44,13 +44,13 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
 }) => {
     const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
 
-    const isHrOrAdmin = ['Admin', 'HR', 'HR Manager', 'HR Officer'].includes(user.role);
-    const isExecutiveOrAdmin = ['Admin', 'Executive'].includes(user.role);
+    const isHrOrAdmin = ['Admin', 'HR', 'HR Manager', 'HR Officer', 'Executive'].includes(user.role);
+    const isExecutiveOrAdmin = ['Admin', 'Executive', 'HR Manager'].includes(user.role);
     const isPayrollOrAdmin = ['Admin', 'Payroll Manager', 'Payroll Officer', 'HR Manager', 'HR', 'Executive'].includes(user.role);
     const isAdmin = user.role === 'Admin';
 
     // Check if role has "Managerial" aspects
-    const isManagerial = ['Admin', 'Manager', 'Executive', 'HR Manager', 'Payroll Manager', 'HR'].includes(user.role);
+    const isManagerial = ['Admin', 'Manager', 'Executive', 'HR Manager', 'Payroll Manager', 'HR', 'HR Officer', 'Payroll Officer'].includes(user.role);
 
     return (
         <Routes>
