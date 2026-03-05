@@ -85,6 +85,22 @@ const mapEmployee = (data: any): Employee => {
   return {
     ...data,
     nameArabic: data.name_arabic,
+
+    // Structured Name Mapping
+    title: data.title,
+    firstName: data.first_name,
+    secondName: data.second_name,
+    thirdName: data.third_name,
+    fourthName: data.fourth_name,
+    familyName: data.family_name,
+
+    titleAr: data.title_ar,
+    firstNameAr: data.first_name_ar,
+    secondNameAr: data.second_name_ar,
+    thirdNameAr: data.third_name_ar,
+    fourthNameAr: data.fourth_name_ar,
+    familyNameAr: data.family_name_ar,
+
     civilId: data.civil_id,
     civilIdExpiry: data.civil_id_expiry,
     pifssNumber: data.pifss_number,
@@ -520,8 +536,23 @@ export const dbService = {
 
   async addEmployee(employee: Omit<Employee, 'id'>): Promise<Employee> {
     const dbPayload = {
-      name: employee.name,
-      name_arabic: employee.nameArabic,
+      name: employee.name || `${employee.title || ''} ${employee.firstName || ''} ${employee.familyName || ''}`.trim(),
+      name_arabic: employee.nameArabic || `${employee.titleAr || ''} ${employee.firstNameAr || ''} ${employee.familyNameAr || ''}`.trim(),
+
+      title: employee.title,
+      first_name: employee.firstName,
+      second_name: employee.secondName,
+      third_name: employee.thirdName,
+      fourth_name: employee.fourthName,
+      family_name: employee.familyName,
+
+      title_ar: employee.titleAr,
+      first_name_ar: employee.firstNameAr,
+      second_name_ar: employee.secondNameAr,
+      third_name_ar: employee.thirdNameAr,
+      fourth_name_ar: employee.fourthNameAr,
+      family_name_ar: employee.familyNameAr,
+
       nationality: employee.nationality,
       civil_id: employee.civilId,
       civil_id_expiry: employee.civilIdExpiry || null,
@@ -575,6 +606,21 @@ export const dbService = {
     const dbUpdates: any = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.nameArabic !== undefined) dbUpdates.name_arabic = updates.nameArabic;
+
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
+    if (updates.secondName !== undefined) dbUpdates.second_name = updates.secondName;
+    if (updates.thirdName !== undefined) dbUpdates.third_name = updates.thirdName;
+    if (updates.fourthName !== undefined) dbUpdates.fourth_name = updates.fourthName;
+    if (updates.familyName !== undefined) dbUpdates.family_name = updates.familyName;
+
+    if (updates.titleAr !== undefined) dbUpdates.title_ar = updates.titleAr;
+    if (updates.firstNameAr !== undefined) dbUpdates.first_name_ar = updates.firstNameAr;
+    if (updates.secondNameAr !== undefined) dbUpdates.second_name_ar = updates.secondNameAr;
+    if (updates.thirdNameAr !== undefined) dbUpdates.third_name_ar = updates.thirdNameAr;
+    if (updates.fourthNameAr !== undefined) dbUpdates.fourth_name_ar = updates.fourthNameAr;
+    if (updates.familyNameAr !== undefined) dbUpdates.family_name_ar = updates.familyNameAr;
+
     if (updates.nationality !== undefined) dbUpdates.nationality = updates.nationality;
     if (updates.civilId !== undefined) dbUpdates.civil_id = updates.civilId;
     if (updates.civilIdExpiry !== undefined) dbUpdates.civil_id_expiry = updates.civilIdExpiry;
@@ -2034,7 +2080,7 @@ export const dbService = {
         if (error.message.includes('already registered')) {
           // Find the existing user to get their ID for re-linking
           const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-          const existing = users.find(u => u.email === testEmail);
+          const existing = (users as any[]).find(u => u.email === testEmail);
 
           if (existing) {
             const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {

@@ -23,6 +23,18 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
   const initialFormData: Omit<Employee, 'id'> = {
     name: '',
     nameArabic: '',
+    title: '',
+    firstName: '',
+    secondName: '',
+    thirdName: '',
+    fourthName: '',
+    familyName: '',
+    titleAr: '',
+    firstNameAr: '',
+    secondNameAr: '',
+    thirdNameAr: '',
+    fourthNameAr: '',
+    familyNameAr: '',
     nationality: 'Kuwaiti',
     civilId: '',
     department: 'IT',
@@ -77,6 +89,18 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
       setFormData({
         name: employeeToEdit.name,
         nameArabic: employeeToEdit.nameArabic || '',
+        title: employeeToEdit.title || '',
+        firstName: employeeToEdit.firstName || '',
+        secondName: employeeToEdit.secondName || '',
+        thirdName: employeeToEdit.thirdName || '',
+        fourthName: employeeToEdit.fourthName || '',
+        familyName: employeeToEdit.familyName || '',
+        titleAr: employeeToEdit.titleAr || '',
+        firstNameAr: employeeToEdit.firstNameAr || '',
+        secondNameAr: employeeToEdit.secondNameAr || '',
+        thirdNameAr: employeeToEdit.thirdNameAr || '',
+        fourthNameAr: employeeToEdit.fourthNameAr || '',
+        familyNameAr: employeeToEdit.familyNameAr || '',
         nationality: employeeToEdit.nationality,
         civilId: employeeToEdit.civilId || '',
         department: employeeToEdit.department,
@@ -158,7 +182,17 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.civilId) {
+    // Auto-concatenate Full Name if individual parts provided
+    const fullNameEn = `${formData.title} ${formData.firstName} ${formData.secondName} ${formData.thirdName} ${formData.fourthName} ${formData.familyName}`.replace(/\s+/g, ' ').trim();
+    const fullNameAr = `${formData.titleAr} ${formData.firstNameAr} ${formData.secondNameAr} ${formData.thirdNameAr} ${formData.fourthNameAr} ${formData.familyNameAr}`.replace(/\s+/g, ' ').trim();
+
+    const dataToSubmit = {
+      ...formData,
+      name: fullNameEn || formData.name,
+      nameArabic: fullNameAr || formData.nameArabic
+    };
+
+    if (!dataToSubmit.name || !dataToSubmit.civilId) {
       notify(t('warning'), t('actionRequired'), "warning");
       return;
     }
@@ -166,10 +200,10 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     setLoading(true);
     try {
       if (employeeToEdit) {
-        await dbService.updateEmployee(employeeToEdit.id, formData);
+        await dbService.updateEmployee(employeeToEdit.id, dataToSubmit);
         notify(t('success'), language === 'ar' ? 'تم تحديث بيانات الموظف' : 'Employee record updated.', "success");
       } else {
-        await dbService.addEmployee(formData);
+        await dbService.addEmployee(dataToSubmit);
         notify(t('success'), t('officialRecord'), "success");
       }
       onSuccess();
@@ -191,7 +225,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}></div>
-      <div className="bg-white rounded-[48px] w-full max-w-5xl shadow-2xl relative z-10 overflow-hidden border border-slate-200 max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-300">
+      <div className="bg-white rounded-[48px] w-full max-w-6xl shadow-2xl relative z-10 overflow-hidden border border-slate-200 max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-300">
 
         <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
           <div>
@@ -207,21 +241,71 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
 
           {/* Identity Section */}
           {sectionHeader("👤", t('personalIdentity'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nameEn')}</label>
-              <input required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+          <div className="space-y-8">
+            {/* English Name Parts */}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Title</label>
+                <input placeholder="Dr / Mr" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">First Name</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Second Name</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.secondName} onChange={e => setFormData({ ...formData, secondName: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Third Name</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.thirdName} onChange={e => setFormData({ ...formData, thirdName: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Fourth Name</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.fourthName} onChange={e => setFormData({ ...formData, fourthName: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Family Name</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.familyName} onChange={e => setFormData({ ...formData, familyName: e.target.value })} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nameAr')}</label>
-              <input required dir="rtl" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-right outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nameArabic} onChange={e => setFormData({ ...formData, nameArabic: e.target.value })} />
+
+            {/* Arabic Name Parts */}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4" dir="rtl">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">اللقب</label>
+                <input placeholder="د / أ" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.titleAr} onChange={e => setFormData({ ...formData, titleAr: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الأول</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.firstNameAr} onChange={e => setFormData({ ...formData, firstNameAr: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الثاني</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.secondNameAr} onChange={e => setFormData({ ...formData, secondNameAr: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الثالث</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.thirdNameAr} onChange={e => setFormData({ ...formData, thirdNameAr: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الرابع</label>
+                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.fourthNameAr} onChange={e => setFormData({ ...formData, fourthNameAr: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">العائلة</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.familyNameAr} onChange={e => setFormData({ ...formData, familyNameAr: e.target.value })} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
-              <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
-                <option value="Kuwaiti">{t('kuwaiti')}</option>
-                <option value="Expat">{t('expat')}</option>
-              </select>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
+                <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
+                  <option value="Kuwaiti">{t('kuwaiti')}</option>
+                  <option value="Expat">{t('expat')}</option>
+                </select>
+              </div>
             </div>
           </div>
 

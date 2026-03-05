@@ -54,6 +54,23 @@ export interface Employee {
   id: string;
   name: string;
   nameArabic?: string;
+
+  // Structured English Name
+  title?: string;
+  firstName?: string;
+  secondName?: string;
+  thirdName?: string;
+  fourthName?: string;
+  familyName?: string;
+
+  // Structured Arabic Name
+  titleAr?: string;
+  firstNameAr?: string;
+  secondNameAr?: string;
+  thirdNameAr?: string;
+  fourthNameAr?: string;
+  familyNameAr?: string;
+
   nationality: 'Kuwaiti' | 'Expat';
   civilId?: string;
   civilIdExpiry?: string;

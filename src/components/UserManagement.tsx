@@ -212,9 +212,16 @@ export const UserManagement: React.FC = () => {
     };
 
     const filteredEmployees = employees.filter(emp => {
-        const firstName = emp.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        // Use exact same logic as dbService.provisionAuthUser to match emails
+        let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
+        let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
+        if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
+        if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+
         const testEmail = `${firstName}@test.com`;
 
+        // Hide if already in system_users or auth_users
         if (systemUsers.some(u => u.employee_id === emp.id)) return false;
         if (authUsers.some(u => u.email === testEmail)) return false;
 

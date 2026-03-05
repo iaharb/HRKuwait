@@ -56,7 +56,11 @@ const SalaryCertificateModal: React.FC<{
             </h3>
 
             <p className="text-sm">
-              This is to certify that <strong>{language === 'ar' ? employee.nameArabic || employee.name : employee.name}</strong>, a <strong>{t(employee.nationality.toLowerCase())}</strong> national...
+              This is to certify that <strong>{language === 'ar' ? (
+                `${employee.titleAr || ''} ${employee.firstNameAr || ''} ${employee.secondNameAr || ''} ${employee.familyNameAr || ''}`.replace(/\s+/g, ' ').trim() || employee.nameArabic
+              ) : (
+                `${employee.title || ''} ${employee.firstName || ''} ${employee.secondName || ''} ${employee.familyName || ''}`.replace(/\s+/g, ' ').trim() || employee.name
+              )}</strong>, a <strong>{t(employee.nationality.toLowerCase())}</strong> national...
             </p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-3 font-sans">
@@ -329,7 +333,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
           )}
         </div>
         <div className="mb-2 relative z-10 flex-1">
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">{i18n.language === 'ar' ? (employeeData as any)?.nameArabic || user.name : user.name}</h2>
+          <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+            {i18n.language === 'ar' ? (
+              employeeData ? `${employeeData.titleAr || ''} ${employeeData.firstNameAr || ''} ${employeeData.familyNameAr || ''}`.replace(/\s+/g, ' ').trim() || employeeData.nameArabic : user.name
+            ) : (
+              employeeData ? `${employeeData.title || ''} ${employeeData.firstName || ''} ${employeeData.familyName || ''}`.replace(/\s+/g, ' ').trim() || employeeData.name : user.name
+            )}
+          </h2>
           <div className="flex flex-wrap items-center gap-3 mt-2">
             <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-lg tracking-widest border border-indigo-100">{user.role}</span>
             <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg tracking-widest border ${employeeData?.faceToken ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
