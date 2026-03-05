@@ -14,7 +14,11 @@ import { useNotifications } from './NotificationSystem';
 
 import { FinanceIntelligenceHub } from './FinanceIntelligenceHub';
 
-export const FinanceMappingSettings: React.FC = () => {
+interface FinanceMappingSettingsProps {
+  compactMode?: boolean;
+}
+
+export const FinanceMappingSettings: React.FC<FinanceMappingSettingsProps> = ({ compactMode }) => {
   const { t, i18n } = useTranslation();
   const { notify } = useNotifications();
   const [activeTab, setActiveTab] = useState<'intelligence' | 'chart' | 'rules' | 'jv'>('intelligence');
@@ -448,8 +452,8 @@ export const FinanceMappingSettings: React.FC = () => {
   }, []);
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500 relative">
-      <h1 className="text-3xl font-black text-slate-900">{t('financeMapping', 'Finance Mapping Engine')}</h1>
+    <div className={`transition-all duration-300 ${compactMode ? 'p-4 space-y-4' : 'p-8 space-y-8'} animate-in fade-in duration-500 relative`}>
+      <h1 className={`${compactMode ? 'text-xl' : 'text-3xl'} font-black text-slate-900 tracking-tight`}>{t('financeMapping', 'Finance Mapping Engine')}</h1>
 
       {/* --- MODAL OVERLAY --- */}
       {isModalOpen && (
@@ -503,27 +507,27 @@ export const FinanceMappingSettings: React.FC = () => {
       )}
 
       {/* --- TABS --- */}
-      <div className="flex border-b border-slate-200">
+      <div className={`flex border-b border-slate-200 ${compactMode ? 'gap-4' : 'gap-0'}`}>
         <button
-          className={`px-4 py-2 font-medium ${activeTab === 'intelligence' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
+          className={`px-4 py-2 font-medium transition-all ${activeTab === 'intelligence' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'} ${compactMode ? 'text-xs pb-1' : ''}`}
           onClick={() => setActiveTab('intelligence')}
         >
           {t('intelligenceHub', 'Intelligence Hub')}
         </button>
         <button
-          className={`px-4 py-2 font-medium ${activeTab === 'chart' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
+          className={`px-4 py-2 font-medium transition-all ${activeTab === 'chart' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'} ${compactMode ? 'text-xs pb-1' : ''}`}
           onClick={() => setActiveTab('chart')}
         >
           {t('chartOfAccounts', 'Chart of Accounts')}
         </button>
         <button
-          className={`px-4 py-2 font-medium ${activeTab === 'rules' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
+          className={`px-4 py-2 font-medium transition-all ${activeTab === 'rules' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'} ${compactMode ? 'text-xs pb-1' : ''}`}
           onClick={() => setActiveTab('rules')}
         >
           {t('smartRulesBuilder', 'Smart Rules Builder')}
         </button>
         <button
-          className={`px-4 py-2 font-medium ${activeTab === 'jv' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
+          className={`px-4 py-2 font-medium transition-all ${activeTab === 'jv' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'} ${compactMode ? 'text-xs pb-1' : ''}`}
           onClick={() => setActiveTab('jv')}
         >
           {t('jvGenerator', 'JV Generator')}
@@ -549,25 +553,25 @@ export const FinanceMappingSettings: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${compactMode ? 'gap-4' : 'gap-6'}`}>
               {accounts.map((a) => (
-                <div key={a.id} onClick={() => { setNewAccount(a); setIsModalOpen(true); }} className="relative bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-3xl p-6 hover:-translate-y-1 transition-transform cursor-pointer overflow-hidden group">
+                <div key={a.id} onClick={() => { setNewAccount(a); setIsModalOpen(true); }} className={`relative bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-3xl hover:-translate-y-1 transition-all cursor-pointer overflow-hidden group ${compactMode ? 'p-4' : 'p-6'}`}>
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-400/10 rounded-full blur-3xl group-hover:bg-indigo-400/20 transition-all"></div>
 
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-xl font-black text-slate-800 tracking-tight">{a.account_code}</span>
+                  <div className={`flex justify-between items-start ${compactMode ? 'mb-2' : 'mb-4'}`}>
+                    <span className={`font-black text-slate-800 tracking-tight ${compactMode ? 'text-lg' : 'text-xl'}`}>{a.account_code}</span>
                     <div className="flex items-center gap-2">
                       {a.is_active !== false && <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse"></span>}
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-slate-700 mb-1 leading-tight">{a.account_name}</h3>
+                  <h3 className={`font-bold text-slate-700 leading-tight ${compactMode ? 'text-sm mb-0.5' : 'text-base mb-1'}`}>{a.account_name}</h3>
 
-                  <div className="mt-6 flex justify-between items-center relative z-10">
-                    <span className="text-[10px] uppercase tracking-widest font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
+                  <div className={`flex justify-between items-center relative z-10 ${compactMode ? 'mt-4' : 'mt-6'}`}>
+                    <span className={`uppercase tracking-widest font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg ${compactMode ? 'text-[8px]' : 'text-[10px]'}`}>
                       {a.account_type}
                     </span>
-                    <span className="text-slate-400 text-xs font-semibold">
+                    <span className={`text-slate-400 font-semibold ${compactMode ? 'text-[10px]' : 'text-xs'}`}>
                       {a.is_active !== false ? 'Active' : 'Archived'}
                     </span>
                   </div>
@@ -586,14 +590,14 @@ export const FinanceMappingSettings: React.FC = () => {
         {/* ---------- Smart Rules Builder ---------- */}
         {activeTab === 'rules' && (
           <div className="space-y-8">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4">{t('createMappingRule', 'Create Mapping Rule')}</h2>
+            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${compactMode ? 'p-4' : 'p-6'}`}>
+              <h2 className={`${compactMode ? 'text-base mb-3' : 'text-lg mb-4'} font-bold`}>{t('createMappingRule', 'Create Mapping Rule')}</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">{t('payrollItem', 'Payroll Item')}</label>
+                <div className={`${compactMode ? 'space-y-1' : 'space-y-2'}`}>
+                  <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500">{t('payrollItem', 'Payroll Item')}</label>
                   <select
-                    className="w-full rounded-xl border-slate-300 p-2.5 bg-slate-50"
+                    className={`w-full rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-600 transition-all font-bold ${compactMode ? 'p-2 text-xs' : 'p-2.5 text-sm'}`}
                     value={newRule.payroll_item_type || ''}
                     onChange={(e) => setNewRule({ ...newRule, payroll_item_type: e.target.value })}
                   >
@@ -604,10 +608,10 @@ export const FinanceMappingSettings: React.FC = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">{t('nationality', 'Nationality Group')}</label>
+                <div className={`${compactMode ? 'space-y-1' : 'space-y-2'}`}>
+                  <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500">{t('nationality', 'Nationality Group')}</label>
                   <select
-                    className="w-full rounded-xl border-slate-300 p-2.5 bg-slate-50"
+                    className={`w-full rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-600 transition-all font-bold ${compactMode ? 'p-2 text-xs' : 'p-2.5 text-sm'}`}
                     value={newRule.nationality_group || 'ALL'}
                     onChange={(e) => setNewRule({ ...newRule, nationality_group: e.target.value as any })}
                   >
@@ -617,10 +621,10 @@ export const FinanceMappingSettings: React.FC = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">{t('glAccount', 'GL Account')}</label>
+                <div className={`${compactMode ? 'space-y-1' : 'space-y-2'}`}>
+                  <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500">{t('glAccount', 'GL Account')}</label>
                   <select
-                    className="w-full rounded-xl border-slate-300 p-2.5 bg-slate-50"
+                    className={`w-full rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-600 transition-all font-bold ${compactMode ? 'p-2 text-xs' : 'p-2.5 text-sm'}`}
                     value={newRule.gl_account_id || ''}
                     onChange={(e) => setNewRule({ ...newRule, gl_account_id: e.target.value })}
                   >
@@ -634,21 +638,21 @@ export const FinanceMappingSettings: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">{t('ruleName', 'Rule Name')}</label>
+              <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${compactMode ? 'mt-4' : 'mt-6'}`}>
+                <div className={`${compactMode ? 'space-y-1' : 'space-y-2'}`}>
+                  <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500">{t('ruleName', 'Rule Name')}</label>
                   <input
-                    className="w-full rounded-xl border-slate-300 p-2.5 bg-slate-50"
+                    className={`w-full rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-600 transition-all font-bold ${compactMode ? 'p-2 text-xs' : 'p-2.5 text-sm'}`}
                     placeholder={t('ruleNamePlaceholder', 'e.g. Expat Indemnity Accrual')}
                     value={newRule.rule_name || ''}
                     onChange={(e) => setNewRule({ ...newRule, rule_name: e.target.value })}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">{t('creditOrDebit', 'Credit / Debit')}</label>
+                <div className={`${compactMode ? 'space-y-1' : 'space-y-2'}`}>
+                  <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500">{t('creditOrDebit', 'Credit / Debit')}</label>
                   <select
-                    className="w-full rounded-xl border-slate-300 p-2.5 bg-slate-50"
+                    className={`w-full rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-600 transition-all font-bold ${compactMode ? 'p-2 text-xs' : 'p-2.5 text-sm'}`}
                     value={newRule.credit_or_debit || 'DR'}
                     onChange={(e) => setNewRule({ ...newRule, credit_or_debit: e.target.value as any })}
                   >
@@ -726,18 +730,18 @@ export const FinanceMappingSettings: React.FC = () => {
         {/* ---------- Updated Tab 3 Render ---------- */}
         {activeTab === 'jv' && (
           <div className="space-y-6">
-            <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-3xl flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
+            <div className={`bg-indigo-50 border border-indigo-100 rounded-3xl flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm ${compactMode ? 'p-4' : 'p-6'}`}>
               <div>
-                <h3 className="text-indigo-900 font-black text-lg flex items-center gap-2">
-                  <span className="p-1.5 bg-indigo-200/50 rounded-lg">⚙️</span>
+                <h3 className={`text-indigo-900 font-black flex items-center gap-2 ${compactMode ? 'text-base' : 'text-lg'}`}>
+                  <span className={`bg-indigo-200/50 rounded-lg ${compactMode ? 'p-1' : 'p-1.5'}`}>⚙️</span>
                   {t('autoDetection', 'Engine Control Panel')}
                 </h3>
-                <p className="text-indigo-700 text-sm mt-1 mb-4 font-medium">
+                <p className={`text-indigo-700 mt-1 mb-4 font-medium ${compactMode ? 'text-xs' : 'text-sm'}`}>
                   {t('jvDescription', 'Select a finalized payroll batch to process or run a dry simulation.')}
                 </p>
                 <div className="flex items-center gap-3">
                   <select
-                    className="px-4 py-2 rounded-xl border border-indigo-200 bg-white font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500/20 w-64 shadow-sm"
+                    className={`rounded-xl border border-indigo-200 bg-white font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm ${compactMode ? 'px-3 py-1.5 text-xs w-48' : 'px-4 py-2 w-64'}`}
                     value={selectedRunId}
                     onChange={(e) => setSelectedRunId(e.target.value)}
                   >
@@ -768,31 +772,31 @@ export const FinanceMappingSettings: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+            <div className={`grid grid-cols-1 md:grid-cols-3 animate-in slide-in-from-bottom-4 duration-300 ${compactMode ? 'gap-4' : 'gap-6'}`}>
+              <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between ${compactMode ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="p-1 px-2 bg-indigo-50 text-indigo-500 rounded-lg text-sm">⭐</span>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">KPI Performance Bonuses</h4>
+                  <span className={`p-1 px-2 bg-indigo-50 text-indigo-500 rounded-lg ${compactMode ? 'text-xs' : 'text-sm'}`}>⭐</span>
+                  <h4 className={`font-black text-slate-400 uppercase tracking-widest ${compactMode ? 'text-[8px]' : 'text-[10px]'}`}>KPI Performance Bonuses</h4>
                 </div>
-                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                <div className={`font-black text-slate-900 tracking-tighter ${compactMode ? 'text-lg' : 'text-2xl'}`}>
                   {rollup.filter(r => r.payroll_item_type === 'performance_bonus').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
                 </div>
               </div>
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+              <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between ${compactMode ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="p-1 px-2 bg-emerald-50 text-emerald-500 rounded-lg text-sm">💰</span>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Company Profit Sharing</h4>
+                  <span className={`p-1 px-2 bg-emerald-50 text-emerald-500 rounded-lg ${compactMode ? 'text-xs' : 'text-sm'}`}>💰</span>
+                  <h4 className={`font-black text-slate-400 uppercase tracking-widest ${compactMode ? 'text-[8px]' : 'text-[10px]'}`}>Company Profit Sharing</h4>
                 </div>
-                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                <div className={`font-black text-slate-900 tracking-tighter ${compactMode ? 'text-lg' : 'text-2xl'}`}>
                   {rollup.filter(r => r.payroll_item_type === 'company_bonus').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
                 </div>
               </div>
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+              <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between ${compactMode ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="p-1 px-2 bg-amber-50 text-amber-500 rounded-lg text-sm">⏰</span>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overtime Conversion</h4>
+                  <span className={`p-1 px-2 bg-amber-50 text-amber-500 rounded-lg ${compactMode ? 'text-xs' : 'text-sm'}`}>⏰</span>
+                  <h4 className={`font-black text-slate-400 uppercase tracking-widest ${compactMode ? 'text-[8px]' : 'text-[10px]'}`}>Overtime Conversion</h4>
                 </div>
-                <div className="text-2xl font-black text-slate-900 tracking-tighter">
+                <div className={`font-black text-slate-900 tracking-tighter ${compactMode ? 'text-lg' : 'text-2xl'}`}>
                   {rollup.filter(r => r.payroll_item_type === 'overtime').reduce((sum, r) => sum + Number(r.total_amount), 0).toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400 font-bold ml-1">KWD</span>
                 </div>
               </div>
@@ -988,7 +992,7 @@ export const FinanceMappingSettings: React.FC = () => {
                                 {row.entry_type}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-indigo-600 font-medium">
+                            <td className={`text-right font-mono text-indigo-600 font-medium ${compactMode ? 'px-4 py-2 text-xs' : 'px-4 py-3'}`}>
                               {Number(row.amount).toLocaleString('en-KW', { minimumFractionDigits: 3 })}
                             </td>
                           </tr>

@@ -154,6 +154,8 @@ const App: React.FC = () => {
                 onNavigate={navigateTo}
                 onOpenEmployeeModal={() => setIsModalOpen(true)}
                 onEditEmployee={handleEditEmployee}
+                compactMode={compactMode}
+                presentationMode={presentationMode}
               />
             </div>
           </div>

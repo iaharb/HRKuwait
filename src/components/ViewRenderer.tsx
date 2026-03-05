@@ -28,6 +28,8 @@ interface ViewRendererProps {
     onNavigate: (view: View) => void;
     onOpenEmployeeModal: () => void;
     onEditEmployee: (emp: any) => void;
+    compactMode: boolean;
+    presentationMode: boolean;
 }
 
 const ViewRenderer: React.FC<ViewRendererProps> = ({
@@ -36,7 +38,9 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
     refreshKey,
     onNavigate,
     onOpenEmployeeModal,
-    onEditEmployee
+    onEditEmployee,
+    compactMode,
+    presentationMode
 }) => {
     const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
 
@@ -61,8 +65,8 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/dashboard" element={user.role !== 'Employee' ? <Dashboard user={user} onNavigate={onNavigate} key={`dash-${refreshKey}`} language={language} /> : <Navigate to={defaultRoute} replace />} />
 
             {/* --- Management & Approvals --- */}
-            <Route path="/approvals" element={isManagerial || ['HR Officer'].includes(user.role) ? <ApprovalsView user={user} key={`approvals-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
-            <Route path="/performance" element={isManagerial ? <PerformanceView user={user} key={`perf-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/approvals" element={isManagerial || ['HR Officer'].includes(user.role) ? <ApprovalsView user={user} compactMode={compactMode} key={`approvals-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/performance" element={isManagerial ? <PerformanceView user={user} compactMode={compactMode} key={`perf-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
 
             {/* --- HR Ops --- */}
             <Route path="/directory" element={isHrOrAdmin || user.role === 'Manager' ? <EmployeeDirectory user={user} onAddClick={onOpenEmployeeModal} onEditClick={onEditEmployee} key={`dir-${refreshKey}`} language={language} /> : <Navigate to={defaultRoute} replace />} />
@@ -73,8 +77,8 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             {/* --- Payroll & Finance --- */}
             <Route path="/payroll" element={isPayrollOrAdmin ? <PayrollView user={user} key={`pay-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/settlement" element={isHrOrAdmin || ['Payroll Manager', 'Payroll Officer'].includes(user.role) ? <SettlementView key={`settle-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
-            <Route path="/finance" element={isPayrollOrAdmin ? <FinanceMappingSettings key={`finance-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
-            <Route path="/profit-sharing" element={isExecutiveOrAdmin || ['HR', 'HR Manager', 'Payroll Manager'].includes(user.role) ? <ProfitSharingView user={user} key={`profit-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/finance" element={isPayrollOrAdmin ? <FinanceMappingSettings compactMode={compactMode} key={`finance-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/profit-sharing" element={isExecutiveOrAdmin || ['HR', 'HR Manager', 'Payroll Manager'].includes(user.role) ? <ProfitSharingView user={user} compactMode={compactMode} key={`profit-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
 
             {/* --- Global Strategy --- */}
             <Route path="/management" element={isExecutiveOrAdmin || isManagerial ? <ManagementDashboard key={`manage-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />

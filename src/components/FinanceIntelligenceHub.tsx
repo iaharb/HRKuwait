@@ -5,7 +5,11 @@ import { syncEOSBLiability } from '../services/financeUtils';
 import { useNotifications } from './NotificationSystem';
 import { dbService } from '../services/dbService';
 
-export const FinanceIntelligenceHub: React.FC = () => {
+interface FinanceIntelligenceHubProps {
+    compactMode?: boolean;
+}
+
+export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ compactMode }) => {
     const { notify } = useNotifications();
     const [loading, setLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -164,26 +168,26 @@ export const FinanceIntelligenceHub: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className={`${compactMode ? 'space-y-4' : 'space-y-6'} animate-in slide-in-from-bottom-4 duration-500`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-4' : 'gap-6'}`}>
 
                 {/* Liability Gap Card */}
-                <div className="bg-white rounded-3xl border border-rose-100 p-8 shadow-sm flex flex-col justify-between group relative overflow-hidden">
+                <div className={`bg-white rounded-3xl border border-rose-100 shadow-sm flex flex-col justify-between group relative overflow-hidden ${compactMode ? 'p-5' : 'p-8'}`}>
                     <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="p-2 bg-rose-50 text-rose-500 rounded-xl">⚖️</span>
-                            <h3 className="font-bold text-slate-800 text-lg">Actuarial Liability Gap</h3>
+                        <div className={`flex items-center gap-3 ${compactMode ? 'mb-1' : 'mb-2'}`}>
+                            <span className={`p-2 bg-rose-50 text-rose-500 rounded-xl ${compactMode ? 'scale-75' : ''}`}>⚖️</span>
+                            <h3 className={`font-bold text-slate-800 ${compactMode ? 'text-base' : 'text-lg'}`}>Actuarial Liability Gap</h3>
                         </div>
-                        <p className="text-xs font-medium text-slate-500 mb-6">
+                        <p className={`font-medium text-slate-500 ${compactMode ? 'text-[10px] mb-3' : 'text-xs mb-6'}`}>
                             Difference between tenure-based mathematical liability and GL Provision Balance (Account 200300).
                         </p>
 
-                        <div className="flex items-baseline gap-2 mb-6">
-                            <span className={`text-4xl font-black tracking-tight ${liabilityGap && liabilityGap > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        <div className={`flex items-baseline gap-2 ${compactMode ? 'mb-3' : 'mb-6'}`}>
+                            <span className={`font-black tracking-tight ${liabilityGap && liabilityGap > 0 ? 'text-rose-600' : 'text-emerald-600'} ${compactMode ? 'text-2xl' : 'text-4xl'}`}>
                                 {liabilityGap?.toLocaleString('en-KW', { minimumFractionDigits: 3 })}
                             </span>
-                            <span className="text-sm font-bold text-slate-400">KWD</span>
+                            <span className={`${compactMode ? 'text-xs' : 'text-sm'} font-bold text-slate-400`}>KWD</span>
                         </div>
 
                         {liabilityGap && liabilityGap > 10 ? (
@@ -211,29 +215,29 @@ export const FinanceIntelligenceHub: React.FC = () => {
                 </div>
 
                 {/* Predictive GL Anomaly / Projected Cash Outflow */}
-                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden text-white flex flex-col justify-center lg:col-span-1">
+                <div className={`bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl border border-indigo-500/30 shadow-2xl relative overflow-hidden text-white flex flex-col justify-center lg:col-span-1 ${compactMode ? 'p-5' : 'p-8'}`}>
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
                     <div className="z-10 relative">
-                        <div className="flex items-center gap-3 mb-4">
-                            <span className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl">🤖</span>
-                            <h3 className="font-bold text-indigo-100 text-lg">AI Cash Outflow Projection</h3>
+                        <div className={`flex items-center gap-3 ${compactMode ? 'mb-2' : 'mb-4'}`}>
+                            <span className={`p-2 bg-indigo-500/20 text-indigo-300 rounded-xl ${compactMode ? 'scale-75' : ''}`}>🤖</span>
+                            <h3 className={`font-bold text-indigo-100 ${compactMode ? 'text-base' : 'text-lg'}`}>AI Cash Outflow Projection</h3>
                         </div>
-                        <div className="text-sm font-medium text-slate-300 mb-6 flex items-start gap-2">
+                        <div className={`font-medium text-slate-300 flex items-start gap-2 ${compactMode ? 'text-[10px] mb-3' : 'text-sm mb-6'}`}>
                             <span className="text-amber-400 mt-0.5">⚡</span>
                             <span>Projected Cash Outflow for the next payroll cycle based on active contracts and planned 'Tech' department hires.</span>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-5xl font-black tracking-tight">{projectedOutflow.toLocaleString('en-KW', { minimumFractionDigits: 3 })}</span>
-                            <span className="text-lg font-bold text-indigo-300 uppercase">KWD</span>
+                            <span className={`font-black tracking-tight ${compactMode ? 'text-3xl' : 'text-5xl'}`}>{projectedOutflow.toLocaleString('en-KW', { minimumFractionDigits: 3 })}</span>
+                            <span className={`${compactMode ? 'text-base' : 'text-lg'} font-bold text-indigo-300 uppercase`}>KWD</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Nationality-to-Expense Ratio */}
-                <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">Nationality-to-Expense Ratio</h3>
-                    <p className="text-xs font-medium text-slate-500 mb-6">Visualizing PIFSS impact vs Expat allowance mappings.</p>
-                    <div className="h-48 w-full">
+                <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm ${compactMode ? 'p-5' : 'p-8'}`}>
+                    <h3 className={`font-bold text-slate-800 ${compactMode ? 'text-base mb-1' : 'text-lg mb-2'}`}>Nationality-to-Expense Ratio</h3>
+                    <p className={`font-medium text-slate-500 ${compactMode ? 'text-[10px] mb-3' : 'text-xs mb-6'}`}>Visualizing PIFSS impact vs Expat allowance mappings.</p>
+                    <div className={`${compactMode ? 'h-40' : 'h-48'} w-full`}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie

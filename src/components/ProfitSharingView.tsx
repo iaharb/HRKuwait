@@ -6,9 +6,10 @@ import { useNotifications } from './NotificationSystem.tsx';
 
 interface ProfitSharingViewProps {
     user: User;
+    compactMode?: boolean;
 }
 
-const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user }) => {
+const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user, compactMode }) => {
     const { t } = useTranslation();
     const { notify } = useNotifications();
     const [loading, setLoading] = useState(true);
@@ -173,49 +174,58 @@ const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user }) => {
         }
     };
 
-    if (loading) return <div className="p-10 text-center flex items-center justify-center">Loading Data...</div>;
+    if (loading) return <div className="p-10 text-center flex items-center justify-center">Loading...</div>;
+    const isExecutive = user.role === 'Executive' || user.role === 'Admin';
+    const isFinanceOrHR = ['HR', 'HR Manager', 'Payroll Manager', 'Admin'].includes(user.role);
 
     return (
-        <div className="p-8 space-y-8 animate-fade-in text-start">
-            <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm relative overflow-hidden">
-                <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-50/50 rounded-bl-[120px] -z-10 blur-2xl"></div>
-                <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <span className="text-4xl text-emerald-500">💹</span> Profit Sharing & Bonus
+        <div className={`${compactMode ? 'p-4 space-y-4' : 'p-8 space-y-8'} animate-fade-in text-start pb-20`}>
+            {/* Header section... */}
+            <div className={`flex flex-col md:flex-row justify-between items-center bg-slate-900 ${compactMode ? 'p-6' : 'p-10'} rounded-[32px] border border-slate-800 shadow-2xl relative overflow-hidden group`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 via-transparent to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
+                <div className="relative z-10">
+                    <h2 className={`${compactMode ? 'text-xl' : 'text-3xl'} font-black text-white tracking-tight flex items-center gap-3`}>
+                        <span className={compactMode ? 'text-2xl' : 'text-4xl'}>💰</span> Profit Sharing & Distributions
                     </h2>
-                    <p className="text-sm font-bold text-slate-400 mt-2">Manage the Bi-Yearly Golden Record Company Distribution Engine.</p>
+                    <p className={`font-bold text-slate-400 mt-2 uppercase ${compactMode ? 'text-[10px]' : 'text-xs'} tracking-[0.2em]`}>Corporate Stewardship & Reward Index</p>
+                </div>
+                <div className="relative z-10 flex gap-4">
+                    <div className={`${compactMode ? 'p-3' : 'p-5'} bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md`}>
+                        <p className={`text-indigo-300 font-extrabold uppercase ${compactMode ? 'text-[8px]' : 'text-[10px]'} tracking-widest mb-1`}>Current Cycle</p>
+                        <p className={`text-white font-black ${compactMode ? 'text-sm' : 'text-xl'}`}>{periodName}</p>
+                    </div>
                 </div>
             </div>
 
             {/* Finance Input Panel */}
             {(['Admin', 'HR Manager', 'Executive'].includes(user.role)) && (
-                <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-[0.03] pointer-events-none">🏦</div>
-                    <h3 className="text-lg font-black text-slate-900 mb-6 uppercase tracking-widest text-indigo-600">Finance Recommendation Box</h3>
+                <div className={`bg-white ${compactMode ? 'p-5' : 'p-10'} rounded-[32px] border border-slate-200 shadow-xl relative overflow-hidden`}>
+                    <div className={`absolute top-0 right-0 ${compactMode ? 'p-4 text-3xl' : 'p-8 text-5xl'} opacity-[0.03] pointer-events-none`}>🏦</div>
+                    <h3 className={`${compactMode ? 'text-sm' : 'text-lg'} font-black text-slate-900 ${compactMode ? 'mb-4' : 'mb-6'} uppercase tracking-widest text-indigo-600`}>Finance Recommendation Box</h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                    <div className={`grid grid-cols-1 md:grid-cols-5 ${compactMode ? 'gap-3' : 'gap-6'}`}>
                         <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Period Mark</label>
-                            <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-center font-bold text-slate-700" value={periodName} onChange={e => setPeriodName(e.target.value)} />
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Period Mark</label>
+                            <input type="text" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl font-mono text-center font-bold text-slate-700`} value={periodName} onChange={e => setPeriodName(e.target.value)} />
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Net Profit (KWD)</label>
-                            <input type="number" className="w-full px-4 py-3 bg-emerald-50/50 border border-emerald-200 rounded-xl font-bold text-emerald-700 text-right" placeholder="0.000" value={totalProfit} onChange={e => setTotalProfit(Number(e.target.value))} />
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Profit (KWD)</label>
+                            <input type="number" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-emerald-50/50 border border-emerald-200 rounded-xl font-bold text-emerald-700 text-right`} placeholder="0.000" value={totalProfit} onChange={e => setTotalProfit(Number(e.target.value))} />
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Bonus Pool %</label>
-                            <input type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold" min="0" max="100" placeholder="%" value={poolPct} onChange={e => setPoolPct(Number(e.target.value))} />
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bonus Pool %</label>
+                            <input type="number" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-center font-bold`} min="0" max="100" placeholder="%" value={poolPct} onChange={e => setPoolPct(Number(e.target.value))} />
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Methodology</label>
-                            <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700" value={distMethod} onChange={e => setDistMethod(e.target.value as any)}>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Methodology</label>
+                            <select className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700`} value={distMethod} onChange={e => setDistMethod(e.target.value as any)}>
                                 <option value="EQUAL_SPLIT">Equal Split</option>
                                 <option value="PRO_RATA_SALARY">Pro-Rata by Salary</option>
                             </select>
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Eligibility Cut-Off</label>
-                            <input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700" value={cutoffDate} onChange={e => setCutoffDate(e.target.value)} />
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Eligibility Cut-Off</label>
+                            <input type="date" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700`} value={cutoffDate} onChange={e => setCutoffDate(e.target.value)} />
                         </div>
                     </div>
 
@@ -234,10 +244,10 @@ const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user }) => {
             )}
 
             {/* Pools Grid */}
-            <h3 className="text-xl font-black text-slate-800 mt-12 mb-4">Bonus Cycles Registry</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <h3 className={`${compactMode ? 'text-lg mt-6' : 'text-xl mt-12'} font-black text-slate-800 mb-4`}>Bonus Cycles Registry</h3>
+            <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-4' : 'gap-8'}`}>
                 {pools.map(pool => (
-                    <div key={pool.id} className={`p-8 rounded-[32px] border transition-all cursor-pointer group ${selectedPoolId === pool.id ? 'bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-600/20 text-white' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-lg'}`} onClick={() => handleSelectPool(pool.id)}>
+                    <div key={pool.id} className={`${compactMode ? 'p-5' : 'p-8'} rounded-[32px] border transition-all cursor-pointer group ${selectedPoolId === pool.id ? 'bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-600/20 text-white' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-lg'}`} onClick={() => handleSelectPool(pool.id)}>
                         <div className="flex justify-between items-start mb-6">
                             <div>
                                 <h4 className={`text-2xl font-black font-mono tracking-tighter ${selectedPoolId === pool.id ? 'text-white' : 'text-slate-900'}`}>{pool.periodName} Profit Run</h4>
