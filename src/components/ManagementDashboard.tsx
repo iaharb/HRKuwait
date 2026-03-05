@@ -54,6 +54,7 @@ export const ManagementDashboard: React.FC = () => {
                 const { data: entries, error: entriesError } = await supabase
                     .from('journal_entries')
                     .select(`
+                        payroll_run_id,
                         amount,
                         entry_date,
                         entry_type,
@@ -142,24 +143,34 @@ export const ManagementDashboard: React.FC = () => {
         historicalData.forEach(e => {
             if (e.entry_type === 'DR') { // Expenses
                 const date = new Date(e.entry_date);
+                // Safe Month Extraction (Force UTC for consistency across servers)
                 const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-                const monthLabel = date.toLocaleDateString('default', { month: 'short', year: 'numeric' });
+                const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-                if (!months[monthKey]) months[monthKey] = { name: monthLabel, sortKey: monthKey, total: 0 };
+                if (!months[monthKey]) {
+                    months[monthKey] = {
+                        name: monthLabel,
+                        sortKey: monthKey,
+                        total: 0,
+                        sickLeave: 0,
+                        annualLeave: 0
+                    };
+                }
                 months[monthKey].total += Number(e.amount);
 
                 // Track specific volatility items
                 const code = e.finance_chart_of_accounts.account_code;
                 if (code === '600500') { // Sick Leave
-                    months[monthKey].sickLeave = (months[monthKey].sickLeave || 0) + Number(e.amount);
+                    months[monthKey].sickLeave += Number(e.amount);
                 }
                 if (code === '600600') { // Annual Leave
-                    months[monthKey].annualLeave = (months[monthKey].annualLeave || 0) + Number(e.amount);
+                    months[monthKey].annualLeave += Number(e.amount);
                 }
             }
         });
 
-        return Object.values(months).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+        return Object.values(months)
+            .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     }, [historicalData]);
 
     if (loading) {
