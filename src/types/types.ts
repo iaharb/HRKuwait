@@ -54,6 +54,7 @@ export interface Employee {
   id: string;
   name: string;
   nameArabic?: string;
+  email?: string;
 
   // Structured English Name
   title?: string;

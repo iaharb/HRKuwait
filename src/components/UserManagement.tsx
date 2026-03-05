@@ -212,21 +212,27 @@ export const UserManagement: React.FC = () => {
     };
 
     const filteredEmployees = employees.filter(emp => {
-        // Use exact same logic as dbService.provisionAuthUser to match emails
-        let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
-        const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
-        let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
-        if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
-        if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+        // Precise Email Identification
+        let targetEmail = emp.email;
+        if (!targetEmail) {
+            let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
+            const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
+            let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
+            if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
+            if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+            targetEmail = `${firstName}@test.com`;
+        }
 
-        const testEmail = `${firstName}@test.com`;
+        const testEmail = targetEmail;
 
-        // Hide if already in system_users or auth_users
+        // Hide ONLY if already in system_users (meaning they have a final role assigned)
         if (systemUsers.some(u => u.employee_id === emp.id)) return false;
-        if (authUsers.some(u => u.email === testEmail)) return false;
+
+        // Note: We don't hide if they are in authUsers anymore, because they still need to be upgraded to a system role.
+        // We will handle the "Grant Auth" button visibility in the render loop.
 
         if (aiFilteredIds !== null) return aiFilteredIds.includes(emp.id);
-        return emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery);
+        return emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery.toLowerCase());
     });
 
     return (
@@ -398,24 +404,39 @@ export const UserManagement: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200/60 p-6 max-h-[400px] overflow-y-auto custom-scrollbar space-y-3">
-                                    {filteredEmployees.map(emp => (
-                                        <div key={emp.id} className="flex justify-between items-center p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all">
-                                            <div>
-                                                <p className="font-bold text-slate-800">{emp.name}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase">{emp.position} • {emp.department}</p>
+                                    {filteredEmployees.map(emp => {
+                                        // Identity for UI state
+                                        let targetEmail = emp.email;
+                                        if (!targetEmail) {
+                                            let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
+                                            const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
+                                            let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
+                                            if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
+                                            if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+                                            targetEmail = `${firstName}@test.com`;
+                                        }
+                                        const isAuth = authUsers.some(au => au.email === targetEmail);
+
+                                        return (
+                                            <div key={emp.id} className="flex justify-between items-center p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all">
+                                                <div>
+                                                    <p className="font-bold text-slate-800">{emp.name}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase">{emp.position} • {emp.department}</p>
+                                                    {targetEmail && <p className="text-[9px] text-indigo-400 font-bold lowercase">{targetEmail}</p>}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleProvision(emp)}
+                                                        disabled={isProvisioning === emp.id}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isProvisioning === emp.id ? 'bg-slate-100 text-slate-400' : isAuth ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/10'}`}
+                                                    >
+                                                        {isProvisioning === emp.id ? '...' : (isAuth ? 'Repair Access' : 'Grant Auth')}
+                                                    </button>
+                                                    <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.email || emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Upgrade</button>
+                                                </div>
                                             </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleProvision(emp)}
-                                                    disabled={isProvisioning === emp.id}
-                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isProvisioning === emp.id ? 'bg-slate-100 text-slate-400' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/10'}`}
-                                                >
-                                                    {isProvisioning === emp.id ? '...' : 'Grant Auth'}
-                                                </button>
-                                                <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Legacy</button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </>

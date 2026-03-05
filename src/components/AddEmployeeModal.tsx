@@ -36,6 +36,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     fourthNameAr: '',
     familyNameAr: '',
     nationality: 'Kuwaiti',
+    email: '',
     civilId: '',
     department: 'IT',
     departmentArabic: 'تقنية المعلومات',
@@ -102,6 +103,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
         fourthNameAr: employeeToEdit.fourthNameAr || '',
         familyNameAr: employeeToEdit.familyNameAr || '',
         nationality: employeeToEdit.nationality,
+        email: employeeToEdit.email || '',
         civilId: employeeToEdit.civilId || '',
         department: employeeToEdit.department,
         departmentArabic: employeeToEdit.departmentArabic || '',
@@ -299,6 +301,10 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('email') || 'Email Address'}</label>
+                <input type="email" placeholder="employee@company.com" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+              </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
                 <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>

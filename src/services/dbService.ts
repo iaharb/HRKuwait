@@ -103,6 +103,7 @@ const mapEmployee = (data: any): Employee => {
 
     civilId: data.civil_id,
     civilIdExpiry: data.civil_id_expiry,
+    email: data.email,
     pifssNumber: data.pifss_number,
     passportNumber: data.passport_number,
     passportExpiry: data.passport_expiry,
@@ -554,6 +555,7 @@ export const dbService = {
       family_name_ar: employee.familyNameAr,
 
       nationality: employee.nationality,
+      email: employee.email,
       civil_id: employee.civilId,
       civil_id_expiry: employee.civilIdExpiry || null,
       department: employee.department,
@@ -622,6 +624,7 @@ export const dbService = {
     if (updates.familyNameAr !== undefined) dbUpdates.family_name_ar = updates.familyNameAr;
 
     if (updates.nationality !== undefined) dbUpdates.nationality = updates.nationality;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.civilId !== undefined) dbUpdates.civil_id = updates.civilId;
     if (updates.civilIdExpiry !== undefined) dbUpdates.civil_id_expiry = updates.civilIdExpiry;
     if (updates.department !== undefined) dbUpdates.department = updates.department;
@@ -2050,16 +2053,23 @@ export const dbService = {
     if (!supabaseAdmin) return { success: false, message: 'Admin API not available. Check VITE_SUPABASE_SERVICE_ROLE_KEY.' };
 
     try {
-      // 1. Intelligent Email Generation (Skip prefixes like Dr., Eng., etc.)
-      let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
-      const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
-      let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
+      // 1. Precise Email Identification
+      let targetEmail = emp.email;
 
-      // Manual override for common cases to ensure consistency with repair script
-      if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
-      if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+      if (!targetEmail) {
+        // Fallback to Intelligent Email Generation (Skip prefixes like Dr., Eng., etc.)
+        let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
+        let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
 
-      const testEmail = `${firstName}@test.com`;
+        // Manual override for common cases to ensure consistency with repair script
+        if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
+        if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
+
+        targetEmail = `${firstName}@test.com`;
+      }
+
+      const testEmail = targetEmail;
       const metadata = {
         employee_id: emp.id,
         name: emp.name,
