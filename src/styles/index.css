@@ -218,8 +218,8 @@ h2 {
 .compact-ui .text-sm { font-size: 0.75rem !important; }
 .compact-ui .text-xs { font-size: 0.7rem !important; }
 
-/* Compact Button Heights */
-.compact-ui button {
+/* Compact Button Heights - Target standard buttons, exclude cards and large action buttons */
+.compact-ui button:not(.saas-card):not(.glass-card):not(.py-4):not(.py-5) {
   height: 32px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
