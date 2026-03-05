@@ -32,10 +32,26 @@ BEGIN
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
     LOOP
+        -- Broad cleanup of all possible policy names we've used
         EXECUTE format('DROP POLICY IF EXISTS "Full Access" ON %I', t);
         EXECUTE format('DROP POLICY IF EXISTS "Admin Full Access" ON %I', t);
         EXECUTE format('DROP POLICY IF EXISTS "Manager Access" ON %I', t);
         EXECUTE format('DROP POLICY IF EXISTS "Self Access" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Admin & HR: Full Access" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Manager: View Subordinates" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Employee: View Self" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "HR: Full Access" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Manager: View & Approve Subordinates" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Employee: Manage Own Leaves" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Payroll/Admin: Full Access" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Payroll/Admin: Full Access items" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Employee: View Own Payslips" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Everyone: Read Announcements" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Admin: Manage Announcements" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Everyone: Read Holidays" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Everyone: Read Office" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Admin: Manage Users" ON %I', t);
+        EXECUTE format('DROP POLICY IF EXISTS "User: View Own Record" ON %I', t);
     END LOOP;
 END $$;
 

@@ -1571,7 +1571,11 @@ export const dbService = {
           name_arabic: l.nameArabic,
           address_arabic: l.addressArabic
         }))),
-        supabase!.from('departments').upsert(DEPARTMENT_METRICS.map(m => ({ name: m.name, name_arabic: m.nameArabic, kuwaiti_count: m.kuwaitiCount, expat_count: m.expatCount, target_ratio: m.targetRatio })))
+        supabase!.from('departments').upsert(DEPARTMENT_METRICS.map(m => ({ name: m.name, name_arabic: m.nameArabic, kuwaiti_count: m.kuwaitiCount, expat_count: m.expatCount, target_ratio: m.targetRatio }))),
+        supabase!.from('app_users').upsert([
+          { username: 'faisal', password: '12345', role: 'Admin', employee_id: '00000000-0000-0000-0000-000000000001' },
+          { username: 'layla', password: '12345', role: 'HR Manager', employee_id: '00000000-0000-0000-0000-000000000002' }
+        ])
       ]);
       return {
         success: true
@@ -1989,7 +1993,9 @@ export const dbService = {
     const activeEmployees = employees.filter(e => e.status === 'Active');
 
     return {
-      message: `Enterprise Security Hub: Identified ${activeEmployees.length} active employees for RLS provisioning. Please use the Supabase Auth Dashboard or a 'bulk_invite' script to complete the linkage for production status.`
+      message: activeEmployees.length > 0
+        ? `Enterprise Security Hub: Identified ${activeEmployees.length} employees ready for secure RLS provisioning. Use the Bulk Invite script to link these to Supabase Auth.`
+        : `Database is currently empty. Please click 'SYNC MOCK DB' first to populate the employee registry.`
     };
   }
 };
