@@ -38,3 +38,6 @@ dist-ssr
 *.sln
 *.sw?
 docs/~$Salary Calculations.xlsx
+
+.vercel
+.env*.local

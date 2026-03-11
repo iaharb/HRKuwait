@@ -76,19 +76,33 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
         if (systemUser && systemUser.employees?.email) {
           email = systemUser.employees.email;
         } else {
-          email = `${normalizedInput}@enterprise-hr.kw`; // Default domain guess
+          // Primary domain: @test.com (matches Provision Auth Users script)
+          email = `${normalizedInput}@test.com`;
         }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email,
         password: normalizedPass,
       });
 
-      if (data?.user && !error) {
+      if (data?.user && !authError) {
         // Success! Component parent will handle the session change via useAuth hook
         setLoading(false);
         return;
+      }
+
+      // If first attempt failed AND it was a generated email, try the legacy domain too
+      if (!email.includes('@enterprise-hr.kw') && !normalizedInput.includes('@')) {
+        const legacyEmail = `${normalizedInput}@enterprise-hr.kw`;
+        const { data: data2 } = await supabase.auth.signInWithPassword({
+          email: legacyEmail,
+          password: normalizedPass,
+        });
+        if (data2?.user) {
+          setLoading(false);
+          return;
+        }
       }
 
       // 2. Fallback Path: Legacy/Mock Login (RLS will NOT work)
