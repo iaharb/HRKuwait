@@ -23,13 +23,9 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const isExecOrHr = ['Admin', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'HR'].includes(user.role);
-
-            const [ot, leaves, prof] = await Promise.all([
-                dbService.getOvertimeApprovals(),
-                dbService.getLeaveRequests(),
-                dbService.getProfileUpdateRequests()
-            ]);
+            const roles = ['Admin', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'HR', 'Mandoob', 'Payroll Officer'];
+            const isExecOrHr = roles.some(r => r.toLowerCase() === user.role.toLowerCase());
+            const userEmpId = user.employeeId || user.id;
 
             const filterItems = (items: any[], empDeptPath: string, empMgrIdPath: string) => {
                 if (isExecOrHr) return items;
@@ -37,13 +33,26 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
                     const getNested = (obj: any, path: string) => path.split('.').reduce((o, i) => o?.[i], obj);
                     const dept = getNested(item, empDeptPath);
                     const mgrId = getNested(item, empMgrIdPath);
-                    return mgrId === user.id || dept === user.department;
+                    return mgrId === userEmpId || dept === user.department;
                 });
             };
 
-            setOvertimeRequests(filterItems(ot, 'employees.department', 'employees.manager_id'));
-            setLeaveRequests(filterItems(leaves, 'department', 'managerId'));
-            setProfileRequests(filterItems(prof, 'employees.department', 'employees.manager_id'));
+            // Fetch each independently so one failure doesn't block the others
+            try {
+                const ot = await dbService.getOvertimeApprovals();
+                setOvertimeRequests(filterItems(ot, 'employees.department', 'employees.manager_id').filter((r: any) => r.status !== 'APPROVED_FOR_PAYROLL' && r.status !== 'REJECTED'));
+            } catch (e) { console.error('OT fetch failed:', e); }
+
+            try {
+                const leaves = await dbService.getLeaveRequests();
+                console.log('[ApprovalsView] Raw leaves fetched:', leaves.length, 'statuses:', leaves.map((l: any) => l.status));
+                setLeaveRequests(filterItems(leaves, 'department', 'managerId').filter((r: any) => ['Pending', 'Pending_Manager', 'Manager_Approved', 'Rejected', 'Rejected_By_Manager'].includes(r.status)));
+            } catch (e) { console.error('Leaves fetch failed:', e); }
+
+            try {
+                const prof = await dbService.getProfileUpdateRequests();
+                setProfileRequests(filterItems(prof, 'employees.department', 'employees.manager_id').filter((r: any) => r.status === 'PENDING'));
+            } catch (e) { console.error('Profile fetch failed:', e); }
         } catch (error) {
             console.error('Failed to fetch approvals:', error);
         } finally {
@@ -250,6 +259,14 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
                                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
                                                     >
                                                         HR Sign-off
+                                                    </button>
+                                                )}
+                                                {['Rejected', 'Rejected_By_Manager'].includes(item.status) && ['Admin', 'HR', 'HR Manager', 'Executive', 'Manager', 'HR Officer', 'Payroll Manager', 'Payroll Officer', 'Mandoob'].some(r => r.toLowerCase() === user.role.toLowerCase()) && (
+                                                    <button
+                                                        onClick={() => handleUpdateLeave(item, 'Pending', 'Re-opened to pending workflow')}
+                                                        className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                                                    >
+                                                        Re-open (Pending)
                                                     </button>
                                                 )}
                                             </div>

@@ -16,7 +16,7 @@ $$;
 -- 2.5 LEAVE REQUESTS CONSTRAINT UPDATE
 ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS leave_requests_status_check;
 ALTER TABLE leave_requests ADD CONSTRAINT leave_requests_status_check 
-CHECK (status IN ('Pending', 'Manager_Approved', 'HR_Approved', 'HR_Finalized', 'Rejected', 'Paid', 'Pushed_To_Payroll'));
+CHECK (status IN ('Pending', 'Pending_Manager', 'Manager_Approved', 'HR_Approved', 'HR_Finalized', 'Resumed', 'Rejected', 'Paid', 'Pushed_To_Payroll'));
 
 -- 3. ENHANCE EMPLOYEES
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS name_arabic TEXT;

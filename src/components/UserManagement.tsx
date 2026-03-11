@@ -455,20 +455,32 @@ export const UserManagement: React.FC = () => {
                                 </div>
                                 <div className="md:w-2/3">
                                     <div className="bg-slate-50/50 rounded-[24px] border border-slate-100 overflow-hidden">
-                                        <div className="p-6 bg-white border-b border-slate-100 flex justify-between items-center">
-                                            <h4 className="font-black text-slate-800 text-[10px] uppercase tracking-widest">Modules for {selectedRoleForPermissions}</h4>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Apply Template:</span>
-                                                <select
-                                                    disabled={applyingTemplate || templates.length === 0}
-                                                    onChange={(e) => e.target.value && handleApplyTemplate(e.target.value)}
-                                                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black outline-none focus:ring-2 focus:ring-indigo-500"
-                                                >
-                                                    <option value="">Select Template...</option>
-                                                    {templates.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.template_name}</option>
-                                                    ))}
-                                                </select>
+                                        <div className="p-6 bg-white border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                            <div>
+                                                <h4 className="font-black text-slate-800 text-[10px] uppercase tracking-widest">Modules for {selectedRoleForPermissions}</h4>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Define role-based feature access.</p>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-1">Apply Template</span>
+                                                    <select
+                                                        disabled={applyingTemplate}
+                                                        onChange={(e) => {
+                                                            if (e.target.value === 'seed-defaults') {
+                                                                handleInitializeSystem();
+                                                            } else if (e.target.value) {
+                                                                handleApplyTemplate(e.target.value);
+                                                            }
+                                                        }}
+                                                        className="bg-transparent text-slate-900 text-xs font-black outline-none cursor-pointer pr-8"
+                                                    >
+                                                        <option value="">{templates.length === 0 ? 'No Templates Found' : 'Select Template...'}</option>
+                                                        {templates.map(t => (
+                                                            <option key={t.id} value={t.id}>{t.template_name}</option>
+                                                        ))}
+                                                        {templates.length === 0 && <option value="seed-defaults">✨ Click to Restore Defaults</option>}
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">

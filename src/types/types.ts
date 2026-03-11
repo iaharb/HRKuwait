@@ -15,6 +15,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  employeeId?: string;
   department?: string;
   avatar?: string;
 }
@@ -319,6 +320,7 @@ export enum View {
   Attendance = 'attendance',
   AdminCenter = 'admin-center',
   Whitepaper = 'whitepaper',
+  HelpCenter = 'help-center',
   Mandoob = 'mandoob',
   Finance = 'finance',
   Management = 'management',

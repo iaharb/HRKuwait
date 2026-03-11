@@ -58,6 +58,7 @@ export const ManagementDashboard: React.FC = () => {
                         amount,
                         entry_date,
                         entry_type,
+                        payroll_item_type,
                         finance_chart_of_accounts!inner(account_name, account_code),
                         finance_cost_centers!inner(segment_name)
                     `)
@@ -156,15 +157,22 @@ export const ManagementDashboard: React.FC = () => {
                         annualLeave: 0
                     };
                 }
-                months[monthKey].total += Number(e.amount);
-
-                // Track specific volatility items
+                // Track specific volatility items using types, codes, and names for safety
+                const pType = e.payroll_item_type;
                 const code = e.finance_chart_of_accounts.account_code;
-                if (code === '600500') { // Sick Leave
-                    months[monthKey].sickLeave += Number(e.amount);
-                }
-                if (code === '600600') { // Annual Leave
-                    months[monthKey].annualLeave += Number(e.amount);
+                const name = (e.finance_chart_of_accounts.account_name || '').toLowerCase();
+
+                // If it's an expense account, include in total if entry type is DR (or if it's explicitly a leave payout)
+                const isExpenseAccount = name.includes('expense');
+
+                if (e.entry_type === 'DR' || isExpenseAccount) {
+                    months[monthKey].total += Number(e.amount);
+
+                    if (pType === 'sick_leave' || code === '600500' || name.includes('sick leave')) {
+                        months[monthKey].sickLeave += Number(e.amount);
+                    } else if (pType === 'annual_leave' || code === '600600' || name.includes('annual leave')) {
+                        months[monthKey].annualLeave += Number(e.amount);
+                    }
                 }
             }
         });

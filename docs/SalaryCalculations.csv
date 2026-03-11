@@ -1,0 +1,58 @@
+∩╗┐,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,
+Kuwaiti,Ahmed,sick leave,,Kuwaiti,faisal,emergency leave,,Kuwaiti,faisal,annual leave,,Kuwaiti,sarah,annual leave,,Kuwaiti,layla,annual leave,,Expat,john,sick leave
+January First,1/1/26,,,February First,2/1/26,,,January First,1/1/26,,,January First,1/1/26,,,January First,1/1/26,,,February First,2/1/26,
+January End,1/31/26,,,February End,2/28/26,,,January End,1/31/26,,,January End,1/31/26,,,January End,1/31/26,,,February End,2/28/26,
+Lv Start,1/4/26,sick leave,,Lv Start,2/24/26,Emergency,,Lv Start,1/11/26,annual,,Lv Start,1/28/26,annual,,Lv Start,1/18/26,annual,,Lv Start,2/8/26,sick
+Lv End,1/7/26,sick leave,,Lv End,2/28/26,Emergency,,Lv End,1/15/26,annual,,Lv End,2/5/26,annual - straddle,,Lv End,1/22/26,annual,,Lv End,2/12/26,sick
+Sick Segment,1.00,0% Deduction,,Sick Segment,1.00,0 Deductions,,Sick Segment,1.00,0 Deductions,,Sick Segment,1.00,0 Deductions,,Sick Segment,1.00,0 Deductions,,Sick Segment,1.00,0 Deductions
+Wrk days before lv,2.00,less 1 day,,Wrk days before lv,20.00,less 1 day,,Wrk days before lv,8.00,less 1 day,,Wrk days before lv,23.00,less 1 day,,Wrk days before lv,14.00,less 1 day,,Wrk days before lv,6.00,less 1 day
+Lv Days,4.00,inclusive,,Lv Days,4.00,inclusive,,Lv Days,5.00,inclusive,,Lv Days,8.00,inclusive,,Lv Days,5.00,inclusive,,Lv Days,5.00,inclusive
+Wrk days after lv,20.00,plus 1,,Wrk days after lv,0.00,Current Month,,Wrk days after lv,13.00,Current Month,,Wrk days after lv,0.00,Current Month,,Wrk days after lv,7.00,Current Month,,Wrk days after lv,13.00,Current Month
+Base Salary,3200,,,Base Salary,7500,,,Base Salary,7500,,,Base Salary,2200,,,Base Salary,3500,,,Base Salary,1800,
+Allowance ,320,Tech. Deductable,,Allowance ,1000,Housing Non-deductible,,Allowance ,1000,Housing Non-deductible,,Allowance ,0,No Allowance,,Allowance ,150,Transport Deductible,,Allowance,300,Housing Non-deductible
+Salary Rate,123.0769231,,,Salary Rate,288.4615385,,,Salary Rate,288.4615385,,,Salary Rate,84.61538462,,,Salary Rate,134.6153846,,,Salary Rate,69.23076923,
+Allowance Rate,12.30769231,,,Allowance Rate,38.46153846,,,Allowance Rate,38.46153846,,,Allowance Rate,0,,,Allowance Rate,5.769230769,,,Allowance Rate,11.53846154,
+Wrk Days Pay before Lv,270.7692308,Wrk. (Base + Allowance) (Leave Payroll),,Wrk Days Pay before Lv,6538.461538,Wrk. (Base + Allowance) (Leave Payroll),,Wrk Days Pay before Lv,2615.384615,Wrk. (Base + Allowance) (Leave Payroll),,Wrk Days Pay before Lv,1946.153846,Wrk. (Base + Allowance) (Leave Payroll),,Wrk Days Pay before Lv,1965.384615,Wrk. (Base + Allowance) (Leave Payroll),,Wrk Days Pay before Lv,484.6153846,Wrk. (Base + Allowance) (Leave Payroll)
+Lv Days Pay,492.3076923,Sick Lv. (Base & 0% Deduction Seg 1) (Leave Payroll),,Lv Days Pay,1153.846154,Lv (Base) (Leave Payroll),,Lv Days Pay,1442.307692,Lv (Base) (Leave Payroll),,Lv Days Pay,676.9230769,Lv (Base) (Leave Payroll),,Lv Days Pay,673.0769231,Lv (Base) (Leave Payroll),,Lv Days Pay,346.1538462,Lv (Base) (Leave Payroll)
+Lv. Days Allowance Pay,0,Sick Lv. (Allowance & 0% Deduction Seg 1) (Leave Payroll),,Lv. Days Allowance Pay,153.8461538,Lv (only Housing allowance Included) (Leave Payroll),,Lv. Days Allowance Pay,192.3076923,Lv (only Housing allowance Included) (Leave Payroll),,Lv. Days Allowance Pay,0,Lv (only Housing allowance Included) (Leave Payroll),,Lv. Days Allowance Pay,0,Lv (only Housing allowance Included) (Leave Payroll),,Lv. Days Allowance Pay,57.69230769,Lv (only Housing allowance Included) (Leave Payroll)
+Wrk Days Pay after Lv,2707.692308,Base + Allowance (Monthly Payroll),,Wrk Days Pay after Lv,0,Base + Allowance (Monthly Payroll),,Wrk Days Pay after Lv,4250,Base + Allowance (Monthly Payroll),,Wrk Days Pay after Lv,0,Base + Allowance (Monthly Payroll),,Wrk Days Pay after Lv,982.6923077,Base + Allowance (Monthly Payroll),,Wrk Days Pay after Lv,1050,Base + Allowance (Monthly Payroll)
+PIFSS Deduction,-368,for Kuwaiti Only (11.5% of Base),,PIFSS Deduction,-862.5,for Kuwaiti Only (11.5% of Base),,PIFSS Deduction,-862.5,for Kuwaiti Only (11.5% of Base),,PIFSS Deduction,-253,for Kuwaiti Only (11.5% of Base),,PIFSS Deduction,-402.5,for Kuwaiti Only (11.5% of Base),,PIFSS Deduction,0,for Kuwaiti Only (11.5% of Base)
+Leave Pay,763.0769231,wd_pay+ld_pay+lda_pay+pf,,Leave Pay,7846.153846,wd_pay+ld_pay+lda_pay+pf,,Leave Pay,4250,wd_pay+ld_pay+lda_pay+pf,,Leave Pay,2623.076923,wd_pay+ld_pay+lda_pay+pf,,Leave Pay,2638.461538,wd_pay+ld_pay+lda_pay+pf,,Leave Pay,888.4615385,wd_pay+ld_pay+lda_pay+pf
+Wrk before Lv,270.7692308,,,Wrk before Lv,6538.461538,,,Wrk before Lv,2615.384615,,,Wrk before Lv,1946.153846,,,Wrk before Lv,1965.384615,,,Wrk before Lv,484.6153846,
+Lv Pay,492.3076923,,,Lv Pay,1153.846154,,,Lv Pay,1442.307692,,,Lv Pay,676.9230769,,,Lv Pay,673.0769231,,,Lv Pay,346.1538462,
+lva Pay,0,,,lva Pay,153.8461538,,,lva Pay,192.3076923,,,lva Pay,0,,,lva Pay,0,,,lva Pay,57.69230769,
+Payroll Pay,2339.692308,,,Payroll Pay,-862.5,,,Payroll Pay,3387.5,,,Payroll Pay,-253,,,Payroll Pay,580.1923077,,,Payroll Pay,1050,
+Wrk Pay,2707.692308,,,Wrk Pay,0,,,Wrk Pay,4250,,,Wrk Pay,0,,,Wrk Pay,982.6923077,,,Wrk Pay,1050,
+PIFSS Deduction,-368,,,PIFSS Deduction,-862.5,,,PIFSS Deduction,-862.5,,,PIFSS Deduction,-253,,,PIFSS Deduction,-402.5,,,PIFSS Deduction,0,
+Net Transaction Pay,3102.769231,,,Net Transaction Pay,6983.653846,,,Net Transaction Pay,7637.5,,,Net Transaction Pay,2370.076923,,,Net Transaction Pay,3218.653846,,,Net Transaction Pay,1938.461538,
+,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,
+,,,,Kuwaiti,faisal,emergency leave,,,,,,,,,,,,,,,,
+,,,,February First,2/1/26,,,,,,,,,,,,,,,,,
+,,,,February End,2/28/26,,,,,,,,,,,,,,,,,
+,,,,Lv Start,2/22/26,Emergency,,,,,,,,,,,,,,,,
+,,,,Lv End,3/14/26,Emergency,,,,,,,,,,,,,,,,
+,,,,Sick Segment,1.00,0 Deductions,,,,,,,,,,,,,,,,
+,,,,Wrk days before lv,18.00,less 1 day,,,,,,,,,,,,,,,,
+,,,,Lv Days,18.00,inclusive,,,,,,,,,,,,,,,,
+,,,,Wrk days after lv,0.00,Current Month,,4041.346154,,,,,,,,,,,,,,
+,,,,Base Salary,7500,,,,,,,,,,,,,,,,,
+,,,,Allowance ,1000,Housing Non-deductible,,,,,,,,,,,,,,,,
+,,,,Salary Rate,288.4615385,326.9230769,,,,,,,,,,,,,,,,
+,,,,Allowance Rate,38.46153846,,,,,,,,,,,,,,,,,
+,,,,Wrk Days Pay before Lv,5884.615385,Wrk. (Base + Allowance) (Leave Payroll),,,,,,,,,,,,,,,,
+,,,,Lv Days Pay,5192.307692,Lv (Base) (Leave Payroll),,,,,,,,,,,,,,,,
+,,,,Lv. Days Allowance Pay,692.3076923,Lv (only Housing allowance Included) (Leave Payroll),,,,,,,,,,,,,,,,
+,,,,Wrk Days Pay after Lv,0,Base + Allowance (Monthly Payroll),,,,,,,,,,,,,,,,
+,,,,PIFSS Deduction,-862.5,for Kuwaiti Only (11.5% of Base),,,,,,,,,,,,,,,,
+,,,,Leave Pay,11769.23077,wd_pay+ld_pay+lda_pay+pf,,,,,,,,,,,,,,,,
+,,,,Wrk before Lv,5884.615385,,,,,,,,,,,,,,,,,
+,,,,Lv Pay,5192.307692,,,,,,,,,,,,,,,,,
+,,,,lva Pay,692.3076923,,,,,,,,,,,,,,,,,
+,,,,Payroll Pay,-862.5,,,,,,,,,,,,,,,,,
+,,,,Wrk Pay,0,,,,,,,,,,,,,,,,,
+,,,,PIFSS Deduction,-862.5,,,,,,,,,,,,,,,,,
+,,,,Net Transaction Pay,10906.73077,,,,,,,,,,,,,,,,,

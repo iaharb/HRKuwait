@@ -129,12 +129,15 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
       return { annual: 0, sick: 0, emergency: 0, pending: { annual: 0, sick: 0, emergency: 0 }, hajUsed: false };
     }
 
-    const pendingRequests = personalRequests.filter(r =>
-      ['Pending', 'Manager_Approved', 'HR_Approved', 'Resumed'].includes(r.status)
+    // Optimistic pending deduction: only for requests NOT yet counted by the DB trigger
+    // The DB trigger (update_leave_balances) already updates 'used_days' for:
+    // Manager_Approved, HR_Approved, Resumed, HR_Finalized, Pushed_To_Payroll, Paid
+    const optimisticRequests = personalRequests.filter(r =>
+      ['Pending'].includes(r.status)
     );
 
-    // Sum up everything that deducts from Annual
-    const pendingAnnualPool = pendingRequests
+    // Sum up everything in Pending that will eventually deduct from Annual
+    const pendingAnnualPool = optimisticRequests
       .filter(r => r.type !== 'Sick' && r.type !== 'Hajj')
       .reduce((acc, curr) => {
         if (curr.type === 'ShortPermission') return acc + (curr.durationHours || 0) / 8;
@@ -143,8 +146,8 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
 
     const pending = {
       annual: pendingAnnualPool,
-      sick: pendingRequests.filter(r => r.type === 'Sick').reduce((acc, curr) => acc + curr.days, 0),
-      emergency: pendingRequests.filter(r => r.type === 'Emergency').reduce((acc, curr) => acc + curr.days, 0),
+      sick: optimisticRequests.filter(r => r.type === 'Sick').reduce((acc, curr) => acc + curr.days, 0),
+      emergency: optimisticRequests.filter(r => r.type === 'Emergency').reduce((acc, curr) => acc + curr.days, 0),
     };
 
     const balances = employeeData.leaveBalances;
@@ -328,6 +331,26 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
           await dbService.finalizeHRApproval(req.id, user, finalizedDays);
           await fetchData();
           notify(t('success'), t('officialRecord'), "success");
+        } catch (err: any) {
+          notify(t('critical'), err.message, "error");
+        } finally {
+          setProcessingId(null);
+        }
+      }
+    });
+  };
+
+  const handleReverseLeave = async (id: string) => {
+    confirm({
+      title: language === 'ar' ? 'عكس معاملة الإجازة؟' : 'Reverse Leave Transaction?',
+      message: language === 'ar' ? 'سيتم إلغاء هذه الإجازة. هل تريد عكسها؟' : 'This will cancel the leave completely.',
+      confirmText: language === 'ar' ? 'عكس (الاحتفاظ بالرصيد)' : 'Reverse (Keep Balance)',
+      onConfirm: async () => {
+        setProcessingId(id);
+        try {
+          await dbService.updateLeaveRequestStatus(id, 'Rejected', user, "Leave transaction reversed by HR/Admin. Balance retained.");
+          await fetchData();
+          notify(t('success'), 'Leave transaction reversed securely', "success");
         } catch (err: any) {
           notify(t('critical'), err.message, "error");
         } finally {
@@ -580,7 +603,8 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
                             <span className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm border ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700 border-amber-200' :
                               req.status === 'Manager_Approved' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
                                 req.status === 'HR_Approved' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                  'bg-rose-100 text-rose-700 border-rose-200'
+                                  req.status === 'Resumed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                    'bg-rose-100 text-rose-700 border-rose-200'
                               }`}>
                               {t(req.status.toLowerCase().replace('_', '')) || req.status.replace('_', ' ')}
                             </span>
@@ -697,7 +721,9 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
                         </div>
                       </div>
                     </div>
-                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${req.status === 'Paid' || req.status === 'HR_Finalized' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${(req.status === 'Paid' || req.status === 'HR_Finalized') ? 'bg-slate-100 text-slate-400 border-slate-200' :
+                        req.status === 'Resumed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' :
+                          'bg-indigo-100 text-indigo-700 border-indigo-200'
                       }`}>
                       {t(req.status.toLowerCase().replace('_', '')) || req.status.replace('_', ' ')}
                     </span>
@@ -712,6 +738,18 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ user }) => {
                         className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[9px] uppercase tracking-[0.15em] hover:bg-indigo-700 shadow-lg active:scale-95 transition-all w-full md:w-auto"
                       >
                         {t('confirmResumption')}
+                      </button>
+                    </div>
+                  )}
+
+                  {isHrAdmin && req.status !== 'Rejected' && req.status !== 'Pending' && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        disabled={processingId === req.id}
+                        onClick={() => handleReverseLeave(req.id)}
+                        className="text-[9px] font-black uppercase tracking-[0.15em] text-rose-500 hover:text-rose-700 hover:underline transition-all"
+                      >
+                        {language === 'ar' ? 'عكس (الاحتفاظ بالرصيد)' : 'Reverse (Keep Balance)'}
                       </button>
                     </div>
                   )}

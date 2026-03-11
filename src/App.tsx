@@ -76,7 +76,12 @@ const App: React.FC = () => {
 
   const handleAuthLogin = (user: User) => {
     login(user);
-    const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
+    let defaultRoute = '/dashboard';
+    if (user.role === 'Employee') {
+      defaultRoute = '/profile';
+    } else if (user.role === 'Manager') {
+      defaultRoute = '/directory';
+    }
     navigate(defaultRoute, { replace: true });
   };
 

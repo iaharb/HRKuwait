@@ -13,6 +13,7 @@ import SettlementView from './SettlementView.tsx';
 import AttendanceView from './AttendanceView.tsx';
 import AdminCenter from './AdminCenter.tsx';
 import Whitepaper from './Whitepaper.tsx';
+import HelpCenter from './HelpCenter/HelpCenter.tsx';
 import MandoobDashboard from './MandoobDashboard.tsx';
 import { FinanceMappingSettings } from './FinanceMappingSettings.tsx';
 import { ManagementDashboard } from './ManagementDashboard.tsx';
@@ -42,7 +43,12 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
     compactMode,
     presentationMode
 }) => {
-    const defaultRoute = user.role === 'Employee' ? '/profile' : '/dashboard';
+    let defaultRoute = '/dashboard';
+    if (user.role === 'Employee') {
+        defaultRoute = '/profile';
+    } else if (user.role === 'Manager') {
+        defaultRoute = '/directory';
+    }
 
     const isHrOrAdmin = ['Admin', 'HR', 'HR Manager', 'HR Officer', 'Executive'].includes(user.role);
     const isExecutiveOrAdmin = ['Admin', 'Executive', 'HR Manager'].includes(user.role);
@@ -84,7 +90,8 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/management" element={isExecutiveOrAdmin || isManagerial ? <ManagementDashboard key={`manage-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/insights" element={isExecutiveOrAdmin || ['Manager', 'HR', 'HR Manager'].includes(user.role) ? <AiInsights key={`ai-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/whitepaper" element={isExecutiveOrAdmin || isHrOrAdmin ? <Whitepaper key={`wp-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
-            <Route path="/user-management" element={isAdmin ? <UserManagement key={`user-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/help-center" element={<HelpCenter user={user} key={`help-${refreshKey}`} />} />
+            <Route path="/user-management" element={['Admin', 'HR Manager'].includes(user.role) ? <UserManagement key={`user-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
 
             {/* 404 handling */}
             <Route path="*" element={<Navigate to={defaultRoute} replace />} />

@@ -335,9 +335,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
         <div className="mb-2 relative z-10 flex-1">
           <h2 className="text-4xl font-black text-slate-900 tracking-tight">
             {i18n.language === 'ar' ? (
-              employeeData ? `${employeeData.titleAr || ''} ${employeeData.firstNameAr || ''} ${employeeData.familyNameAr || ''}`.replace(/\s+/g, ' ').trim() || employeeData.nameArabic : user.name
+              employeeData ? (
+                [employeeData.titleAr, employeeData.firstNameAr, employeeData.secondNameAr, employeeData.thirdNameAr, employeeData.fourthNameAr, employeeData.familyNameAr]
+                  .filter(Boolean).join(' ') || employeeData.nameArabic || employeeData.name
+              ) : user.name
             ) : (
-              employeeData ? `${employeeData.title || ''} ${employeeData.firstName || ''} ${employeeData.familyName || ''}`.replace(/\s+/g, ' ').trim() || employeeData.name : user.name
+              employeeData ? (
+                [employeeData.title, employeeData.firstName, employeeData.secondName, employeeData.thirdName, employeeData.fourthName, employeeData.familyName]
+                  .filter(Boolean).join(' ') || employeeData.name
+              ) : user.name
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-3 mt-2">
@@ -722,6 +728,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
             <div className="p-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
+                  { icon: '🌍', label: i18n.language === 'ar' ? 'الجنسية' : 'Nationality', value: employeeData?.nationality, expiry: null },
+                  { icon: '📧', label: i18n.language === 'ar' ? 'البريد الإلكتروني' : 'Corp Email', value: employeeData?.email, expiry: null },
                   { icon: '🪪', label: i18n.language === 'ar' ? 'البطاقة المدنية' : 'Civil ID', value: employeeData?.civilId, expiry: employeeData?.civilIdExpiry },
                   { icon: '🛂', label: i18n.language === 'ar' ? 'جواز السفر' : 'Passport', value: employeeData?.passportNumber, expiry: employeeData?.passportExpiry },
                   { icon: '📋', label: i18n.language === 'ar' ? 'إذن العمل' : 'Izn Amal', value: null, expiry: employeeData?.iznAmalExpiry },

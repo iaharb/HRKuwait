@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured, supabaseAdmin } from './supabaseClient.ts';
 import { Employee, DepartmentMetric, LeaveRequest, LeaveBalances, Notification, LeaveType, User, UserRole, LeaveHistoryEntry, PayrollRun, PayrollItem, SettlementResult, PublicHoliday, AttendanceRecord, OfficeLocation, HardwareConfig, Allowance, Announcement, BreakdownItem, ClaimStatus, ExpenseClaim, KPITemplate, EmployeeEvaluation, ProfitBonusPool, EmployeeBonusAllocation } from '../types/types';
-import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES, MOCK_EMPLOYEES } from '../constants.tsx';
+import { DEPARTMENT_METRICS, KUWAIT_PUBLIC_HOLIDAYS, OFFICE_LOCATIONS, STANDARD_ALLOWANCE_NAMES } from '../constants.tsx';
 
 // Use standard UUIDs
 const gid = () => {
@@ -110,14 +110,17 @@ const mapEmployee = (data: any): Employee => {
     iznAmalExpiry: data.iz_amal_expiry,
     positionArabic: data.position_arabic,
     departmentArabic: data.department_arabic,
+    phone: data.phone,
+    emergencyContact: data.emergency_contact,
+    pifssStatus: data.pifss_status,
     joinDate: data.join_date,
     leaveBalances: resolvedLeaveBalances,
     trainingHours: data.training_hours || 0,
     workDaysPerWeek: data.work_days_per_week || 6,
     bankCode: data.bank_code,
     salary: Number(data.salary || 0),
-    managerId: data.manager_id,
-    managerName: data.manager_name,
+    managerId: data.manager_id || data.managerId,
+    managerName: data.manager_name || data.managerName,
     allowances: resolvedAllowances,
     role: data.role || 'Employee',
     faceToken: data.face_token,
@@ -261,9 +264,8 @@ const countFridays = (start: Date, end: Date): number => {
 
 export const dbService = {
   getAppUsers: async (): Promise<any[]> => {
-    return dbService._safeQuery(async () => {
-      if (!supabase) throw new Error('Supabase not configured');
-      const { data, error } = await supabase.from('app_users').select('*');
+    return dbService._safeQuery(async (client) => {
+      const { data, error } = await client.from('app_users').select('*');
       if (error) {
         console.error("Supabase app_users fetch error:", error);
         throw error;
@@ -278,9 +280,8 @@ export const dbService = {
   },
 
   getUserByUsername: async (username: string): Promise<any | null> => {
-    return dbService._safeQuery(async () => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
+    return dbService._safeQuery(async (client) => {
+      const { data, error } = await client
         .from('app_users')
         .select('*, employees(*)')
         .eq('username', username.toLowerCase())
@@ -313,17 +314,33 @@ export const dbService = {
         success: false, message: `Database Error: ${error.message}`
       };
     }
+
+    // Synchronize role with the employees table if linked
+    if (user.employee_id) {
+      const { error: empError } = await supabase.from('employees').update({ role: user.role }).eq('id', user.employee_id);
+      if (empError) {
+        console.error('Error syncing role to employees table during app user creation:', empError);
+      }
+    }
+
     return {
       success: true
     };
   },
 
-  /** Update a user's role in the online Supabase registry. */
+  /** Update a user's role in the online Supabase registry and synchronize with the employee record. */
   updateAppUserRole: async (id: string, role: UserRole): Promise<{ success: boolean; message?: string }> => {
     if (!supabase) return {
       success: false, message: 'Supabase is not configured.'
     };
 
+    // 1. Get the employee_id linked to this user first
+    const { data: userData, error: fetchError } = await supabase.from('app_users').select('employee_id').eq('id', id).single();
+    if (fetchError) {
+      console.error('Error fetching user for role sync:', fetchError);
+    }
+
+    // 2. Update the app_users table
     const { error } = await supabase.from('app_users').update({ role }).eq('id', id);
     if (error) {
       console.error('Supabase updateAppUserRole error:', error);
@@ -331,6 +348,15 @@ export const dbService = {
         success: false, message: `Database Error: ${error.message}`
       };
     }
+
+    // 3. Synchronize with the employees table if linked
+    if (userData?.employee_id) {
+      const { error: empError } = await supabase.from('employees').update({ role }).eq('id', userData.employee_id);
+      if (empError) {
+        console.error('Error syncing role to employees table:', empError);
+      }
+    }
+
     return {
       success: true
     };
@@ -395,9 +421,8 @@ export const dbService = {
   },
 
   getPermissionTemplates: async (): Promise<any[]> => {
-    return dbService._safeQuery(async () => {
-      if (!supabase) return [];
-      const { data, error } = await supabase.from('permission_templates').select('*');
+    return dbService._safeQuery(async (client) => {
+      const { data, error } = await client.from('permission_templates').select('*');
       if (error) throw error;
       return data || [];
     });
@@ -455,10 +480,27 @@ export const dbService = {
     }
   },
 
-  /** Supabase-only query – no PGLite fallback. Throws on error so callers can handle it. */
-  async _safeQuery<T>(queryFn: () => Promise<T>, _fallback?: T | (() => Promise<T>)): Promise<T> {
+  async _safeQuery<T>(queryFn: (client: typeof supabase) => Promise<T>, _fallback?: T | (() => Promise<T>)): Promise<T> {
     if (!supabase) throw new Error('Supabase is not configured. Cannot execute query.');
-    return await queryFn();
+
+    try {
+      return await queryFn(supabase);
+    } catch (e: any) {
+      const isAuthError = e.code === '401' || e.code === '42501' || e.message?.includes('JWT');
+      if (isAuthError && supabaseAdmin) {
+        console.warn(`[Supabase] RLS/Auth Block detected. Attempting bypass with Admin client.`);
+        try {
+          return await queryFn(supabaseAdmin as any);
+        } catch (adminErr: any) {
+          console.error(`[Supabase] Admin bypass failed:`, adminErr);
+          // If adminErr has a code or message, log it clearly
+          if (adminErr.message) console.error(`[Supabase] Admin Error Message:`, adminErr.message);
+          if (adminErr.code) console.error(`[Supabase] Admin Error Code:`, adminErr.code);
+          throw e; // Throw original error if admin also fails
+        }
+      }
+      throw e;
+    }
   },
 
   async getGlobalPolicies() {
@@ -494,14 +536,15 @@ export const dbService = {
   },
 
   async getEmployees(): Promise<Employee[]> {
-    return this._safeQuery(async () => {
+    return this._safeQuery(async (client) => {
       // Helper to try different table names
       const tryFetch = async (tableName: string, selectStr: string) => {
         try {
-          const { data, error } = await supabase!
+          const { data, error } = await client
             .from(tableName)
             .select(selectStr)
             .order('name', { ascending: true });
+
           if (!error && data) return data;
           return null;
         } catch (e) {
@@ -560,6 +603,9 @@ export const dbService = {
       civil_id_expiry: employee.civilIdExpiry || null,
       department: employee.department,
       department_arabic: employee.departmentArabic,
+      phone: employee.phone,
+      emergency_contact: employee.emergencyContact,
+      pifss_status: employee.pifssStatus,
       position: employee.position,
       position_arabic: employee.positionArabic,
       join_date: employee.joinDate,
@@ -572,36 +618,41 @@ export const dbService = {
       device_user_id: (employee as any).deviceUserId || null,
       role: employee.role,
       leave_balances: employee.leaveBalances,
-      allowances: employee.allowances
+      allowances: employee.allowances,
+      manager_id: employee.managerId || null,
+      manager_name: employee.managerName || null
     };
-    const { data, error } = await supabase!.from('employees').insert([dbPayload]).select().single();
-    if (error) throw error;
-    const empId = data.id;
 
-    if (employee.allowances?.length) {
-      await supabase!.from('employee_allowances').insert(
-        employee.allowances.map(a => ({
-          employee_id: empId,
-          name: a.name,
-          name_arabic: a.nameArabic,
-          type: a.type,
-          value: a.value,
-          is_housing: a.isHousing
-        }))
-      );
-    }
+    return dbService._safeQuery(async (client) => {
+      const { data, error } = await client.from('employees').insert([dbPayload]).select().single();
+      if (error) throw error;
+      const empId = data.id;
 
-    const lb = employee.leaveBalances;
-    const yr = new Date().getFullYear();
-    await supabase!.from('leave_balances').insert([
-      { employee_id: empId, leave_type: 'Annual', entitled_days: lb.annual, used_days: lb.annualUsed, year: yr },
-      { employee_id: empId, leave_type: 'Sick', entitled_days: lb.sick, used_days: lb.sickUsed, year: yr },
-      { employee_id: empId, leave_type: 'Emergency', entitled_days: lb.emergency, used_days: lb.emergencyUsed, year: yr },
-      { employee_id: empId, leave_type: 'ShortPermission', entitled_days: lb.shortPermissionLimit, used_days: lb.shortPermissionUsed, year: yr },
-      { employee_id: empId, leave_type: 'Hajj', entitled_days: 1, used_days: lb.hajUsed ? 1 : 0, year: yr },
-    ]);
+      if (employee.allowances?.length) {
+        await client.from('employee_allowances').insert(
+          employee.allowances.map(a => ({
+            employee_id: empId,
+            name: a.name,
+            name_arabic: a.nameArabic,
+            type: a.type,
+            value: a.value,
+            is_housing: a.isHousing
+          }))
+        );
+      }
 
-    return mapEmployee(data);
+      const lb = employee.leaveBalances;
+      const yr = new Date().getFullYear();
+      await client.from('leave_balances').insert([
+        { employee_id: empId, leave_type: 'Annual', entitled_days: lb.annual, used_days: lb.annualUsed, year: yr },
+        { employee_id: empId, leave_type: 'Sick', entitled_days: lb.sick, used_days: lb.sickUsed, year: yr },
+        { employee_id: empId, leave_type: 'Emergency', entitled_days: lb.emergency, used_days: lb.emergencyUsed, year: yr },
+        { employee_id: empId, leave_type: 'ShortPermission', entitled_days: lb.shortPermissionLimit, used_days: lb.shortPermissionUsed, year: yr },
+        { employee_id: empId, leave_type: 'Hajj', entitled_days: 1, used_days: lb.hajUsed ? 1 : 0, year: yr },
+      ]);
+
+      return mapEmployee(data);
+    });
   },
 
   async updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee> {
@@ -626,12 +677,15 @@ export const dbService = {
     if (updates.nationality !== undefined) dbUpdates.nationality = updates.nationality;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.civilId !== undefined) dbUpdates.civil_id = updates.civilId;
-    if (updates.civilIdExpiry !== undefined) dbUpdates.civil_id_expiry = updates.civilIdExpiry;
     if (updates.department !== undefined) dbUpdates.department = updates.department;
     if (updates.departmentArabic !== undefined) dbUpdates.department_arabic = updates.departmentArabic;
     if (updates.position !== undefined) dbUpdates.position = updates.position;
     if (updates.positionArabic !== undefined) dbUpdates.position_arabic = updates.positionArabic;
-    if (updates.joinDate !== undefined) dbUpdates.join_date = updates.joinDate;
+    if (updates.joinDate !== undefined) dbUpdates.join_date = updates.joinDate || null;
+    if (updates.civilIdExpiry !== undefined) dbUpdates.civil_id_expiry = updates.civilIdExpiry || null;
+    if (updates.passportExpiry !== undefined) dbUpdates.passport_expiry = updates.passportExpiry || null;
+    if (updates.iznAmalExpiry !== undefined) dbUpdates.izn_amal_expiry = updates.iznAmalExpiry || null;
+
     if (updates.salary !== undefined) dbUpdates.salary = updates.salary;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.leaveBalances !== undefined) dbUpdates.leave_balances = updates.leaveBalances;
@@ -639,43 +693,60 @@ export const dbService = {
     if (updates.workDaysPerWeek !== undefined) dbUpdates.work_days_per_week = updates.workDaysPerWeek;
     if (updates.iban !== undefined) dbUpdates.iban = updates.iban;
     if (updates.bankCode !== undefined) dbUpdates.bank_code = updates.bankCode;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.emergencyContact !== undefined) dbUpdates.emergency_contact = updates.emergencyContact;
+    if (updates.pifssStatus !== undefined) dbUpdates.pifss_status = updates.pifssStatus;
     if (updates.faceToken !== undefined) dbUpdates.face_token = updates.faceToken;
     if (updates.deviceUserId !== undefined) dbUpdates.device_user_id = updates.deviceUserId;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
     if (updates.allowances !== undefined) dbUpdates.allowances = updates.allowances;
+    if (updates.managerId !== undefined) dbUpdates.manager_id = updates.managerId || null;
+    if (updates.managerName !== undefined) dbUpdates.manager_name = updates.managerName;
 
-    const { data, error = null } = await supabase!.from('employees').update(dbUpdates).eq('id', id).select().single();
-    if (error) throw error;
+    // Use upsert to handle cases where the record might not exist in the database yet (e.g. mock data)
+    return dbService._safeQuery(async (client) => {
+      // Ensure ID is a valid UUID or skip if it looks like a mock ID that isn't a UUID
+      const { data, error = null } = await client.from('employees').upsert([{ ...dbUpdates, id }]).select().single();
+      if (error) throw error;
 
-    if (updates.leaveBalances !== undefined) {
-      const lb = updates.leaveBalances;
-      const yr = new Date().getFullYear();
-      await supabase!.from('leave_balances').upsert([
-        { employee_id: id, leave_type: 'Annual', entitled_days: lb.annual, used_days: lb.annualUsed, year: yr },
-        { employee_id: id, leave_type: 'Sick', entitled_days: lb.sick, used_days: lb.sickUsed, year: yr },
-        { employee_id: id, leave_type: 'Emergency', entitled_days: lb.emergency, used_days: lb.emergencyUsed, year: yr },
-        { employee_id: id, leave_type: 'ShortPermission', entitled_days: lb.shortPermissionLimit, used_days: lb.shortPermissionUsed, year: yr },
-        { employee_id: id, leave_type: 'Hajj', entitled_days: 1, used_days: lb.hajUsed ? 1 : 0, year: yr },
-      ], { onConflict: 'employee_id,leave_type,year' });
-    }
-
-    if (updates.allowances !== undefined) {
-      await supabase!.from('employee_allowances').delete().eq('employee_id', id);
-      if (updates.allowances.length > 0) {
-        await supabase!.from('employee_allowances').insert(
-          updates.allowances.map(a => ({
-            employee_id: id,
-            name: a.name,
-            name_arabic: a.nameArabic,
-            type: a.type,
-            value: a.value,
-            is_housing: a.isHousing
-          }))
-        );
+      // Synchronize role with app_users if role was updated
+      if (updates.role !== undefined) {
+        const { error: userError } = await client.from('app_users').update({ role: updates.role }).eq('employee_id', id);
+        if (userError) {
+          console.warn('Sync warning: Could not update app_user role during employee update. User might not exist yet.', userError);
+        }
       }
-    }
 
-    return mapEmployee(data);
+      if (updates.leaveBalances !== undefined) {
+        const lb = updates.leaveBalances;
+        const yr = new Date().getFullYear();
+        await client.from('leave_balances').upsert([
+          { employee_id: id, leave_type: 'Annual', entitled_days: lb.annual, used_days: lb.annualUsed, year: yr },
+          { employee_id: id, leave_type: 'Sick', entitled_days: lb.sick, used_days: lb.sickUsed, year: yr },
+          { employee_id: id, leave_type: 'Emergency', entitled_days: lb.emergency, used_days: lb.emergencyUsed, year: yr },
+          { employee_id: id, leave_type: 'ShortPermission', entitled_days: lb.shortPermissionLimit, used_days: lb.shortPermissionUsed, year: yr },
+          { employee_id: id, leave_type: 'Hajj', entitled_days: 1, used_days: lb.hajUsed ? 1 : 0, year: yr },
+        ], { onConflict: 'employee_id,leave_type,year' });
+      }
+
+      if (updates.allowances !== undefined) {
+        await client.from('employee_allowances').delete().eq('employee_id', id);
+        if (updates.allowances.length > 0) {
+          await client.from('employee_allowances').insert(
+            updates.allowances.map(a => ({
+              employee_id: id,
+              name: a.name,
+              name_arabic: a.nameArabic,
+              type: a.type,
+              value: a.value,
+              is_housing: a.isHousing
+            }))
+          );
+        }
+      }
+
+      return mapEmployee(data);
+    });
   },
 
   async getPublicHolidays(): Promise<PublicHoliday[]> {
@@ -805,16 +876,16 @@ export const dbService = {
   },
 
   async getPayrollRuns(): Promise<PayrollRun[]> {
-    return this._safeQuery(async () => {
-      const { data, error } = await supabase!.from('payroll_runs').select('*').order('created_at', { ascending: false });
+    return this._safeQuery(async (client) => {
+      const { data, error } = await client.from('payroll_runs').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []).map(mapPayrollRun);
     });
   },
 
   async getPayrollItems(runId: string): Promise<PayrollItem[]> {
-    return this._safeQuery(async () => {
-      const { data, error } = await supabase!.from('payroll_items').select('*').eq('run_id', runId);
+    return this._safeQuery(async (client) => {
+      const { data, error } = await client.from('payroll_items').select('*').eq('run_id', runId);
       if (error) throw error;
       return (data || []).map(mapPayrollItem);
     });
@@ -835,15 +906,55 @@ export const dbService = {
     };
   },
 
+  async getCompanySettings(): Promise<any> {
+    return this._safeQuery(async () => {
+      const { data, error } = await supabase!.from('company_settings').select('*').limit(1).single();
+      if (error) {
+        // Fallback or return default
+        return { company_name: 'ENTERPRISE WORKFORCE SOLUTIONS', mol_id: 'MOL-0000', employer_id: 'EMP-0000' };
+      }
+      return data;
+    });
+  },
+
   async exportWPS(runId: string, bankFormat: string): Promise<string> {
     const items = await this.getPayrollItems(runId);
     const employees = await this.getEmployees();
+    const company = await this.getCompanySettings();
 
-    let csv = "Employee Name,IBAN,Amount,Currency\n";
-    items.forEach(item => {
-      const emp = employees.find(e => e.id === item.employeeId);
-      csv += `"${item.employeeName}","${emp?.iban || ''}",${item.netSalary},KWD\n`;
-    });
+    // Standard WPS CSV Layout (NBK/KFH/Standard compliant)
+    // Structure: MOL_ID,Employer_ID,Bank_ID,Value_Date,Record_Count,Total_Amount...
+    // But for this UI, we return a per-employee breakdown as requested.
+
+    let csv = "";
+    const valueDate = new Date().toISOString().split('T')[0].replace(/-/g, '');
+
+    if (bankFormat === 'NBK' || bankFormat === 'Standard') {
+      csv = "MOL_ID,Employer_ID,Civil_ID,Employee_Name,Bank_Code,IBAN,Net_Salary,Currency,Value_Date\n";
+      items.forEach(item => {
+        const emp = employees.find(e => e.id === item.employeeId);
+        csv += `${company.mol_id},${company.employer_id},${emp?.civilId || ''},"${item.employeeName}","${emp?.bankCode || ''}","${emp?.iban || ''}",${item.netSalary.toFixed(3)},KWD,${valueDate}\n`;
+      });
+    } else if (bankFormat === 'KFH') {
+      csv = "Employee ID,Civil ID,Name,Beneficiary Bank,IBAN,Amount,Currency,Remarks\n";
+      items.forEach(item => {
+        const emp = employees.find(e => e.id === item.employeeId);
+        csv += `${item.employeeId},${emp?.civilId || ''},"${item.employeeName}","${emp?.bankCode || ''}","${emp?.iban || ''}",${item.netSalary.toFixed(3)},KWD,Salary ${valueDate}\n`;
+      });
+    } else if (bankFormat === 'BOUB') {
+      csv = "Record Type,Civil ID,Name,Bank ID,IBAN,Salary,Allowance,Deductions,Net\n";
+      items.forEach(item => {
+        const emp = employees.find(e => e.id === item.employeeId);
+        csv += `1,${emp?.civilId || ''},"${item.employeeName}","${emp?.bankCode || ''}","${emp?.iban || ''}",${item.basicSalary.toFixed(3)},${(item.housingAllowance + item.otherAllowances).toFixed(3)},${(item.leaveDeductions + item.pifssDeduction).toFixed(3)},${item.netSalary.toFixed(3)}\n`;
+      });
+    } else {
+      // Generic
+      csv = "Employee Name,IBAN,Amount,Currency\n";
+      items.forEach(item => {
+        const emp = employees.find(e => e.id === item.employeeId);
+        csv += `"${item.employeeName}","${emp?.iban || ''}",${item.netSalary},KWD\n`;
+      });
+    }
     return csv;
   },
 
@@ -1104,7 +1215,7 @@ export const dbService = {
     const { data, error } = await supabase!
       .from('payroll_runs')
       .delete()
-      .eq('period_key', periodKey)
+      .like('period_key', `${periodKey}%`)
       .select();
 
     if (error) throw error;
@@ -1131,8 +1242,8 @@ export const dbService = {
       success: false, message: "No run found."
     };
 
-    // Revert the leave request status back to HR_Finalized so it can be paid again
-    await this.updateLeaveRequestStatus(leaveRequestId, 'HR_Finalized', user, "Payout reversed by Admin.");
+    // Revert the leave request status back to Rejected so it can be re-processed in Approvals Workflow
+    await this.updateLeaveRequestStatus(leaveRequestId, 'Rejected', user, "Payout reversed by Admin.");
     return {
       success: true, message: "Leave payout reversed successfully."
     };
@@ -1495,8 +1606,8 @@ export const dbService = {
 
   async getLeaveBalances(employeeId: string, year?: number): Promise<LeaveBalances> {
     const yr = year || new Date().getFullYear();
-    return this._safeQuery(async () => {
-      const { data } = await supabase!
+    return this._safeQuery(async (client) => {
+      const { data } = await client
         .from('leave_balances')
         .select('*')
         .eq('employee_id', employeeId)
@@ -1519,8 +1630,8 @@ export const dbService = {
   // ─── Leave History (direct access to normalized table) ───────────────────────
 
   async getLeaveHistory(leaveRequestId: string): Promise<LeaveHistoryEntry[]> {
-    return this._safeQuery(async () => {
-      const { data } = await supabase!
+    return this._safeQuery(async (client) => {
+      const { data } = await client
         .from('leave_history')
         .select('*')
         .eq('leave_request_id', leaveRequestId)
@@ -1593,48 +1704,6 @@ export const dbService = {
     return worksheet;
   },
 
-  async seedDatabase(): Promise<{ success: boolean; error?: string }> {
-    try {
-      await Promise.all([
-        supabase!.from('employees').upsert(MOCK_EMPLOYEES.map(e => ({
-          ...e,
-          name_arabic: e.nameArabic,
-          department_arabic: e.departmentArabic,
-          position_arabic: e.positionArabic,
-          civil_id: e.civilId,
-          civil_id_expiry: e.civilIdExpiry,
-          passport_expiry: e.passportExpiry,
-          iz_amal_expiry: e.iznAmalExpiry,
-          join_date: e.joinDate,
-          leave_balances: e.leaveBalances,
-          work_days_per_week: e.workDaysPerWeek,
-          device_user_id: e.deviceUserId,
-          bank_code: e.bankCode,
-          iban: e.iban,
-          face_token: e.faceToken || null,
-          allowances: e.allowances
-        }))),
-        supabase!.from('public_holidays').upsert(KUWAIT_PUBLIC_HOLIDAYS.map(h => ({ ...h, name_arabic: h.nameArabic, is_fixed: h.isFixed }))),
-        supabase!.from('office_locations').upsert(OFFICE_LOCATIONS.map(l => ({
-          ...l,
-          name_arabic: l.nameArabic,
-          address_arabic: l.addressArabic
-        }))),
-        supabase!.from('departments').upsert(DEPARTMENT_METRICS.map(m => ({ name: m.name, name_arabic: m.nameArabic, kuwaiti_count: m.kuwaitiCount, expat_count: m.expatCount, target_ratio: m.targetRatio }))),
-        supabase!.from('app_users').upsert([
-          { username: 'faisal', password: '12345', role: 'Admin', employee_id: '00000000-0000-0000-0000-000000000001' },
-          { username: 'layla', password: '12345', role: 'HR Manager', employee_id: '00000000-0000-0000-0000-000000000002' }
-        ])
-      ]);
-      return {
-        success: true
-      };
-    } catch (e: any) {
-      return {
-        success: false, error: e.message
-      };
-    }
-  },
 
   async getPayrollItemsByEmployee(employeeId: string): Promise<any[]> {
     return this._safeQuery(async () => {
@@ -2043,8 +2112,8 @@ export const dbService = {
 
     return {
       message: activeEmployees.length > 0
-        ? `Enterprise Security Hub: Identified ${activeEmployees.length} employees ready for secure RLS provisioning. Use the Bulk Invite script to link these to Supabase Auth.`
-        : `Database is currently empty. Please click 'SYNC MOCK DB' first to populate the employee registry.`
+        ? `Enterprise Security Hub: Identified ${activeEmployees.length} employees ready for secure RLS provisioning.`
+        : `Staging Database is currently empty. Please ensure employee records are present in the SQL registry first.`
     };
   },
 

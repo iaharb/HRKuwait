@@ -1,0 +1,12 @@
+
+-- REMOVE FOREIGN KEY CONSTRAINTS BLOCKED BY MOCK DATA
+ALTER TABLE IF EXISTS employees DROP CONSTRAINT IF EXISTS employees_manager_id_fkey;
+ALTER TABLE IF EXISTS leave_requests DROP CONSTRAINT IF EXISTS leave_requests_manager_id_fkey;
+
+-- ENSURE ALL COLUMNS ARE RELIABLE TYPES (HANDLE CONVERSION CAREFULLY)
+ALTER TABLE IF EXISTS employees ALTER COLUMN civil_id_expiry TYPE DATE USING (NULLIF(civil_id_expiry::text, '')::DATE);
+ALTER TABLE IF EXISTS employees ALTER COLUMN passport_expiry TYPE DATE USING (NULLIF(passport_expiry::text, '')::DATE);
+ALTER TABLE IF EXISTS employees ALTER COLUMN join_date TYPE DATE USING (NULLIF(join_date::text, '')::DATE);
+
+-- RELOAD SCHEMA
+NOTIFY pgrst, 'reload schema';

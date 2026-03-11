@@ -1,6 +1,7 @@
 -- Migration 024: Update journal_entries and view_financial_rollup
 ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS payroll_item_type TEXT;
 
+DROP VIEW IF EXISTS view_financial_rollup;
 CREATE OR REPLACE VIEW view_financial_rollup AS
 SELECT 
     je.payroll_run_id,

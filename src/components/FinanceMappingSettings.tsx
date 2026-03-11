@@ -146,6 +146,7 @@ export const FinanceMappingSettings: React.FC<FinanceMappingSettingsProps> = ({ 
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [subLedger, setSubLedger] = useState<any[]>([]);
   const [showSubLedger, setShowSubLedger] = useState<boolean>(false);
+  const [expandedEmployees, setExpandedEmployees] = useState<Record<string, boolean>>({});
   const [graphData, setGraphData] = useState<{
     leaveProvision: number;
     eosProvision: number;
@@ -268,10 +269,10 @@ export const FinanceMappingSettings: React.FC<FinanceMappingSettingsProps> = ({ 
           .select('*')
           .eq('payroll_run_id', run.id);
 
-        // Fetch the shadow sub-ledger detail
         const { data: detailData, error: detailError } = await supabase
           .from('journal_entries')
           .select(`
+                payroll_item_type,
                 amount,
                 entry_type,
                 finance_chart_of_accounts!inner(account_name, account_code),
@@ -343,6 +344,7 @@ export const FinanceMappingSettings: React.FC<FinanceMappingSettingsProps> = ({ 
       const { data: detailData, error: detailError } = await supabase
         .from('journal_entries')
         .select(`
+          payroll_item_type,
           amount,
           entry_type,
           finance_chart_of_accounts!inner(account_name, account_code),
@@ -967,38 +969,86 @@ export const FinanceMappingSettings: React.FC<FinanceMappingSettingsProps> = ({ 
                 </button>
 
                 {showSubLedger && (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm overflow-x-auto animate-in slide-in-from-top-2">
-                    <table className="w-full text-left table-auto">
-                      <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                        <tr>
-                          <th className="px-4 py-3 font-semibold rounded-tl-lg">Employee</th>
-                          <th className="px-4 py-3 font-semibold">Cost Center</th>
-                          <th className="px-4 py-3 font-semibold">GL Account</th>
-                          <th className="px-4 py-3 font-semibold text-center">DR / CR</th>
-                          <th className="px-4 py-3 font-semibold text-right rounded-tr-lg">Amount (KWD)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm">
-                        {subLedger.map((row, i) => (
-                          <tr key={i} className="hover:bg-slate-50/50 transition">
-                            <td className="px-4 py-3 font-medium text-slate-800">{row.employees.name}</td>
-                            <td className="px-4 py-3 text-slate-600">{row.finance_cost_centers.segment_name}</td>
-                            <td className="px-4 py-3 text-slate-600">
-                              <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 mr-2">{row.finance_chart_of_accounts.account_code}</span>
-                              {row.finance_chart_of_accounts.account_name}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`font-black text-[10px] px-2 py-1 rounded-full ${row.entry_type === 'DR' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {row.entry_type}
-                              </span>
-                            </td>
-                            <td className={`text-right font-mono text-indigo-600 font-medium ${compactMode ? 'px-4 py-2 text-xs' : 'px-4 py-3'}`}>
-                              {Number(row.amount).toLocaleString('en-KW', { minimumFractionDigits: 3 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-4 animate-in slide-in-from-top-2">
+                    {(() => {
+                      const groups: Record<string, { name: string, dept: string, entries: any[], net: number }> = {};
+                      subLedger.forEach(row => {
+                        const name = row.employees.name;
+                        if (!groups[name]) groups[name] = { name, dept: row.finance_cost_centers.segment_name, entries: [], net: 0 };
+                        groups[name].entries.push(row);
+
+                        // Detect Net Payable - Use Type or common names
+                        const pType = row.payroll_item_type;
+                        const accName = row.finance_chart_of_accounts.account_name.toLowerCase();
+                        if (pType === 'net_salary_payable' || pType === 'net_salary' || accName.includes('net salary') || accName.includes('payable')) {
+                          groups[name].net += Number(row.amount);
+                        }
+                      });
+
+                      return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name)).map((group) => {
+                        const isExpanded = expandedEmployees[group.name];
+                        return (
+                          <div key={group.name} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:border-indigo-200 transition">
+                            <div
+                              onClick={() => setExpandedEmployees({ ...expandedEmployees, [group.name]: !isExpanded })}
+                              className={`px-6 py-4 flex flex-col md:flex-row md:items-center justify-between cursor-pointer transition ${isExpanded ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="p-2 bg-indigo-100/50 rounded-xl text-indigo-600">👤</div>
+                                <div>
+                                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                    {group.name}
+                                    <span className="text-xs font-medium text-slate-400">({group.dept})</span>
+                                  </h4>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{group.entries.length} Ledger Records</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-6 mt-3 md:mt-0">
+                                <div className="text-right">
+                                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Net Payable After Offsets</p>
+                                  <p className="text-lg font-black text-indigo-600">{group.net.toLocaleString('en-KW', { minimumFractionDigits: 3 })} <span className="text-xs text-slate-400">KWD</span></p>
+                                </div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border border-slate-200 transition ${isExpanded ? 'rotate-180 bg-white text-indigo-600' : 'text-slate-400 rotate-0'}`}>
+                                  ▼
+                                </div>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="border-t border-slate-100 bg-slate-50/30 p-4">
+                                <table className="w-full text-left">
+                                  <thead className="text-[10px] uppercase tracking-widest font-black text-slate-400">
+                                    <tr>
+                                      <th className="px-4 py-2">GL Account</th>
+                                      <th className="px-4 py-2 text-center">Type</th>
+                                      <th className="px-4 py-2 text-right">Amount (KWD)</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="text-xs">
+                                    {group.entries.map((ent, idx) => (
+                                      <tr key={idx} className="border-t border-slate-100/50">
+                                        <td className="px-4 py-2.5">
+                                          <div className="font-bold text-slate-700">{ent.finance_chart_of_accounts.account_name}</div>
+                                          <div className="text-[10px] font-mono text-slate-400">{ent.finance_chart_of_accounts.account_code}</div>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-center">
+                                          <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ent.entry_type === 'DR' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                            {ent.entry_type}
+                                          </span>
+                                        </td>
+                                        <td className={`px-4 py-2.5 text-right font-mono font-bold ${ent.entry_type === 'DR' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                          {Number(ent.amount).toLocaleString('en-KW', { minimumFractionDigits: 3 })}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>

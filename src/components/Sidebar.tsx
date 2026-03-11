@@ -79,7 +79,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     { id: View.Management, label: t('strategy'), icon: 'management', roles: ['Admin', 'Executive', 'Manager', 'HR', 'HR Manager', 'HR Officer', 'Payroll Manager'] },
     { id: View.Insights, label: t('insights'), icon: 'sparkles', roles: ['Admin', 'Manager', 'HR', 'Executive', 'HR Manager'] },
     { id: View.Whitepaper, label: t('whitepaper'), icon: 'book-open', roles: ['Admin', 'HR', 'Executive'] },
-    { id: View.UserManagement, label: 'Security & Roles', icon: 'lock', roles: ['Admin'] },
+    { id: View.HelpCenter, label: language === 'ar' ? 'مركز المساعدة' : 'Help Center', icon: 'help-circle', roles: allRoles },
+    { id: View.UserManagement, label: 'Security & Roles', icon: 'lock', roles: ['Admin', 'HR Manager'] },
   ];
 
   const getIcon = (iconName: string) => {
@@ -101,6 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
       case 'lock': return '🔐';
       case 'star': return '⭐';
       case 'trending-up': return '💹';
+      case 'help-circle': return '📖';
       default: return '•';
     }
   };
@@ -135,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
   );
 
   const strategyItems = filteredItems.filter(item =>
-    [View.Management, View.Insights, View.Whitepaper, View.UserManagement].includes(item.id)
+    [View.Management, View.Insights, View.Whitepaper, View.HelpCenter, View.UserManagement].includes(item.id)
   );
 
   const sidebarWidth = compactMode ? (isHovered ? 'w-64' : 'w-20') : 'w-64';

@@ -352,7 +352,9 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
         return 10;
       };
 
-      if (user.role === 'Manager' || user.role === 'HR') {
+      if (user.role === 'Manager') {
+        data = data.filter(e => e.managerId === user.id);
+      } else if (user.role === 'HR') {
         const targetDept = user.department;
         data = data.filter(e => /ceo/i.test(e.position) || e.department === targetDept);
       }
@@ -419,7 +421,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const canManage = user.role === 'Admin' || user.role === 'HR';
+  const canManage = ['Admin', 'Manager', 'HR', 'HR Manager', 'HR Officer', 'Executive'].includes(user.role);
 
   const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setItemsPerPage(parseInt(e.target.value));

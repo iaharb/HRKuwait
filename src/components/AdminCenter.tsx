@@ -695,17 +695,18 @@ const AdminCenter: React.FC = () => {
   };
 
   const handleRollbackPayroll = async () => {
-    const periodKey = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}-${rollbackFilter.cycle.toUpperCase()}`;
+    const periodMonth = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}`;
+    const periodKey = `${periodMonth}-${rollbackFilter.cycle.toUpperCase()}`;
     confirm({
       title: isAr ? "تأكيد التراجع عن الرواتب؟" : "Confirm Payroll Rollback?",
       message: isAr
-        ? `تحذير: سيتم حذف كافة سجلات الرواتب للفترة ${periodKey} بشكل نهائي. هذا الإجراء لا يمكن التراجع عنه.`
-        : `CRITICAL: This will permanently delete ALL finalized and draft records for period ${periodKey}. This action is irreversible.`,
+        ? `تحذير: سيتم حذف كافة سجلات الرواتب للفترة ${periodMonth} بشكل نهائي. هذا الإجراء لا يمكن التراجع عنه.`
+        : `CRITICAL: This will permanently delete ALL finalized and draft records for period ${periodMonth}. This action is irreversible.`,
       confirmText: isAr ? "حذف السجلات" : "Purge Records",
       onConfirm: async () => {
         setLoading(true);
         try {
-          const res = await dbService.rollbackPayrollRun(periodKey);
+          const res = await dbService.rollbackPayrollRun(periodMonth);
           if (res.success) {
             notify(t('success'), res.message, "success");
           } else {
@@ -721,17 +722,18 @@ const AdminCenter: React.FC = () => {
   };
 
   const handleRollbackJV = async () => {
-    const periodKey = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}-${rollbackFilter.cycle.toUpperCase()}`;
+    const periodMonth = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}`;
+    const periodKey = `${periodMonth}-${rollbackFilter.cycle.toUpperCase()}`;
     confirm({
       title: isAr ? "تأكيد التراجع عن يومية؟" : "Confirm JV Reversal?",
       message: isAr
-        ? `تحذير: سيتم حذف كافة قيود اليومية للفترة ${periodKey} وفتح الشهر مرة أخرى. هذا الإجراء يتطلب مصادقة.`
-        : `CRITICAL: This will permanently purge the GL Entries for period ${periodKey} and unlock the month.`,
+        ? `تحذير: سيتم حذف كافة قيود اليومية للفترة ${periodMonth} وفتح الشهر مرة أخرى. هذا الإجراء يتطلب مصادقة.`
+        : `CRITICAL: This will permanently purge the GL Entries for period ${periodMonth} and unlock the month.`,
       confirmText: isAr ? "إلغاء القفل" : "Purge & Unlock",
       onConfirm: async () => {
         setLoading(true);
         try {
-          const { data: runs, error: runsError } = await supabase!.from('payroll_runs').select('id').eq('period_key', periodKey);
+          const { data: runs, error: runsError } = await supabase!.from('payroll_runs').select('id').like('period_key', `${periodMonth}%`);
           if (runsError) throw runsError;
 
           if (!runs || runs.length === 0) {
@@ -741,7 +743,7 @@ const AdminCenter: React.FC = () => {
             const { error: delError } = await supabase!.from('journal_entries').delete().eq('payroll_run_id', runId);
             if (delError) throw delError;
 
-            await supabase!.from('payroll_runs').update({ status: 'Finalized' }).eq('id', runId);
+            await supabase!.from('payroll_runs').update({ status: 'Draft' }).eq('id', runId);
             notify(t('success'), "Journal Voucher reversed and month unlocked.", "success");
           }
         } catch (e: any) {

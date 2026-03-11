@@ -56,10 +56,16 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     leaveBalances: { annual: 30, sick: 15, emergency: 6, annualUsed: 0, sickUsed: 0, emergencyUsed: 0, shortPermissionLimit: 2, shortPermissionUsed: 0, hajUsed: false },
     iban: '',
     bankCode: 'NBK',
-    allowances: []
+    allowances: [],
+    managerId: '',
+    managerName: '',
+    phone: '',
+    emergencyContact: '',
+    pifssStatus: 'Pending'
   };
 
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>(initialFormData);
+  const [employeesData, setEmployeesData] = useState<Employee[]>([]);
 
   const [newAllowance, setNewAllowance] = useState({
     selectedName: 'Housing',
@@ -123,12 +129,25 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
         leaveBalances: employeeToEdit.leaveBalances,
         iban: employeeToEdit.iban || '',
         bankCode: employeeToEdit.bankCode || 'NBK',
-        allowances: employeeToEdit.allowances || []
+        allowances: employeeToEdit.allowances || [],
+        managerId: employeeToEdit.managerId || '',
+        managerName: employeeToEdit.managerName || '',
+        phone: employeeToEdit.phone || '',
+        emergencyContact: employeeToEdit.emergencyContact || '',
+        pifssStatus: employeeToEdit.pifssStatus || 'Pending'
       });
     } else if (isOpen) {
       setFormData(initialFormData);
     }
   }, [isOpen, employeeToEdit]);
+
+  useEffect(() => {
+    const fetchEmps = async () => {
+      const data = await dbService.getEmployees();
+      setEmployeesData(data);
+    };
+    if (isOpen) fetchEmps();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -300,14 +319,22 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('email') || 'Email Address'}</label>
-                <input type="email" placeholder="employee@company.com" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                <input type="email" placeholder="employee@company.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Mobile / WhatsApp</label>
+                <input type="tel" placeholder="+965 XXXX XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Emergency Contact</label>
+                <input placeholder="Name / Number" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.emergencyContact} onChange={e => setFormData({ ...formData, emergencyContact: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
-                <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
+                <select className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
                   <option value="Kuwaiti">{t('kuwaiti')}</option>
                   <option value="Expat">{t('expat')}</option>
                 </select>
@@ -332,7 +359,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Role</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Role (Access Control)</label>
               <select
                 className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
                 value={formData.role}
@@ -340,6 +367,11 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
               >
                 {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{language === 'ar' ? r.ar : r.en}</option>)}
               </select>
+              <p className="text-[10px] text-indigo-500 font-bold px-1 mt-1">
+                {language === 'ar'
+                  ? '💡 سيتم مزامنة هذا الدور مع صلاحيات الدخول في قسم الأمان.'
+                  : '💡 This role synchronizes with Access Control permissions.'}
+              </p>
             </div>
             <div className="space-y-2 lg:col-span-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleEn')} / {t('roleAr')}</label>
@@ -358,6 +390,28 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
                 ))}
               </select>
             </div>
+
+            <div className="space-y-2 lg:col-span-3">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Reporting Manager</label>
+              <select
+                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                value={formData.managerId}
+                onChange={e => {
+                  const manager = employeesData.find(emp => emp.id === e.target.value);
+                  setFormData({
+                    ...formData,
+                    managerId: e.target.value,
+                    managerName: manager ? manager.name : ''
+                  });
+                }}
+              >
+                <option value="">-- No Direct Line Manager --</option>
+                {employeesData.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>
+                ))}
+              </select>
+            </div>
+
           </div>
 
           {/* Bank & Payment Details */}
@@ -396,10 +450,20 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
               <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilIdExpiry} onChange={e => setFormData({ ...formData, civilIdExpiry: e.target.value })} />
             </div>
             {formData.nationality === 'Kuwaiti' && (
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('pifssNumber')}</label>
-                <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssNumber} onChange={e => setFormData({ ...formData, pifssNumber: e.target.value })} />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('pifssNumber')}</label>
+                  <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssNumber} onChange={e => setFormData({ ...formData, pifssNumber: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PIFSS Status</label>
+                  <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssStatus} onChange={e => setFormData({ ...formData, pifssStatus: e.target.value as any })}>
+                    <option value="Registered">Registered</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Exempt">Exempt</option>
+                  </select>
+                </div>
+              </>
             )}
             {formData.nationality === 'Expat' && (
               <>
