@@ -1212,6 +1212,36 @@ export const dbService = {
   },
 
   async rollbackPayrollRun(periodKey: string): Promise<{ success: boolean; message: string }> {
+    // 1. Fetch runs that will be deleted
+    const { data: runs, error: runsError } = await supabase!
+      .from('payroll_runs')
+      .select('id, target_leave_id')
+      .like('period_key', `${periodKey}%`);
+
+    if (runsError) throw runsError;
+
+    if (runs && runs.length > 0) {
+      const runIds = runs.map(r => r.id);
+
+      // 2. Clear associated Journal Entries
+      await supabase!.from('journal_entries').delete().in('payroll_run_id', runIds);
+
+      // 3. Unpin Variable Compensation so it can be re-run
+      await supabase!.from('variable_compensation')
+        .update({ payroll_run_id: null })
+        .in('payroll_run_id', runIds);
+
+      // 4. Revert any leave payouts processed in these runs
+      const leaveRunIds = runs.map(r => r.target_leave_id).filter(Boolean);
+      if (leaveRunIds.length > 0) {
+        await supabase!.from('leave_requests')
+          .update({ status: 'HR_Finalized' })
+          .in('id', leaveRunIds as string[])
+          .in('status', ['Paid', 'Pushed_To_Payroll']);
+      }
+    }
+
+    // 5. Delete the runs safely
     const { data, error } = await supabase!
       .from('payroll_runs')
       .delete()
