@@ -61,7 +61,25 @@ BEGIN
     v_month_end := (v_month_start + INTERVAL '1 month - 1 day')::DATE;
     v_total_days := fn_count_working_days(v_month_start, v_month_end);
 
+    -- Clean up dependencies for the existing draft to avoid FK violations
+    UPDATE variable_compensation 
+    SET payroll_run_id = NULL 
+    WHERE payroll_run_id IN (SELECT id FROM payroll_runs WHERE period_key = p_period_key AND status = 'Draft');
+
+    UPDATE leave_requests
+    SET status = 'HR_Finalized'
+    WHERE status = 'Paid' 
+      AND id IN (
+        SELECT id FROM leave_requests WHERE id IN (
+          -- If there was a matching run, identify related leaves
+          -- This is defensive for cases where a run was partially finalized then reverted to draft
+          SELECT target_leave_id FROM payroll_runs WHERE period_key = p_period_key AND status = 'Draft'
+        )
+      );
+
+    -- Delete existing draft for this period
     DELETE FROM payroll_runs WHERE period_key = p_period_key AND status = 'Draft';
+
     v_run_id := gen_random_uuid();
 
     INSERT INTO payroll_runs (id, period_key, cycle_type, status, created_at, locked_start, locked_end)
@@ -105,7 +123,7 @@ BEGIN
 
         -- EXTREME ALLOWANCE BREAKDOWN (V12)
         (
-          SELECT jsonb_agg(to_jsonb(j)) FROM (
+          SELECT COALESCE(jsonb_agg(to_jsonb(j)), '[]'::jsonb) FROM (
             SELECT 'Contractual Gross (Baseline)' as name, (e.salary + COALESCE(al.total_all, 0)) as value
             UNION ALL
             SELECT 'Basic Pay (Work: ' || (26.0 - COALESCE(lc.cur_lv_units, 0)) || ' days)' as name, (e.salary / 26.0) * (26.0 - COALESCE(lc.cur_lv_units, 0)) as value WHERE (26.0 - COALESCE(lc.cur_lv_units, 0)) > 0
@@ -126,7 +144,7 @@ BEGIN
 
         -- EXTREME DEDUCTION BREAKDOWN (V12)
         (
-          SELECT jsonb_agg(to_jsonb(j)) FROM (
+          SELECT COALESCE(jsonb_agg(to_jsonb(j)), '[]'::jsonb) FROM (
             SELECT 'PIFSS Social Security' as name, (e.salary * 0.115) as value WHERE e.nationality = 'Kuwaiti'
             UNION ALL
             -- Track the LOST portion of sick pay as a deduction for transparency
