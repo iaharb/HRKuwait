@@ -117,14 +117,15 @@ const mapEmployee = (data: any): Employee => {
     leaveBalances: resolvedLeaveBalances,
     trainingHours: data.training_hours || 0,
     workDaysPerWeek: data.work_days_per_week || 6,
-    bankCode: data.bank_code,
     salary: Number(data.salary || 0),
     managerId: data.manager_id || data.managerId,
     managerName: data.manager_name || data.managerName,
     allowances: resolvedAllowances,
     role: data.role || 'Employee',
     faceToken: data.face_token,
-    deviceUserId: data.device_user_id
+    deviceUserId: data.device_user_id,
+    iban: data.iban,
+    bankCode: data.bank_code
   };
 };
 
@@ -2134,6 +2135,56 @@ export const dbService = {
       notes: `Profit Sharing Bonus`
     }));
     await supabase!.from('variable_compensation').insert(varCompPayload);
+  },
+
+  async seedDatabase(): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!supabase) throw new Error('Supabase not configured');
+
+      // 1. Cleanup existing records to ensure fresh sync
+      await supabase.from('payroll_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('payroll_runs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('leave_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('variable_compensation').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('leave_balances').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('employee_allowances').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('employees').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // 2. Define Core Mock Registry
+      const mockEmployees = [
+        { id: '00000000-0000-0000-0000-000000000001', name: 'Dr. Faisal Al-Sabah', nationality: 'Kuwaiti', department: 'Executive', position: 'CEO', salary: 7500, status: 'Active', join_date: '2015-01-01', work_days_per_week: 5 },
+        { id: '00000000-0000-0000-0000-000000000002', name: 'Layla Al-Fadhli', nationality: 'Kuwaiti', department: 'HR', position: 'HR Manager', salary: 3500, status: 'Active', join_date: '2018-03-12', work_days_per_week: 5 },
+        { id: '00000000-0000-0000-0000-000000000003', name: 'Ahmed Al-Mutairi', nationality: 'Kuwaiti', department: 'IT', position: 'IT Lead', salary: 3200, status: 'Active', join_date: '2019-06-15', work_days_per_week: 5 },
+        { id: '00000000-0000-0000-0000-000000000004', name: 'Sarah Al-Ghanim', nationality: 'Kuwaiti', department: 'IT', position: 'Senior Developer', salary: 2200, status: 'Active', join_date: '2021-05-20', work_days_per_week: 5 },
+        { id: '00000000-0000-0000-0000-000000000005', name: 'Ihab Harb', nationality: 'Expat', department: 'IT', position: 'Technical Consultant', salary: 3500, status: 'Active', join_date: '2022-03-15', work_days_per_week: 6 }
+      ];
+
+      // 3. Batch Provision
+      for (const emp of mockEmployees) {
+        await supabase.from('employees').insert([emp]);
+        
+        // Initialize Leave Balances
+        await supabase.from('leave_balances').insert([
+          { employee_id: emp.id, leave_type: 'Annual', entitled_days: 30, used_days: 0, year: 2026 },
+          { employee_id: emp.id, leave_type: 'Sick', entitled_days: 15, used_days: 0, year: 2026 },
+          { employee_id: emp.id, leave_type: 'Emergency', entitled_days: 6, used_days: 0, year: 2026 }
+        ]);
+
+        // Initialize Fixed Allowances
+        await supabase.from('employee_allowances').insert([
+          { employee_id: emp.id, name: 'Housing Allowance', value: 250, is_housing: true, type: 'Fixed' },
+          { employee_id: emp.id, name: 'Transport Allowance', value: 100, is_housing: false, type: 'Fixed' }
+        ]);
+      }
+
+      // 4. Force Generation of Current Audit (2026-03)
+      await this.generatePayrollDraft('2026-03-MONTHLY', 'Monthly');
+
+      return { success: true };
+    } catch (e: any) {
+      console.error("Critical Seed Failure:", e);
+      return { success: false, error: e.message };
+    }
   },
 
   async provisionAuthUsers(): Promise<{ message: string }> {

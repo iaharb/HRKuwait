@@ -794,7 +794,13 @@ const PayrollView: React.FC<PayrollViewProps> = ({ user }) => {
                                       <span className="text-sm font-black text-indigo-600">{formatCurrency(a.value)}</span>
                                     </div>
                                   )) : (
-                                    <div className="bg-white/50 px-4 py-6 rounded-2xl border border-dashed border-slate-200 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t('nullBalance')}</div>
+                                    <div className="flex justify-between items-center px-4 py-3 rounded-2xl border bg-slate-50 border-slate-200 shadow-sm opacity-60">
+                                      <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500">Base Salary (Static Entry)</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">Legacy Trace</span>
+                                      </div>
+                                      <span className="text-sm font-black text-slate-700">{formatCurrency(item.basicSalary)}</span>
+                                    </div>
                                   )}
                                 </div>
                               </div>
