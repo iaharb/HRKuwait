@@ -696,7 +696,6 @@ const AdminCenter: React.FC = () => {
 
   const handleRollbackPayroll = async () => {
     const periodMonth = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}`;
-    const periodKey = `${periodMonth}-${rollbackFilter.cycle.toUpperCase()}`;
     confirm({
       title: isAr ? "تأكيد التراجع عن الرواتب؟" : "Confirm Payroll Rollback?",
       message: isAr
@@ -706,11 +705,13 @@ const AdminCenter: React.FC = () => {
       onConfirm: async () => {
         setLoading(true);
         try {
-          const res = await dbService.rollbackPayrollRun(periodMonth);
-          if (res.success) {
-            notify(t('success'), res.message, "success");
+          // Use backend RPC — bypasses RLS, handles cascading FK cleanup (JVs, VC, Leaves)
+          const { data, error } = await supabase!.rpc('rollback_payroll_run_rpc', { p_period_key: periodMonth });
+          if (error) throw error;
+          if (data?.success) {
+            notify(t('success'), data.message || 'Payroll records purged successfully.', 'success');
           } else {
-            notify(t('warning'), res.message, "warning");
+            notify(t('warning'), data?.message || 'No records found for this period.', 'warning');
           }
         } catch (e: any) {
           notify(t('critical'), e.message, "error");
@@ -723,31 +724,37 @@ const AdminCenter: React.FC = () => {
 
   const handleRollbackJV = async () => {
     const periodMonth = `${rollbackFilter.year}-${String(rollbackFilter.month).padStart(2, '0')}`;
-    const periodKey = `${periodMonth}-${rollbackFilter.cycle.toUpperCase()}`;
     confirm({
       title: isAr ? "تأكيد التراجع عن يومية؟" : "Confirm JV Reversal?",
       message: isAr
         ? `تحذير: سيتم حذف كافة قيود اليومية للفترة ${periodMonth} وفتح الشهر مرة أخرى. هذا الإجراء يتطلب مصادقة.`
-        : `CRITICAL: This will permanently purge the GL Entries for period ${periodMonth} and unlock the month.`,
+        : `CRITICAL: This will permanently purge the GL Entries for period ${periodMonth} and unlock the month for re-processing.`,
       confirmText: isAr ? "إلغاء القفل" : "Purge & Unlock",
       onConfirm: async () => {
         setLoading(true);
         try {
+          // Step 1: Find all runs for this period
           const { data: runs, error: runsError } = await supabase!.from('payroll_runs').select('id').like('period_key', `${periodMonth}%`);
           if (runsError) throw runsError;
 
           if (!runs || runs.length === 0) {
-            notify(t('warning'), "No payroll run found for this period to rollback JV.", "warning");
+            notify(t('warning'), 'No payroll run found for this period to reverse JV.', 'warning');
           } else {
-            const runId = runs[0].id;
-            const { error: delError } = await supabase!.from('journal_entries').delete().eq('payroll_run_id', runId);
-            if (delError) throw delError;
-
-            await supabase!.from('payroll_runs').update({ status: 'Draft' }).eq('id', runId);
-            notify(t('success'), "Journal Voucher reversed and month unlocked.", "success");
+            // Step 2: Use RPC to safely unpin VCs and delete JVs
+            const runIds = runs.map(r => r.id);
+            // Delete JVs via backend-safe call
+            for (const runId of runIds) {
+              const { error: jvErr } = await supabase!.rpc('run_sql', {
+                sql_query: `DELETE FROM journal_entries WHERE payroll_run_id = '${runId}'; UPDATE variable_compensation SET payroll_run_id = NULL WHERE payroll_run_id = '${runId}';`
+              });
+              if (jvErr) throw jvErr;
+              // Revert run to Draft
+              await supabase!.from('payroll_runs').update({ status: 'Draft' }).eq('id', runId);
+            }
+            notify(t('success'), 'Journal Voucher reversed and month unlocked.', 'success');
           }
         } catch (e: any) {
-          notify(t('critical'), e.message, "error");
+          notify(t('critical'), e.message, 'error');
         } finally {
           setLoading(false);
         }
