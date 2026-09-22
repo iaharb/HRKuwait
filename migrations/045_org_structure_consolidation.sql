@@ -42,7 +42,18 @@ CREATE INDEX IF NOT EXISTS idx_la_users_job_title ON la_users(job_title_id);
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS job_title_id UUID REFERENCES hr_job_titles(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_employees_job_title ON employees(job_title_id);
 
--- 4. Computed department/division on la_users (derived from entity_id path)
+-- 4. Add missing columns to employees table (portal)
+ALTER TABLE employees
+    ADD COLUMN IF NOT EXISTS entity_id UUID REFERENCES hr_org_units(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS job_title_id UUID REFERENCES hr_job_titles(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Employee',
+    ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active',
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_employees_entity ON employees(entity_id);
+CREATE INDEX IF NOT EXISTS idx_employees_job_title ON employees(job_title_id);
+
+-- 5. Computed department/division on la_users (derived from entity_id path)
 -- These are STORED generated columns for query performance
 ALTER TABLE la_users
     ADD COLUMN IF NOT EXISTS derived_department_id UUID,
