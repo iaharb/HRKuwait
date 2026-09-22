@@ -257,10 +257,17 @@ BEGIN
     END LOOP;
 END $$;
 
--- 9. Grants
+-- 9. RLS for hr_job_titles (config table pattern)
+ALTER TABLE hr_job_titles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS hr_job_titles_read ON hr_job_titles;
+CREATE POLICY hr_job_titles_read ON hr_job_titles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS hr_job_titles_write ON hr_job_titles;
+CREATE POLICY hr_job_titles_write ON hr_job_titles FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 10. Grants
 GRANT SELECT, INSERT, UPDATE, DELETE ON hr_job_titles TO authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON la_users TO authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON employees TO authenticated, service_role;
 
--- 10. NOTIFY for PostgREST schema reload
+-- 11. NOTIFY for PostgREST schema reload
 NOTIFY pgrst, 'reload schema';
