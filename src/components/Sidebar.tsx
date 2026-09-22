@@ -20,7 +20,6 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
   const { t } = useTranslation();
   const [dbStatus, setDbStatus] = useState<{ type: 'testing' | 'live' | 'mock', latency?: number }>({ type: 'testing' });
   const [isHovered, setIsHovered] = useState(false);
-
   const [rolePermissions, setRolePermissions] = useState<any[]>([]);
 
   const checkConnection = async () => {
@@ -55,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     { id: View.Profile, label: t('profile'), icon: 'user', roles: allRoles },
     { id: View.Attendance, label: t('attendance'), icon: 'map-pin', roles: allRoles },
     { id: View.Leaves, label: t('leaves'), icon: 'calendar', roles: allRoles },
+    { id: View.GenericRequests, label: language === 'ar' ? 'الطلبات' : 'Requests', icon: 'inbox', roles: allRoles },
 
     // --- Enterprise Dashboards ---
     { id: View.Dashboard, label: t('dashboard'), icon: 'layout-grid', roles: ['Admin', 'Manager', 'HR', 'Mandoob', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'Payroll Officer'] },
@@ -81,6 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     { id: View.Whitepaper, label: t('whitepaper'), icon: 'book-open', roles: ['Admin', 'HR', 'Executive'] },
     { id: View.HelpCenter, label: language === 'ar' ? 'مركز المساعدة' : 'Help Center', icon: 'help-circle', roles: allRoles },
     { id: View.UserManagement, label: 'Security & Roles', icon: 'lock', roles: ['Admin', 'HR Manager'] },
+    { id: View.WorkflowConfig, label: language === 'ar' ? 'تهيئة سير العمل' : 'Workflow Config', icon: 'git-branch', roles: ['Admin', 'HR Manager'] },
   ];
 
   const getIcon = (iconName: string) => {
@@ -103,6 +104,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
       case 'star': return '⭐';
       case 'trending-up': return '💹';
       case 'help-circle': return '📖';
+      case 'git-branch': return '🧩';
+      case 'inbox': return '📥';
       default: return '•';
     }
   };
@@ -129,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
   };
 
   const coreItems = filteredItems.filter(item =>
-    [View.Dashboard, View.Profile, View.Attendance, View.Leaves, View.Approvals, View.Performance].includes(item.id)
+    [View.Dashboard, View.Profile, View.Attendance, View.Leaves, View.GenericRequests, View.Approvals, View.Performance].includes(item.id)
   );
 
   const opsItems = filteredItems.filter(item =>
@@ -137,10 +140,20 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
   );
 
   const strategyItems = filteredItems.filter(item =>
-    [View.Management, View.Insights, View.Whitepaper, View.HelpCenter, View.UserManagement].includes(item.id)
+      [View.Management, View.Insights, View.Whitepaper, View.HelpCenter, View.UserManagement, View.WorkflowConfig].includes(item.id)
   );
 
   const sidebarWidth = compactMode ? (isHovered ? 'w-64' : 'w-20') : 'w-64';
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredNavItems = filteredItems.filter(item =>
+    item.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const coreItemsFiltered = coreItems.filter(item => filteredNavItems.includes(item));
+  const opsItemsFiltered = opsItems.filter(item => filteredNavItems.includes(item));
+  const strategyItemsFiltered = strategyItems.filter(item => filteredNavItems.includes(item));
 
   const renderNavGroup = (title: string, items: any[], folderId: string) => {
     if (items.length === 0) return null;
@@ -148,38 +161,60 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
     const showHeader = !compactMode || isHovered;
 
     return (
-      <div className="space-y-1 py-1">
+      <div style={{ marginBottom: 'var(--cds-spacing-03)' }}>
         {showHeader && (
           <button
             onClick={() => toggleFolder(folderId)}
-            className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 'var(--cds-spacing-03) var(--cds-spacing-05)',
+              background: 'none',
+              border: 'none',
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              color: 'var(--cds-text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              cursor: 'pointer',
+              textAlign: 'start'
+            }}
           >
             <span>{title}</span>
-            <span className={`text-[8px] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+            <span style={{ fontSize: '0.5rem', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </button>
         )}
 
         {(!showHeader || isExpanded) && (
-          <div className={`space-y-0.5 animate-in slide-in-from-top-2 duration-300 ${!isExpanded && showHeader ? 'hidden' : 'block'}`}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {items.map((item) => {
               const isActive = activePath === item.id.toLowerCase();
               return (
                 <Link
                   key={item.id}
                   to={`/${item.id.toLowerCase()}`}
-                  className={`w-full flex items-center ${compactMode && !isHovered ? 'justify-center h-10 w-10 mx-auto' : 'gap-3 px-4 py-2'} rounded-xl text-sm font-bold transition-all group relative overflow-hidden ${isActive
-                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: compactMode && !isHovered ? 'center' : 'flex-start',
+                    gap: compactMode && !isHovered ? '0' : 'var(--cds-spacing-04)',
+                    padding: compactMode && !isHovered ? 'var(--cds-spacing-05) 0' : 'var(--cds-spacing-04) var(--cds-spacing-05)',
+                    textDecoration: 'none',
+                    fontSize: '0.875rem',
+                    color: isActive ? 'var(--cds-interactive-01)' : 'var(--cds-text-secondary)',
+                    background: isActive ? 'var(--cds-layer-02)' : 'transparent',
+                    borderLeft: isActive ? '6px solid var(--cds-interactive-01)' : '6px solid transparent',
+                    fontWeight: isActive ? 600 : 400,
+                    minHeight: '48px',
+                    transition: 'all 0.2s cubic-bezier(0.2, 0, 0.38, 0.9)'
+                  }}
                   title={item.label}
                 >
-                  {isActive && (
-                    <div className="absolute inset-y-0 left-0 w-1 bg-indigo-500 rounded-full my-2"></div>
-                  )}
-                  <span className={`text-lg transition-all duration-300 group-hover:scale-110 ${isActive ? '' : 'opacity-60'}`}>
-                    {getIcon(item.icon)}
-                  </span>
+                  <span style={{ fontSize: compactMode && !isHovered ? '1.5rem' : '1.1rem', transition: 'font-size 0.2s' }}>{getIcon(item.icon)}</span>
                   {(!compactMode || isHovered) && (
-                    <span className={`tracking-tight text-start flex-1 text-[13px] whitespace-nowrap animate-in fade-in duration-300 ${isActive ? 'font-black' : 'font-medium'}`}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.label}
                     </span>
                   )}
@@ -193,96 +228,158 @@ const Sidebar: React.FC<SidebarProps> = ({ user, language, setLanguage, onLogout
   };
 
   return (
-    <div
+    <aside
+      className="cds--side-nav"
+      style={{ 
+        width: compactMode && !isHovered ? 'var(--cds-sidebar-width-collapsed)' : 'var(--cds-sidebar-width-expanded)',
+        background: 'var(--cds-layer-01)',
+        borderRight: '1px solid var(--cds-border-subtle)',
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 48px)',
+        transition: 'width 0.2s cubic-bezier(0.2, 0, 0.38, 0.9)',
+        zIndex: 1000,
+        position: 'fixed',
+        top: '48px',
+        left: 0
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`${sidebarWidth} bg-white border-e border-slate-200/50 h-screen sticky top-0 flex flex-col z-[80] shadow-[1px_0_10px_0_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out no-print overflow-hidden`}
     >
-      <div className={`${compactMode && !isHovered ? 'p-4' : 'p-6'} pb-2 text-start transition-all`}>
-        <h1 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tighter">
-          <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20 text-xl relative group overflow-hidden shrink-0">
-            <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            🇰🇼
-          </div>
-          {(!compactMode || isHovered) && (
-            <div className="flex flex-col leading-none animate-in fade-in duration-300">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Portal</span>
-              <span className="text-lg">Enterprise<span className="text-indigo-600">HR</span></span>
-            </div>
-          )}
-        </h1>
-
+      {/* Header / Logo Section */}
+      <div style={{ 
+        padding: compactMode && !isHovered ? 'var(--cds-spacing-05) 0' : 'var(--cds-spacing-05)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: compactMode && !isHovered ? 'center' : 'flex-start',
+        gap: compactMode && !isHovered ? '0' : 'var(--cds-spacing-04)', 
+        borderBottom: '1px solid var(--cds-border-subtle)', 
+        minHeight: '64px' 
+      }}>
+        <div style={{ width: '32px', height: '32px', background: 'var(--cds-interactive-01)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.25rem', flexShrink: 0, borderRadius: '4px' }}>
+          H
+        </div>
         {(!compactMode || isHovered) && (
-          <div
-            onClick={checkConnection}
-            className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all active:scale-95 group animate-in fade-in duration-300"
-          >
-            <div className={`w-2 h-2 rounded-full ${dbStatus.type === 'testing' ? 'bg-slate-300 animate-pulse' :
-              dbStatus.type === 'live' ? 'bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]' : 'bg-rose-500'} group-hover:scale-110 transition-transform`}></div>
-            <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest whitespace-nowrap">
-              {dbStatus.type === 'testing' ? t('syncing') :
-                dbStatus.type === 'live' ? `${dbStatus.latency}ms` : 'Offline'}
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', animation: 'fade-in 0.3s ease' }}>
+            <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)', lineHeight: 1 }}>{t('systemTitle')}</span>
+            <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Enterprise v11</span>
           </div>
         )}
       </div>
 
-      <nav className={`flex-1 ${compactMode && !isHovered ? 'px-2' : 'px-3'} space-y-1 overflow-y-auto mt-4 custom-scrollbar`}>
-        {(user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'hr' || user.role.toLowerCase() === 'hr manager') && (
-          <button
-            onClick={onAddMember}
-            className={`w-full flex items-center ${compactMode && !isHovered ? 'justify-center p-0 h-10 w-10 mx-auto mb-4' : 'gap-3 px-4 py-2.5 mb-6'} rounded-xl text-sm font-black transition-all bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95 group border border-indigo-500/50 overflow-hidden relative`}
-            title={t('addMember')}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            <span className="text-white font-black text-lg">+</span>
-            {(!compactMode || isHovered) && <span className="tracking-tight uppercase text-[10px] font-black animate-in fade-in duration-300">{t('addMember')}</span>}
-          </button>
-        )}
+      {/* Search Section */}
+      {(!compactMode || isHovered) && (
+        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder={t('search')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'var(--cds-field-01)',
+                border: 'none',
+                borderBottom: '1px solid var(--cds-border-strong)',
+                padding: 'var(--cds-spacing-03) var(--cds-spacing-05) var(--cds-spacing-03) var(--cds-spacing-07)',
+                fontSize: '0.875rem',
+                color: 'var(--cds-text-primary)'
+              }}
+            />
+            <span style={{ position: 'absolute', left: 'var(--cds-spacing-03)', fontSize: '0.875rem', opacity: 0.5 }}>🔍</span>
+          </div>
+        </div>
+      )}
 
-        {renderNavGroup('Main Ops', coreItems, 'core')}
-        {renderNavGroup('Resource Mgmt', opsItems, 'ops')}
-        {renderNavGroup('Strategy & Intel', strategyItems, 'strategy')}
+      {/* Scrollable Navigation Area */}
+      <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 'var(--cds-spacing-03) 0', display: 'flex', flexDirection: 'column' }} className="cds--side-nav__items">
+        {searchTerm ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+             {filteredNavItems.map(item => (
+                <Link
+                  key={item.id}
+                  to={`/${item.id.toLowerCase()}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: compactMode && !isHovered ? 'center' : 'flex-start',
+                    gap: compactMode && !isHovered ? '0' : 'var(--cds-spacing-04)',
+                    padding: compactMode && !isHovered ? 'var(--cds-spacing-05) 0' : 'var(--cds-spacing-04) var(--cds-spacing-05)',
+                    textDecoration: 'none',
+                    fontSize: '0.875rem',
+                    color: activePath === item.id.toLowerCase() ? 'var(--cds-interactive-01)' : 'var(--cds-text-secondary)',
+                    background: activePath === item.id.toLowerCase() ? 'var(--cds-layer-02)' : 'transparent',
+                    borderLeft: activePath === item.id.toLowerCase() ? '6px solid var(--cds-interactive-01)' : '6px solid transparent',
+                    fontWeight: activePath === item.id.toLowerCase() ? 600 : 400,
+                    minHeight: '48px'
+                  }}
+                >
+                  <span style={{ fontSize: compactMode && !isHovered ? '1.5rem' : '1.1rem' }}>{getIcon(item.icon)}</span>
+                  <span>{item.label}</span>
+                </Link>
+             ))}
+          </div>
+        ) : (
+          <>
+            {renderNavGroup(t('core'), coreItemsFiltered, 'core')}
+            {renderNavGroup(t('operations'), opsItemsFiltered, 'ops')}
+            {renderNavGroup(t('strategy'), strategyItemsFiltered, 'strategy')}
+          </>
+        )}
       </nav>
 
-      <div className={`${compactMode && !isHovered ? 'p-3' : 'p-4'} space-y-3 mt-auto mb-4 border-t border-slate-50 pt-4`}>
-        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200/50 overflow-hidden">
-          <button
-            onClick={() => setLanguage('en')}
-            className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all ${language === 'en' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
-          >
-            {compactMode && !isHovered ? 'EN' : 'ENG'}
-          </button>
-          <button
-            onClick={() => setLanguage('ar')}
-            className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all ${language === 'ar' ? 'bg-white text-slate-900 shadow-sm border border-slate-100' : 'text-slate-400'}`}
-          >
-            {compactMode && !isHovered ? 'AR' : 'ARA'}
-          </button>
+      {/* Footer / User Profile */}
+      <div style={{ marginTop: 'auto', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-02)' }}>
+        <div style={{ 
+          padding: compactMode && !isHovered ? 'var(--cds-spacing-05) 0' : 'var(--cds-spacing-05)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: compactMode && !isHovered ? 'center' : 'flex-start',
+          gap: compactMode && !isHovered ? '0' : 'var(--cds-spacing-04)' 
+        }}>
+           <div style={{ width: '32px', height: '32px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              👤
+           </div>
+           {(!compactMode || isHovered) && (
+              <div style={{ flex: 1, overflow: 'hidden', animation: 'fade-in 0.3s ease' }}>
+                 <p style={{ fontSize: '0.75rem', fontWeight: 600, margin: 0, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{user.name}</p>
+                 <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', margin: 0 }}>{user.role}</p>
+              </div>
+           )}
         </div>
-
-        <div className="flex items-center gap-3 px-1 text-start overflow-hidden">
-          <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-black text-xs shadow-inner shrink-0 cursor-pointer hover:bg-indigo-100 transition-colors">
-            {user.name[0]}
-          </div>
-          {(!compactMode || isHovered) && (
-            <div className="min-w-0 flex-1 animate-in slide-in-from-left-2 duration-300">
-              <p className="text-[11px] font-black text-slate-900 truncate tracking-tight">{language === 'ar' ? (user as any).nameArabic || user.name : user.name}</p>
-              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{user.role}</p>
-            </div>
-          )}
-        </div>
-
+        
         {(!compactMode || isHovered) && (
-          <button
-            onClick={onLogout}
-            className="w-full py-2.5 text-[9px] font-black text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all uppercase tracking-[0.1em] border border-transparent hover:border-rose-100 animate-in fade-in duration-300"
-          >
-            {t('terminateSession')}
-          </button>
+           <div style={{ padding: '0 var(--cds-spacing-05) var(--cds-spacing-05) var(--cds-spacing-05)', display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+              <button 
+                onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')} 
+                className="cds--btn cds--btn--ghost cds--btn--sm" 
+                style={{ flex: 1, border: '1px solid var(--cds-border-subtle)', padding: '0 var(--cds-spacing-03)', minHeight: '32px' }}
+              >
+                {language === 'en' ? 'Arabic' : 'English'}
+              </button>
+              <button 
+                onClick={onLogout} 
+                className="cds--btn cds--btn--ghost cds--btn--sm" 
+                style={{ flex: 1, color: 'var(--cds-support-error)', border: '1px solid var(--cds-border-subtle)', padding: '0 var(--cds-spacing-03)', minHeight: '32px' }}
+              >
+                Logout
+              </button>
+           </div>
         )}
       </div>
-    </div>
+
+      <style>{`
+        .cds--side-nav__items::-webkit-scrollbar {
+          width: 4px;
+        }
+        .cds--side-nav__items::-webkit-scrollbar-thumb {
+          background: var(--cds-border-subtle);
+        }
+        .cds--side-nav__items::-webkit-scrollbar-track {
+          background: transparent;
+        }
+      `}</style>
+    </aside>
   );
 };
 

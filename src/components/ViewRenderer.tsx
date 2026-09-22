@@ -21,6 +21,8 @@ import { UserManagement } from './UserManagement.tsx';
 import { ApprovalsView } from './ApprovalsView.tsx';
 import PerformanceView from './PerformanceView.tsx';
 import ProfitSharingView from './ProfitSharingView.tsx';
+import WorkflowConfig from './WorkflowConfig.tsx';
+import GenericRequestsView from './GenericRequestsView.tsx';
 
 interface ViewRendererProps {
     user: User;
@@ -66,6 +68,7 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/profile" element={<ProfileView user={user} key={`profile-${refreshKey}`} />} />
             <Route path="/attendance" element={<AttendanceView user={user} key={`attend-${refreshKey}`} />} />
             <Route path="/leaves" element={<LeaveManagement user={user} key={`leaves-${refreshKey}`} />} />
+            <Route path="/requests" element={<GenericRequestsView user={user} key={`requests-${refreshKey}`} />} />
 
             {/* --- Dashboards --- */}
             <Route path="/dashboard" element={user.role !== 'Employee' ? <Dashboard user={user} onNavigate={onNavigate} key={`dash-${refreshKey}`} language={language} /> : <Navigate to={defaultRoute} replace />} />
@@ -92,6 +95,7 @@ const ViewRenderer: React.FC<ViewRendererProps> = ({
             <Route path="/whitepaper" element={isExecutiveOrAdmin || isHrOrAdmin ? <Whitepaper key={`wp-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
             <Route path="/help-center" element={<HelpCenter user={user} key={`help-${refreshKey}`} />} />
             <Route path="/user-management" element={['Admin', 'HR Manager'].includes(user.role) ? <UserManagement key={`user-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
+            <Route path="/workflow-config" element={['Admin', 'HR Manager'].includes(user.role) ? <WorkflowConfig key={`wf-${refreshKey}`} /> : <Navigate to={defaultRoute} replace />} />
 
             {/* 404 handling */}
             <Route path="*" element={<Navigate to={defaultRoute} replace />} />

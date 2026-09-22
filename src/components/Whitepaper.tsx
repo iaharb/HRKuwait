@@ -114,26 +114,30 @@ const Whitepaper: React.FC = () => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Enterprise HR Whitepaper 2025</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
         <style>
+          :root {
+            --cds-background: #161616;
+            --cds-layer-01: #262626;
+            --cds-text-primary: #f4f4f4;
+            --cds-text-secondary: #c6c6c6;
+            --cds-interactive-01: #0f62fe;
+            --cds-border-subtle: #393939;
+          }
           body { 
-            font-family: ${isAr ? "'Cairo'" : "'Plus Jakarta Sans'"}, sans-serif; 
-            background: #f8fafc; 
-            color: #0f172a; 
+            font-family: monospace; 
+            background: var(--cds-background); 
+            color: var(--cds-text-primary); 
             margin: 0;
             padding: 40px; 
           }
           .page-container {
-            background: white;
-            border-radius: 40px;
-            padding: 60px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            background: var(--cds-background);
+            border: 1px solid var(--cds-border-subtle);
+            padding: 40px;
             max-width: 900px;
             margin: auto;
             position: relative;
             overflow: hidden;
-            border: 1px solid #e2e8f0;
           }
           .watermark {
             position: absolute;
@@ -144,11 +148,24 @@ const Whitepaper: React.FC = () => {
             pointer-events: none;
             z-index: 0;
           }
+          h1, h2, h3, h4 { margin: 0; color: var(--cds-text-primary); }
+          .header { text-align: left; border-bottom: 2px solid var(--cds-border-subtle); padding-bottom: 20px; margin-bottom: 40px; }
+          .header-tag { display: inline-block; padding: 4px 12px; background: rgba(15, 98, 254, 0.1); border: 1px solid rgba(15, 98, 254, 0.2); color: var(--cds-interactive-01); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+          .section-block { margin-bottom: 40px; padding: 20px; background: var(--cds-layer-01); border: 1px solid var(--cds-border-subtle); }
+          .section-header { display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--cds-border-subtle); padding-bottom: 16px; margin-bottom: 24px; }
+          .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+          .item-label { font-size: 12px; font-weight: 700; color: var(--cds-interactive-01); text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+          .item-desc { font-size: 14px; color: var(--cds-text-secondary); line-height: 1.5; }
+          .footer { text-align: center; border-top: 1px solid var(--cds-border-subtle); padding-top: 20px; margin-top: 40px; font-size: 10px; color: var(--cds-text-secondary); text-transform: uppercase; }
+          
           @media print {
-            body { padding: 0; background: white; }
-            .page-container { border: none; box-shadow: none; width: 100%; max-width: 100%; padding: 40px; }
+            body { padding: 0; background: white; color: black; }
+            .page-container { border: none; width: 100%; max-width: 100%; padding: 20px; background: white; }
+            .section-block { background: white; border: 1px solid #ccc; page-break-inside: avoid; }
+            .header-tag { border-color: #0f62fe; }
+            .item-label { color: black; }
+            .item-desc { color: #333; }
             .no-print { display: none !important; }
-            .section-block { page-break-inside: avoid; }
           }
         </style>
       </head>
@@ -156,56 +173,45 @@ const Whitepaper: React.FC = () => {
         <div class="page-container">
           <div class="watermark">🇰🇼</div>
           
-          <header class="text-center space-y-6 border-b-4 border-slate-900 pb-10 mb-12 relative z-10">
-             <div class="inline-flex items-center gap-3 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-[0.3em]">
+          <div class="header relative z-10">
+             <div class="header-tag">
                Official Registry Protocol v4.0
              </div>
-             <h1 class="text-5xl font-black tracking-tighter">${isAr ? 'الورقة البيضاء للمنصة' : 'Platform Whitepaper'}</h1>
-             <p class="text-slate-500 font-bold text-lg max-w-2xl mx-auto">
+             <h1 style="font-size: 32px; font-weight: 700;">${isAr ? 'الورقة البيضاء للمنصة' : 'SYSTEM_WHITEPAPER_NODE'}</h1>
+             <p style="color: var(--cds-text-secondary); font-size: 14px; margin-top: 8px;">
                ${isAr 
                  ? 'المواصفات الفنية لعام ٢٠٢٥ وتطبيقات قانون العمل والامتثال' 
                  : 'Technical Specifications & Kuwait Labor Law Implementation Framework 2025'}
              </p>
-          </header>
+          </div>
 
-          <div class="space-y-16 relative z-10">
+          <div class="relative z-10">
             ${sections.map((s, idx) => `
-              <section class="section-block space-y-8">
-                <div class="flex items-center gap-5 border-b border-slate-100 pb-4">
-                  <span class="text-4xl">${s.icon}</span>
-                  <h2 class="text-2xl font-black text-slate-900">${s.title}</h2>
+              <div class="section-block">
+                <div class="section-header">
+                  <span style="font-size: 24px;">${s.icon}</span>
+                  <h2 style="font-size: 18px; font-weight: 700;">${s.title}</h2>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                <div class="section-grid">
                   ${s.items.map(item => `
-                    <div class="space-y-2">
-                      <h4 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    <div>
+                      <div class="item-label">
+                        <span style="width: 4px; height: 4px; background: var(--cds-interactive-01); display: inline-block;"></span>
                         ${item.label}
-                      </h4>
-                      <p class="text-sm text-slate-600 leading-relaxed font-medium">${item.desc}</p>
+                      </div>
+                      <div class="item-desc">${item.desc}</div>
                     </div>
                   `).join('')}
                 </div>
-              </section>
+              </div>
             `).join('')}
           </div>
 
-          <footer class="mt-20 pt-10 border-t border-slate-100 text-center relative z-10">
-            <div class="flex items-center justify-center gap-4 mb-4 opacity-50">
-               <span class="h-px w-12 bg-slate-300"></span>
-               <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Confidential Registry Asset</span>
-               <span class="h-px w-12 bg-slate-300"></span>
-            </div>
-            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-              Generated via Enterprise HR Portal • ${new Date().toLocaleDateString(isAr ? 'ar-KW' : 'en-GB')} • Authorized Distribution
-            </p>
-          </footer>
+          <div class="footer relative z-10">
+            <p>Generated via Enterprise Registry Node • ${new Date().toLocaleDateString(isAr ? 'ar-KW' : 'en-GB')} • CONFIDENTIAL</p>
+          </div>
         </div>
         
-        <div class="no-print fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-slate-900 text-white rounded-full shadow-2xl animate-bounce">
-           <span class="text-xs font-black uppercase tracking-widest">${isAr ? 'اضغط للطباعة' : 'Click to Print'}</span>
-        </div>
-
         <script>
           window.onload = () => {
             setTimeout(() => {
@@ -229,71 +235,65 @@ const Whitepaper: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-16 animate-in fade-in duration-700 pb-32 text-start relative">
-      <header className="space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-           <div className="space-y-4">
-             <div className="inline-flex items-center gap-3 px-6 py-2 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em]">
-               System Architecture v4.0
+    <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+      
+      <div style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', padding: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+           <div style={{ maxWidth: '800px' }}>
+             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', padding: '4px 12px', background: 'rgba(79, 70, 229, 0.1)', border: '1px solid rgba(79, 70, 229, 0.2)', marginBottom: 'var(--cds-spacing-05)' }}>
+               <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                 SYSTEM_ARCHITECTURE_V4.0
+               </span>
              </div>
-             <h1 className="text-5xl font-black text-slate-900 tracking-tighter">
-               Workforce Platform Whitepaper
+             <h1 style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-04)' }}>
+               {language === 'ar' ? 'الورقة البيضاء للمنصة' : 'Workforce Platform Whitepaper'}
              </h1>
+             <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', lineHeight: 1.6 }}>
+               The Enterprise Registry acts as the central node for Kuwaiti Labor Law compliance. This document outlines the technical implementation of Articles 47, 51, 69, and 70, as well as the AI-Driven Kuwaitization Insight Engine.
+             </p>
            </div>
            
            <button 
-             type="button"
              onClick={handleExport}
-             className="flex items-center justify-center gap-4 px-10 py-6 bg-slate-900 text-white rounded-[32px] font-black text-[13px] uppercase tracking-[0.15em] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] hover:bg-black hover:scale-[1.02] transition-all active:scale-95 group"
+             className="cds--btn cds--btn--primary"
+             style={{ height: '48px', padding: '0 var(--cds-spacing-07)', fontFamily: 'monospace', fontSize: '0.75rem', letterSpacing: '0.1em' }}
            >
-             <span className="text-2xl group-hover:scale-125 transition-transform">📄</span>
-             <span>{language === 'ar' ? 'تصدير للطباعة الرسمية (PDF)' : 'Export Official Whitepaper (PDF)'}</span>
+             {language === 'ar' ? 'تصدير (PDF)' : 'EXPORT_PROTOCOL_PDF'}
            </button>
         </div>
+      </div>
 
-        <p className="text-slate-500 text-lg font-medium max-w-2xl leading-relaxed">
-          The Enterprise HR Registry acts as the central node for Kuwaiti Labor Law compliance. This document outlines the technical implementation of **Articles 47, 51, 69, and 70**, as well as our **AI-Driven Kuwaitization Insight Engine**.
-        </p>
-      </header>
-
-      <div className="bg-white rounded-[64px] border border-slate-200 shadow-2xl shadow-slate-900/5 p-10 md:p-20 space-y-20 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-           <span className="text-[240px] select-none">🇰🇼</span>
-        </div>
-
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 'var(--cds-spacing-07)' }}>
         {sections.map((section, idx) => (
-          <section key={idx} className="space-y-12 relative z-10">
-            <div className="flex items-center gap-6 border-b border-slate-100 pb-8">
-              <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center text-4xl shadow-inner border border-slate-100">
-                {section.icon}
-              </div>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">{section.title}</h2>
+          <div key={idx} className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', paddingBottom: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-06)' }}>
+              <div style={{ fontSize: '2rem' }}>{section.icon}</div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{section.title}</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--cds-spacing-07)' }}>
               {section.items.map((item, i) => (
-                <div key={i} className="space-y-3 group">
-                  <h4 className="text-[12px] font-black text-indigo-600 uppercase tracking-[0.1em] flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.4)]"></span>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)', padding: 'var(--cds-spacing-04)', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                    <span style={{ width: '4px', height: '4px', background: 'var(--cds-interactive-01)', display: 'inline-block' }}></span>
                     {item.label}
                   </h4>
-                  <p className="text-slate-600 text-[15px] leading-relaxed font-medium">
+                  <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', lineHeight: 1.6 }}>
                     {item.desc}
                   </p>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
         ))}
-
-        <footer className="pt-16 border-t border-slate-100 text-center">
-           <div className="inline-block px-8 py-3 bg-slate-50 rounded-full border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                Enterprise HR Protocol • Optimized for the Kuwaiti Private Sector • 2025 Standard
-              </p>
-           </div>
-        </footer>
       </div>
+
+      <div style={{ textAlign: 'center', padding: 'var(--cds-spacing-07)', borderTop: '1px solid var(--cds-border-subtle)' }}>
+         <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-disabled)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+           SYSTEM_NODE_REGISTRY • OPTIMIZED_FOR_PRIVATE_SECTOR • 2025_STANDARD
+         </p>
+      </div>
+
     </div>
   );
 };

@@ -49,6 +49,7 @@ export interface LeaveBalances {
   shortPermissionLimit: number;
   shortPermissionUsed: number;
   hajUsed: boolean;
+  kpiTemplateIds?: string[];
 }
 
 export interface Employee {
@@ -102,6 +103,7 @@ export interface Employee {
   role: UserRole;
   phone?: string;
   emergencyContact?: string;
+  kpiTemplateIds?: string[];
 }
 
 export interface AttendanceRecord {
@@ -242,6 +244,7 @@ export interface PayrollItem {
   sickLeavePay: number; // Added
   annualLeavePay: number; // Added
   performanceBonus: number; // Added
+  profitSharing: number; // Added
   companyBonus: number; // Added
   shortPermissionDeductions: number;
   pifssDeduction: number;
@@ -327,7 +330,9 @@ export enum View {
   UserManagement = 'user-management',
   Approvals = 'approvals',
   Performance = 'performance',
-  ProfitSharing = 'profit-sharing'
+  ProfitSharing = 'profit-sharing',
+  WorkflowConfig = 'workflow-config',
+  GenericRequests = 'requests'
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';

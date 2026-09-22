@@ -168,45 +168,40 @@ export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ 
     }
 
     return (
-        <div className={`${compactMode ? 'space-y-4' : 'space-y-6'} animate-in slide-in-from-bottom-4 duration-500`}>
-            <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-4' : 'gap-6'}`}>
+        <div className="cds--registry-view" style={{ padding: compactMode ? '0' : 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 'var(--cds-spacing-07)', alignItems: 'stretch' }}>
 
                 {/* Liability Gap Card */}
-                <div className={`bg-white rounded-3xl border border-rose-100 shadow-sm flex flex-col justify-between group relative overflow-hidden ${compactMode ? 'p-5' : 'p-8'}`}>
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700"></div>
-                    <div className="relative z-10">
-                        <div className={`flex items-center gap-3 ${compactMode ? 'mb-1' : 'mb-2'}`}>
-                            <span className={`p-2 bg-rose-50 text-rose-500 rounded-xl ${compactMode ? 'scale-75' : ''}`}>⚖️</span>
-                            <h3 className={`font-bold text-slate-800 ${compactMode ? 'text-base' : 'text-lg'}`}>Actuarial Liability Gap</h3>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: liabilityGap && liabilityGap > 0 ? '1px solid #da1e28' : '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 'var(--cds-spacing-05)' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', marginBottom: 'var(--cds-spacing-04)' }}>
+                            <span style={{ fontSize: '1rem', color: liabilityGap && liabilityGap > 0 ? '#da1e28' : 'var(--cds-interactive-01)' }}>⚖️</span>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Actuarial Liability Gap</h3>
                         </div>
-                        <p className={`font-medium text-slate-500 ${compactMode ? 'text-[10px] mb-3' : 'text-xs mb-6'}`}>
+                        <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', lineHeight: 1.5, marginBottom: 'var(--cds-spacing-06)' }}>
                             Difference between tenure-based mathematical liability and GL Provision Balance (Account 200300).
                         </p>
 
-                        <div className={`flex items-baseline gap-2 ${compactMode ? 'mb-3' : 'mb-6'}`}>
-                            <span className={`font-black tracking-tight ${liabilityGap && liabilityGap > 0 ? 'text-rose-600' : 'text-emerald-600'} ${compactMode ? 'text-2xl' : 'text-4xl'}`}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)', marginBottom: 'var(--cds-spacing-06)' }}>
+                            <span style={{ fontSize: '2.5rem', fontWeight: 700, fontFamily: 'monospace', color: liabilityGap && liabilityGap > 0 ? '#da1e28' : '#24a148', letterSpacing: '-0.02em' }}>
                                 {liabilityGap?.toLocaleString('en-KW', { minimumFractionDigits: 3 })}
                             </span>
-                            <span className={`${compactMode ? 'text-xs' : 'text-sm'} font-bold text-slate-400`}>KWD</span>
+                            <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>KWD</span>
                         </div>
+                    </div>
 
+                    <div>
                         {liabilityGap && liabilityGap > 10 ? (
                             <button
                                 onClick={handleSync}
                                 disabled={isSyncing}
-                                className="w-full py-3 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-sm transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="cds--btn cds--btn--danger"
+                                style={{ width: '100%', fontSize: '0.75rem', fontFamily: 'monospace', opacity: isSyncing ? 0.5 : 1 }}
                             >
-                                {isSyncing ? (
-                                    <>
-                                        <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-                                        Syncing Reality...
-                                    </>
-                                ) : (
-                                    <>✨ Sync GL with Reality</>
-                                )}
+                                {isSyncing ? 'Syncing...' : 'Sync GL with Reality'}
                             </button>
                         ) : (
-                            <div className="py-3 px-4 bg-emerald-50 text-emerald-700 rounded-2xl text-xs font-bold border border-emerald-100 flex items-center gap-2">
+                            <div style={{ padding: 'var(--cds-spacing-04)', background: '#defbe6', color: '#044317', border: '1px solid #24a148', fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
                                 <span>✅</span>
                                 GL Balance is healthy & synced.
                             </div>
@@ -215,29 +210,31 @@ export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ 
                 </div>
 
                 {/* Predictive GL Anomaly / Projected Cash Outflow */}
-                <div className={`bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl border border-indigo-500/30 shadow-2xl relative overflow-hidden text-white flex flex-col justify-center lg:col-span-1 ${compactMode ? 'p-5' : 'p-8'}`}>
-                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
-                    <div className="z-10 relative">
-                        <div className={`flex items-center gap-3 ${compactMode ? 'mb-2' : 'mb-4'}`}>
-                            <span className={`p-2 bg-indigo-500/20 text-indigo-300 rounded-xl ${compactMode ? 'scale-75' : ''}`}>🤖</span>
-                            <h3 className={`font-bold text-indigo-100 ${compactMode ? 'text-base' : 'text-lg'}`}>AI Cash Outflow Projection</h3>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-interactive-01)', background: '#161616', color: '#f4f4f4', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', marginBottom: 'var(--cds-spacing-04)' }}>
+                            <span style={{ fontSize: '1rem', color: '#4589ff' }}>🤖</span>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f4f4f4' }}>AI Cash Outflow Projection</h3>
                         </div>
-                        <div className={`font-medium text-slate-300 flex items-start gap-2 ${compactMode ? 'text-[10px] mb-3' : 'text-sm mb-6'}`}>
-                            <span className="text-amber-400 mt-0.5">⚡</span>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--cds-spacing-03)', fontSize: '0.75rem', fontFamily: 'monospace', color: '#c6c6c6', lineHeight: 1.5, marginBottom: 'var(--cds-spacing-06)' }}>
+                            <span style={{ color: '#f1c21b', marginTop: '2px' }}>⚡</span>
                             <span>Projected Cash Outflow for the next payroll cycle based on active contracts and planned 'Tech' department hires.</span>
                         </div>
-                        <div className="flex items-baseline gap-2">
-                            <span className={`font-black tracking-tight ${compactMode ? 'text-3xl' : 'text-5xl'}`}>{projectedOutflow.toLocaleString('en-KW', { minimumFractionDigits: 3 })}</span>
-                            <span className={`${compactMode ? 'text-base' : 'text-lg'} font-bold text-indigo-300 uppercase`}>KWD</span>
-                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)' }}>
+                        <span style={{ fontSize: '3rem', fontWeight: 700, fontFamily: 'monospace', color: '#fff', letterSpacing: '-0.02em' }}>{projectedOutflow.toLocaleString('en-KW', { minimumFractionDigits: 3 })}</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'monospace', color: '#4589ff', textTransform: 'uppercase' }}>KWD</span>
                     </div>
                 </div>
+            </div>
 
+            {/* Sub-Charts Layer */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: 'var(--cds-spacing-07)', alignItems: 'stretch' }}>
                 {/* Nationality-to-Expense Ratio */}
-                <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm ${compactMode ? 'p-5' : 'p-8'}`}>
-                    <h3 className={`font-bold text-slate-800 ${compactMode ? 'text-base mb-1' : 'text-lg mb-2'}`}>Nationality-to-Expense Ratio</h3>
-                    <p className={`font-medium text-slate-500 ${compactMode ? 'text-[10px] mb-3' : 'text-xs mb-6'}`}>Visualizing PIFSS impact vs Expat allowance mappings.</p>
-                    <div className={`${compactMode ? 'h-40' : 'h-48'} w-full`}>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-03)' }}>Nationality-to-Expense Ratio</h3>
+                    <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-06)' }}>Visualizing PIFSS impact vs Expat allowance mappings.</p>
+                    <div style={{ height: '240px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
@@ -257,26 +254,25 @@ export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ 
                                     formatter={(value: number) => [value.toLocaleString('en-KW', { minimumFractionDigits: 3 }) + ' KWD', 'Total Expense']}
                                     contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 />
-                                <Legend iconType="circle" />
+                                <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem', fontFamily: 'monospace' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
-            </div>
 
-            {/* Cost Center Efficiency / Flow of Funds */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
-                <div className="flex justify-between items-start mb-6">
-                    <div>
-                        <h3 className="font-bold text-slate-800 text-lg">Flow of Funds</h3>
-                        <p className="text-xs font-medium text-slate-500 mt-1">Sankey diagram showing how payroll funds flow from the 'Bank Account' GL into specific 'Cost Centers'.</p>
+                {/* Cost Center Efficiency / Flow of Funds */}
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--cds-spacing-06)' }}>
+                        <div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Flow of Funds</h3>
+                            <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Sankey diagram showing how payroll funds flow from the 'Bank Account' GL into specific 'Cost Centers'.</p>
+                        </div>
+                        <div style={{ padding: 'var(--cds-spacing-03)', background: '#fdf6e3', color: '#8a6d3b', border: '1px solid #fcf0cb', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                            <span>⚠️</span>
+                            AI Insight: Housing Allowances for Expat group in Tech is trending upwards.
+                        </div>
                     </div>
-                    <div className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 flex items-center gap-2">
-                        <span>⚠️</span>
-                        AI Insight: Housing Allowances for Expat group in Tech is trending upwards.
-                    </div>
-                </div>
-                <div className="h-64 w-full">
+                    <div style={{ height: '280px', width: '100%' }}>
                     {fundsFlow.links.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <Sankey
@@ -292,22 +288,23 @@ export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ 
                             </Sankey>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-slate-400 font-medium text-sm">
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--cds-text-disabled)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
                             No funding flow data available. Please generate a JV first.
                         </div>
                     )}
                 </div>
             </div>
+            </div>
 
             {/* Monthly Net Payroll Area Chart */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
-                <div className="flex justify-between items-start mb-6">
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--cds-spacing-06)' }}>
                     <div>
-                        <h3 className="font-bold text-slate-800 text-lg">Monthly Net Payroll by Cost Center</h3>
-                        <p className="text-xs font-medium text-slate-500 mt-1">Area chart tracking localized net pay distribution.</p>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Monthly Net Payroll by Cost Center</h3>
+                        <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Area chart tracking localized net pay distribution.</p>
                     </div>
                 </div>
-                <div className="h-64 w-full">
+                <div style={{ height: '320px', width: '100%' }}>
                     {monthlyNetData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={monthlyNetData}>
@@ -320,12 +317,12 @@ export const FinanceIntelligenceHub: React.FC<FinanceIntelligenceHubProps> = ({ 
                                 <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                                 <Bar dataKey="Total Net Payroll" barSize={40} fill="#f1f5f9" radius={[8, 8, 0, 0]} />
                                 {Object.keys(monthlyNetData[0] || {}).filter(k => k !== 'name' && k !== 'Total Net Payroll' && k !== 'sortKey').map((key, i) => (
-                                    <Line type="monotone" strokeWidth={3} key={key} dataKey={key} stroke={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'][i % 6]} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                    <Line type="monotone" strokeWidth={2} key={key} dataKey={key} stroke={['#10b981', '#0f62fe', '#f1c21b', '#da1e28', '#8a3ffc', '#0043ce'][i % 6]} dot={{ r: 3, strokeWidth: 1 }} activeDot={{ r: 5 }} />
                                 ))}
                             </ComposedChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-slate-400 font-medium text-sm">
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--cds-text-disabled)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
                             No net payroll data available.
                         </div>
                     )}

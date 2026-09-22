@@ -30,7 +30,7 @@ try {
         console.log(`Found ${items?.length || 0} items to fix.`);
 
         for (const item of (items || [])) {
-            const { data: lreq } = await supabase.from('leave_requests').select('type').eq('id', (item as any).payroll_runs.target_leave_id).single();
+            const { data: lreq } = await supabase.from('leave_requests').select('type').eq('id', item.payroll_runs?.target_leave_id).single();
             const isSick = lreq?.type === 'Sick';
             const isHajj = lreq?.type === 'Hajj';
 

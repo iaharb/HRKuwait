@@ -1,17 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, View } from '../types/types';
+import { User } from '../types/types';
 import { dbService } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../services/supabaseClient.ts';
 
 interface ApprovalsViewProps {
     user: User;
     compactMode?: boolean;
 }
 
-export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode }) => {
+export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user }) => {
     const { t, i18n } = useTranslation();
     const { notify } = useNotifications();
     const [activeTab, setActiveTab] = useState<'overtime' | 'leaves' | 'profile'>('overtime');
@@ -20,8 +18,33 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
     const [profileRequests, setProfileRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [departments, setDepartments] = useState<string[]>([]);
+    
+    // Filter State
+    const [filterDept, setFilterDept] = useState<string>('ALL');
+    const [filterMonth, setFilterMonth] = useState<string>('ALL');
+    const [searchTerm, setSearchTerm] = useState<string>('');
+
+    const months = [
+        { val: 'ALL', label: i18n.language === 'ar' ? 'الكل' : 'All Months' },
+        { val: '01', label: i18n.language === 'ar' ? 'يناير' : 'January' },
+        { val: '02', label: i18n.language === 'ar' ? 'فبراير' : 'February' },
+        { val: '03', label: i18n.language === 'ar' ? 'مارس' : 'March' },
+        { val: '04', label: i18n.language === 'ar' ? 'أبريل' : 'April' },
+        { val: '05', label: i18n.language === 'ar' ? 'مايو' : 'May' },
+        { val: '06', label: i18n.language === 'ar' ? 'يونيو' : 'June' },
+        { val: '07', label: i18n.language === 'ar' ? 'يوليو' : 'July' },
+        { val: '08', label: i18n.language === 'ar' ? 'أغسطس' : 'August' },
+        { val: '09', label: i18n.language === 'ar' ? 'سبتمبر' : 'September' },
+        { val: '10', label: i18n.language === 'ar' ? 'أكتوبر' : 'October' },
+        { val: '11', label: i18n.language === 'ar' ? 'نوفمبر' : 'November' },
+        { val: '12', label: i18n.language === 'ar' ? 'ديسمبر' : 'December' }
+    ];
+
     const fetchData = async () => {
         setLoading(true);
+        setSelectedIds([]); 
         try {
             const roles = ['Admin', 'Executive', 'HR Manager', 'HR Officer', 'Payroll Manager', 'HR', 'Mandoob', 'Payroll Officer'];
             const isExecOrHr = roles.some(r => r.toLowerCase() === user.role.toLowerCase());
@@ -37,21 +60,27 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
                 });
             };
 
-            // Fetch each independently so one failure doesn't block the others
+            try {
+                const depts = await dbService.getDepartmentMetrics();
+                setDepartments(depts.map(d => d.name));
+            } catch (e) { console.error('Depts fetch failed:', e); }
+
             try {
                 const ot = await dbService.getOvertimeApprovals();
-                setOvertimeRequests(filterItems(ot, 'employees.department', 'employees.manager_id').filter((r: any) => r.status !== 'APPROVED_FOR_PAYROLL' && r.status !== 'REJECTED'));
+                const filteredOt = filterItems(ot, 'employees.department', 'employees.manager_id').filter((r: any) => r.status !== 'APPROVED_FOR_PAYROLL' && r.status !== 'REJECTED');
+                setOvertimeRequests(filteredOt);
             } catch (e) { console.error('OT fetch failed:', e); }
 
             try {
                 const leaves = await dbService.getLeaveRequests();
-                console.log('[ApprovalsView] Raw leaves fetched:', leaves.length, 'statuses:', leaves.map((l: any) => l.status));
-                setLeaveRequests(filterItems(leaves, 'department', 'managerId').filter((r: any) => ['Pending', 'Pending_Manager', 'Manager_Approved', 'Rejected', 'Rejected_By_Manager'].includes(r.status)));
+                const filteredLeaves = filterItems(leaves, 'department', 'managerId').filter((r: any) => ['Pending', 'Pending_Manager', 'Manager_Approved', 'Rejected', 'Rejected_By_Manager'].includes(r.status));
+                setLeaveRequests(filteredLeaves);
             } catch (e) { console.error('Leaves fetch failed:', e); }
 
             try {
                 const prof = await dbService.getProfileUpdateRequests();
-                setProfileRequests(filterItems(prof, 'employees.department', 'employees.manager_id').filter((r: any) => r.status === 'PENDING'));
+                const filteredProf = filterItems(prof, 'employees.department', 'employees.manager_id').filter((r: any) => r.status === 'PENDING');
+                setProfileRequests(filteredProf);
             } catch (e) { console.error('Profile fetch failed:', e); }
         } catch (error) {
             console.error('Failed to fetch approvals:', error);
@@ -60,9 +89,59 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
         }
     };
 
+    const getFilteredItems = (items: any[], type: 'overtime' | 'leaves' | 'profile') => {
+        return items.filter(item => {
+            const empName = (type === 'leaves' ? (item.employeeName || '') : (item.employees?.name || '')).toLowerCase();
+            const empDept = (type === 'leaves' ? (item.department || '') : (item.employees?.department || ''));
+            let dateStr = item.created_at;
+            if (type === 'leaves') {
+                dateStr = item.startDate;
+            } else if (type === 'overtime') {
+                dateStr = item.effective_date;
+                if (!dateStr && item.notes) {
+                    const match = item.notes.match(/on (\d{4}-\d{2}-\d{2})|for (\d{4}-\d{2}-\d{2})/);
+                    if (match) dateStr = match[1] || match[2];
+                }
+            }
+            
+            let itemMonth: string | null = null;
+            if (dateStr) {
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) {
+                    itemMonth = (d.getMonth() + 1).toString().padStart(2, '0');
+                }
+            }
+            
+            const matchSearch = searchTerm === '' || empName.includes(searchTerm.toLowerCase());
+            const matchDept = filterDept === 'ALL' || empDept === filterDept;
+            const matchMonth = filterMonth === 'ALL' || (itemMonth && itemMonth === filterMonth);
+            
+            return matchSearch && matchDept && matchMonth;
+        });
+    };
+
+    const filteredOvertime = getFilteredItems(overtimeRequests, 'overtime').sort((a, b) => {
+        const getDate = (item: any) => {
+            let dStr = item.effective_date;
+            if (!dStr && item.notes) {
+                const match = item.notes.match(/on (\d{4}-\d{2}-\d{2})|for (\d{4}-\d{2}-\d{2})/);
+                if (match) dStr = match[1] || match[2];
+            }
+            return dStr ? new Date(dStr).getTime() : 0;
+        };
+        return getDate(b) - getDate(a);
+    });
+    const filteredLeaves = getFilteredItems(leaveRequests, 'leaves');
+    const filteredProfile = getFilteredItems(profileRequests, 'profile');
+    const currentListToDisplay = activeTab === 'overtime' ? filteredOvertime : activeTab === 'leaves' ? filteredLeaves : filteredProfile;
+
     useEffect(() => {
         fetchData();
     }, [user]);
+
+    useEffect(() => {
+        setSelectedIds([]);
+    }, [activeTab]);
 
     const handleUpdateStatus = async (item: any, newStatus: string, successMsg: string) => {
         try {
@@ -74,7 +153,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
         }
     };
 
-    const handleUpdateLeave = async (item: any, newStatus: 'Pending' | 'Manager_Approved' | 'HR_Approved' | 'Resumed' | 'Rejected' | 'HR_Finalized' | 'Paid' | 'Pushed_To_Payroll', note: string) => {
+    const handleUpdateLeave = async (item: any, newStatus: any, note: string) => {
         try {
             await dbService.updateLeaveRequestStatus(item.id, newStatus, user, note);
             notify(t('success'), `Leave ${newStatus.replace('_', ' ')}`, 'success');
@@ -95,255 +174,198 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({ user, compactMode 
         }
     };
 
+    const toggleSelectAll = () => {
+        if (selectedIds.length === currentListToDisplay.length && currentListToDisplay.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(currentListToDisplay.map(i => i.id));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    const handleBatchAction = async (action: 'approve' | 'reject') => {
+        if (selectedIds.length === 0) return;
+        setLoading(true);
+        try {
+            const promises = selectedIds.map(async (id) => {
+                const item = activeTab === 'overtime' ? overtimeRequests.find(i => i.id === id) : activeTab === 'leaves' ? leaveRequests.find(i => i.id === id) : profileRequests.find(i => i.id === id);
+                if (!item) return;
+
+                if (activeTab === 'overtime') {
+                    if (action === 'approve') {
+                        let next = 'PENDING_HR';
+                        if (item.status === 'PENDING_HR') next = 'PENDING_PAYROLL';
+                        if (item.status === 'PENDING_PAYROLL') next = 'APPROVED_FOR_PAYROLL';
+                        await dbService.updateVariableCompStatus(id, next);
+                    } else {
+                        await dbService.updateVariableCompStatus(id, 'REJECTED');
+                    }
+                } else if (activeTab === 'leaves') {
+                    if (action === 'approve') {
+                        let next: any = 'Manager_Approved';
+                        if (item.status === 'Manager_Approved') next = 'HR_Approved';
+                        await dbService.updateLeaveRequestStatus(id, next, user, 'Batch approval');
+                    } else {
+                        await dbService.updateLeaveRequestStatus(id, 'Rejected', user, 'Batch rejection');
+                    }
+                } else if (activeTab === 'profile') {
+                    if (action === 'approve') await dbService.approveProfileUpdate(id, user.id);
+                    else await dbService.rejectProfileUpdate(id, 'Batch rejection');
+                }
+            });
+
+            await Promise.all(promises);
+            notify(t('success'), `Batch ${action} completed`, 'success');
+            fetchData();
+        } catch (error) {
+            notify(t('error'), 'Batch action failed', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const getStatusBadge = (status: string) => {
         const s = status.toUpperCase();
-        if (s.includes('PENDING_MANAGER')) return <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-black border border-amber-200 uppercase tracking-widest">Manager Action</span>;
-        if (s.includes('PENDING_HR')) return <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-200 uppercase tracking-widest">HR Ack</span>;
-        if (s.includes('PENDING_PAYROLL')) return <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black border border-indigo-200 uppercase tracking-widest">Payroll Action</span>;
-        return <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black border border-emerald-200 uppercase tracking-widest">{status.replace('_', ' ')}</span>;
+        if (s.includes('PENDING_MANAGER')) return <span className="cds--tag cds--tag--warm-gray" style={{ fontSize: '0.625rem' }}>Manager Action</span>;
+        if (s.includes('PENDING_HR')) return <span className="cds--tag cds--tag--blue" style={{ fontSize: '0.625rem' }}>HR Ack</span>;
+        if (s.includes('PENDING_PAYROLL')) return <span className="cds--tag cds--tag--gray" style={{ fontSize: '0.625rem' }}>Payroll Action</span>;
+        if (s.includes('APPROVED')) return <span className="cds--tag cds--tag--green" style={{ fontSize: '0.625rem' }}>Approved</span>;
+        if (s.includes('REJECTED')) return <span className="cds--tag cds--tag--red" style={{ fontSize: '0.625rem' }}>Rejected</span>;
+        return <span className="cds--tag cds--tag--cyan" style={{ fontSize: '0.625rem' }}>{status.replace('_', ' ')}</span>;
     };
 
     return (
-        <div className={`${compactMode ? 'space-y-4' : 'space-y-8'} animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 text-start`}>
-            <div className={`flex flex-col md:flex-row md:items-center justify-between ${compactMode ? 'gap-2' : 'gap-6'}`}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.7s ease' }}>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--cds-spacing-01)' }}>
                 <div>
-                    <h2 className={`${compactMode ? 'text-xl' : 'text-4xl'} font-black text-slate-900 tracking-tighter uppercase`}>{t('approvalsWorkflow')}</h2>
-                    <p className="text-slate-500 font-medium mt-1">{t('reviewActionPendingItems')}</p>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Workflow Approvals</h2>
+                    <p style={{ color: 'var(--cds-text-secondary)', fontSize: '0.875rem' }}>Authorize pending requests across departments.</p>
                 </div>
+                {selectedIds.length > 0 && (
+                    <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+                        <button onClick={() => handleBatchAction('approve')} className="cds--btn cds--btn--primary cds--btn--sm">Approve Batch ({selectedIds.length})</button>
+                        <button onClick={() => handleBatchAction('reject')} className="cds--btn cds--btn--danger cds--btn--sm">Reject Set</button>
+                    </div>
+                )}
+            </header>
 
-                <div className="flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
-                    <button onClick={() => setActiveTab('overtime')} className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'overtime' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>OVERTIME</button>
-                    <button onClick={() => setActiveTab('leaves')} className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'leaves' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>LEAVES</button>
-                    <button onClick={() => setActiveTab('profile')} className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'profile' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PROFILE</button>
-                </div>
+            {/* Standardized Tabs Navigation - Single Row Pattern */}
+            <div className="cds--tabs" style={{ marginBottom: 'var(--cds-spacing-03)', width: '100%', overflowX: 'auto', background: 'var(--cds-background)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                <ul className="cds--tabs__nav" role="tablist" style={{ display: 'flex', gap: '2px', padding: 0, margin: 0, listStyle: 'none' }}>
+                    {[
+                        { id: 'overtime' as const, label: t('overtime'), count: overtimeRequests.length, icon: '⏱️' },
+                        { id: 'leaves' as const, label: t('leaves'), count: leaveRequests.length, icon: '📅' },
+                        { id: 'profile' as const, label: t('profile'), count: profileRequests.length, icon: '👤' }
+                    ].map(tab => (
+                        <li 
+                            key={tab.id}
+                            className={`cds--tabs__nav-item ${activeTab === tab.id ? 'cds--tabs__nav-item--selected' : ''}`}
+                            role="presentation"
+                            style={{ flex: '1 0 auto', minWidth: '120px' }}
+                        >
+                            <button
+                                className="cds--tabs__nav-link"
+                                onClick={() => { setActiveTab(tab.id); setSelectedIds([]); }}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '0 var(--cds-spacing-05)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: activeTab === tab.id ? 600 : 400,
+                                    background: activeTab === tab.id ? 'var(--cds-layer-01)' : 'transparent',
+                                    color: activeTab === tab.id ? 'var(--cds-interactive-01)' : 'var(--cds-text-secondary)',
+                                    border: 'none',
+                                    borderBottom: activeTab === tab.id ? '2px solid var(--cds-interactive-01)' : '2px solid transparent',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 'var(--cds-spacing-03)',
+                                    height: '40px',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <span style={{ opacity: activeTab === tab.id ? 1 : 0.6 }}>{tab.icon}</span>
+                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tab.label} ({tab.count})</span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </div>
 
-            {
-                loading ? (
-                    <div className="bg-white rounded-[40px] p-20 border border-slate-200 flex flex-col items-center justify-center animate-pulse">
-                        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{t('synthesizing')}</p>
-                    </div>
-                ) : activeTab === 'overtime' ? (
-                    <div className={`bg-white ${compactMode ? 'rounded-2xl' : 'rounded-[40px]'} border border-slate-200 shadow-xl shadow-slate-900/[0.02] overflow-hidden`}>
-                        <table className="w-full text-start">
-                            <thead className={`bg-slate-50 border-b border-slate-100 ${compactMode ? 'text-[9px]' : 'text-[10px]'} font-black text-slate-400 uppercase tracking-widest`}>
-                                <tr>
-                                    <th className={`${compactMode ? 'px-4 py-2' : 'px-8 py-5'}`}>{t('employee')}</th>
-                                    <th className={`${compactMode ? 'px-4 py-2' : 'px-8 py-5'}`}>Type</th>
-                                    <th className={`${compactMode ? 'px-4 py-2' : 'px-8 py-5'}`}>{t('hours')}</th>
-                                    <th className={`${compactMode ? 'px-4 py-2' : 'px-8 py-5'}`}>{t('status')}</th>
-                                    <th className={`${compactMode ? 'px-4 py-2' : 'px-8 py-5'} text-end`}>{t('actions')}</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {overtimeRequests.length > 0 ? overtimeRequests.map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-6">
-                                            <p className="font-black text-slate-900 text-base">{i18n.language === 'ar' ? item.employees?.name_arabic || item.employees?.name : item.employees?.name}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.employees?.department}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="text-xs font-black text-slate-600 uppercase tracking-widest">{item.sub_type?.replace('_', ' ') || 'OVERTIME'}</p>
-                                            <p className="text-[9px] text-slate-400 mt-1 max-w-[200px] truncate">{item.notes}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="inline-flex flex-col">
-                                                <p className="text-lg font-black text-indigo-600 leading-none">{item.amount}</p>
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mt-1">{t('hours')}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            {getStatusBadge(item.status)}
-                                        </td>
-                                        <td className="px-8 py-6 text-end">
-                                            <div className="flex justify-end gap-3">
-                                                {item.status === 'PENDING_MANAGER' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleUpdateStatus(item, 'PENDING_HR', 'Overtime approved by Manager')}
-                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUpdateStatus(item, 'REJECTED', 'Overtime rejected')}
-                                                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-200 transition-all active:scale-95"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {item.status === 'PENDING_HR' && ['Admin', 'HR Manager', 'Executive'].includes(user.role) && (
-                                                    <button
-                                                        onClick={() => handleUpdateStatus(item, 'PENDING_PAYROLL', 'Overtime acknowledged by HR')}
-                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                    >
-                                                        Acknowledge (HR)
-                                                    </button>
-                                                )}
-                                                {item.status === 'PENDING_PAYROLL' && ['Admin', 'Payroll Manager', 'Payroll Officer'].includes(user.role) && (
-                                                    <button
-                                                        onClick={() => handleUpdateStatus(item, 'APPROVED_FOR_PAYROLL', 'Overtime pushed to Payroll')}
-                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                    >
-                                                        Process to Payroll
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={5} className="px-8 py-32 text-center text-slate-300 italic font-medium uppercase tracking-[0.3em]">
-                                            {t('clearSet')}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : activeTab === 'leaves' ? (
-                    <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] overflow-hidden">
-                        <table className="w-full text-start">
-                            <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                                <tr>
-                                    <th className="px-8 py-6">{t('employee')}</th>
-                                    <th className="px-8 py-6">{t('leaveType')}</th>
-                                    <th className="px-8 py-6">{t('duration')}</th>
-                                    <th className="px-8 py-6">{t('status')}</th>
-                                    <th className="px-8 py-6 text-end">{t('actions')}</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {leaveRequests.length > 0 ? leaveRequests.map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-6">
-                                            <p className="font-black text-slate-900 text-base">{item.employeeName}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.department}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xl">{item.type === 'Annual' ? '🌴' : item.type === 'Sick' ? '🤒' : '🚶'}</span>
-                                                <p className="text-xs font-black text-slate-600 uppercase tracking-widest">{item.type}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="text-lg font-black text-indigo-600 leading-none">{item.days ? item.days : item.durationHours}</p>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mt-1">{item.days ? t('members') : t('hours')}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            {getStatusBadge(item.status)}
-                                        </td>
-                                        <td className="px-8 py-6 text-end">
-                                            <div className="flex justify-end gap-3">
-                                                {(item.status === 'Pending' || item.status === 'Pending_Manager') && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleUpdateLeave(item, 'Manager_Approved', 'Manager generic approval')}
-                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUpdateLeave(item, 'Rejected', 'Rejected by Manager')}
-                                                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-200 transition-all active:scale-95"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {item.status === 'Manager_Approved' && ['Admin', 'HR', 'HR Manager', 'Executive'].includes(user.role) && (
-                                                    <button
-                                                        onClick={() => handleUpdateLeave(item, 'HR_Approved', 'HR final review')}
-                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                    >
-                                                        HR Sign-off
-                                                    </button>
-                                                )}
-                                                {['Rejected', 'Rejected_By_Manager'].includes(item.status) && ['Admin', 'HR', 'HR Manager', 'Executive', 'Manager', 'HR Officer', 'Payroll Manager', 'Payroll Officer', 'Mandoob'].some(r => r.toLowerCase() === user.role.toLowerCase()) && (
-                                                    <button
-                                                        onClick={() => handleUpdateLeave(item, 'Pending', 'Re-opened to pending workflow')}
-                                                        className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                    >
-                                                        Re-open (Pending)
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={5} className="px-8 py-32 text-center text-slate-300 italic font-medium uppercase tracking-[0.3em]">
-                                            {t('clearSet')}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+            <div style={{ display: 'flex', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', flexWrap: 'wrap' }}>
+                <input 
+                    className="cds--text-input cds--text-input--sm"
+                    placeholder="Search employee or role..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '32px' }}
+                />
+                <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="cds--select-input" style={{ width: '180px', height: '32px' }}>
+                    <option value="ALL">All Departments</option>
+                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="cds--select-input" style={{ width: '150px', height: '32px' }}>
+                    {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+                </select>
+                <button onClick={fetchData} className="cds--btn cds--btn--ghost cds--btn--sm" style={{ height: '32px' }}>{t('sync')} 🔄</button>
+            </div>
+
+            <div style={{ border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', overflowX: 'auto' }}>
+                {loading ? (
+                    <div style={{ padding: 'var(--cds-spacing-10)', textAlign: 'center', color: 'var(--cds-text-secondary)' }}>
+                        <div className="cds--loading cds--loading--small" style={{ margin: '0 auto var(--cds-spacing-05) auto' }}></div>
+                        Fetching encrypted ledger data...
                     </div>
                 ) : (
-                    <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] overflow-hidden">
-                        <table className="w-full text-start">
-                            <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                                <tr>
-                                    <th className="px-8 py-6">{t('employee')}</th>
-                                    <th className="px-8 py-6">Update Field</th>
-                                    <th className="px-8 py-6">New Value</th>
-                                    <th className="px-8 py-6">{t('status')}</th>
-                                    <th className="px-8 py-6 text-end">{t('actions')}</th>
+                    <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '40px' }}><input type="checkbox" onChange={toggleSelectAll} checked={currentListToDisplay.length > 0 && selectedIds.length === currentListToDisplay.length} /></th>
+                                <th>{t('members')}</th>
+                                <th>Node Context</th>
+                                <th>Quantum</th>
+                                <th>Ledger Status</th>
+                                <th style={{ textAlign: 'right' }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {currentListToDisplay.length > 0 ? currentListToDisplay.map((item) => (
+                                <tr key={item.id}>
+                                    <td><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} /></td>
+                                    <td>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                                          <div style={{ width: '24px', height: '24px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                                            {(activeTab === 'leaves' ? item.employeeName : item.employees?.name)?.[0] || '?'}
+                                          </div>
+                                          <div>
+                                              <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{activeTab === 'leaves' ? item.employeeName : item.employees?.name}</div>
+                                              <div style={{ fontSize: '0.625rem', opacity: 0.6, textTransform: 'uppercase' }}>{activeTab === 'leaves' ? item.department : item.employees?.department}</div>
+                                          </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span style={{ fontSize: '0.75rem' }}>
+                                            {activeTab === 'overtime' ? (item.sub_type?.replace('_', ' ') || 'OT_LOG') : activeTab === 'leaves' ? item.type : `PROFILE_SYNC`}
+                                        </span>
+                                    </td>
+                                    <td style={{ fontWeight: 600, fontSize: '0.75rem' }}>{activeTab === 'overtime' ? `${item.amount}h` : activeTab === 'leaves' ? `${item.days || item.durationHours}${item.days ? 'd' : 'h'}` : '--'}</td>
+                                    <td>{getStatusBadge(item.status)}</td>
+                                    <td style={{ textAlign: 'right' }}>
+                                        {activeTab === 'overtime' && item.status === 'PENDING_MANAGER' && <button onClick={() => handleUpdateStatus(item, 'PENDING_HR', 'Authorized')} className="cds--btn cds--btn--ghost cds--btn--sm">{i18n.language === 'ar' ? 'اعتماد' : 'Authorize'}</button>}
+                                        {activeTab === 'leaves' && (item.status === 'Pending' || item.status === 'Pending_Manager') && <button onClick={() => handleUpdateLeave(item, 'Manager_Approved', 'Approved')} className="cds--btn cds--btn--ghost cds--btn--sm">{i18n.language === 'ar' ? 'موافقة' : 'Approve'}</button>}
+                                        {activeTab === 'profile' && item.status === 'PENDING' && <button onClick={() => handleUpdateProfile(item, 'approve')} className="cds--btn cds--btn--ghost cds--btn--sm">{i18n.language === 'ar' ? 'مراجعة' : 'Review'}</button>}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {profileRequests.length > 0 ? profileRequests.map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-6">
-                                            <p className="font-black text-slate-900 text-base">{item.employees?.name}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.employees?.department}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 font-mono text-xs rounded-lg">{item.field_name}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="text-sm font-black text-emerald-600 truncate max-w-[200px]">{item.new_value}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 line-through mt-0.5 truncate max-w-[200px]">{item.old_value}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            {getStatusBadge(item.status)}
-                                        </td>
-                                        <td className="px-8 py-6 text-end">
-                                            <div className="flex justify-end gap-3">
-                                                {item.status === 'PENDING' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleUpdateProfile(item, 'approve')}
-                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUpdateProfile(item, 'reject')}
-                                                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-200 transition-all active:scale-95"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={5} className="px-8 py-32 text-center text-slate-300 italic font-medium uppercase tracking-[0.3em]">
-                                            {t('clearSet')}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )
-            }
-        </div >
+                            )) : (
+                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 'var(--cds-spacing-10)', color: 'var(--cds-text-disabled)', fontStyle: 'italic' }}>No pending ledger nodes found for this criteria.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </div>
     );
 };

@@ -41,23 +41,38 @@ const IntelligentTicker: React.FC = () => {
   if (announcements.length === 0) return null;
 
   return (
-    <div className="relative h-8 bg-white border border-slate-200/40 rounded-xl overflow-hidden flex items-center mb-6 shrink-0 shadow-sm" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className={`absolute ${isAr ? 'right-0' : 'left-0'} top-0 bottom-0 px-4 bg-indigo-600 text-white flex items-center z-10 font-black text-[8px] uppercase tracking-[0.2em]`}>
+    <div style={{ position: 'relative', height: '24px', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', overflow: 'hidden', display: 'flex', alignItems: 'center', marginBottom: 'var(--cds-spacing-04)', flexShrink: 0 }} dir={isAr ? 'rtl' : 'ltr'}>
+      <div style={{ 
+        position: 'absolute', 
+        [isAr ? 'right' : 'left']: 0, 
+        top: 0, 
+        bottom: 0, 
+        padding: '0 var(--cds-spacing-04)', 
+        background: 'var(--cds-interactive-01)', 
+        color: '#ffffff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        zIndex: 10, 
+        fontSize: '0.625rem', 
+        fontWeight: 600, 
+        textTransform: 'uppercase', 
+        letterSpacing: '0.1em' 
+      }}>
         {t('registryIntelligence')}
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="animate-ticker-pro py-1">
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="animate-ticker-pro">
           {/* Render multiple times to ensure enough width for the loop animation */}
           {[...announcements, ...announcements].map((ann, idx) => {
             const title = isAr && ann.titleArabic ? ann.titleArabic : ann.title;
             const content = isAr && ann.contentArabic ? ann.contentArabic : ann.content;
             return (
-              <div key={`${ann.id}-${idx}`} className="inline-flex items-center gap-3 mx-8 text-[10px] font-bold text-slate-500">
-                <div className={`w-1.5 h-1.5 rounded-full ${ann.priority === 'Urgent' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-400'}`}></div>
-                <span className="text-slate-900 font-black uppercase tracking-tight">{title}</span>
-                <span className="opacity-30">/</span>
-                <span className="font-medium whitespace-nowrap">{content}</span>
+              <div key={`${ann.id}-${idx}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', margin: '0 var(--cds-spacing-07)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: ann.priority === 'Urgent' ? 'var(--cds-text-error)' : 'var(--cds-interactive-01)' }}></div>
+                <span style={{ color: 'var(--cds-text-primary)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
+                <span style={{ opacity: 0.3 }}>/</span>
+                <span style={{ fontWeight: 400, whiteSpace: 'nowrap' }}>{content}</span>
               </div>
             );
           })}

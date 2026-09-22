@@ -21,10 +21,25 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
     const [kpiScores, setKpiScores] = useState<{ name: string, weight: number, score: number }[]>([]);
     const [quarter, setQuarter] = useState<string>('');
-    const [activeTab, setActiveTab] = useState<'employee' | 'department' | 'company'>('employee');
+    const [activeTab, setActiveTab] = useState<'employee' | 'department' | 'company' | 'templates'>('employee');
 
     // For Executive / HR View
     const [pendingEvals, setPendingEvals] = useState<EmployeeEvaluation[]>([]);
+
+    // Template Modal State
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState<Partial<KPITemplate> | null>(null);
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    // History Modal State
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [editingEvaluation, setEditingEvaluation] = useState<EmployeeEvaluation | null>(null);
+    const [isSavingHistory, setIsSavingHistory] = useState(false);
+
+    // Finance / Profit Sharing
+    const [financeNetProfit, setFinanceNetProfit] = useState<number>(0);
+    const [isUpdatingProfit, setIsUpdatingProfit] = useState(false);
+    const [profitPools, setProfitPools] = useState<any[]>([]);
 
     useEffect(() => {
         fetchData();
@@ -37,31 +52,27 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const emps = await dbService.getEmployees();
-            // Managers evaluate their team. Executives and HR evaluate everyone/see everything.
-            const isManagerOrAdmin = ['Admin', 'Manager', 'Executive', 'HR', 'HR Manager'].includes(user.role);
+            const [emps, tmpls, allEvals] = await Promise.all([
+                dbService.getEmployees(),
+                dbService.getKPITemplates(),
+                dbService.getEmployeeEvaluations()
+            ]);
 
-            if (['Manager'].includes(user.role)) {
-                setEmployees(emps.filter(e => e.managerId === user.id));
-            } else {
-                setEmployees(emps);
-            }
-
-            const tmpls = await dbService.getKPITemplates();
             setTemplates(tmpls);
 
-            const evals = await dbService.getEmployeeEvaluations();
-            if (['Manager'].includes(user.role)) {
-                setEvaluations(evals.filter(e => e.evaluatorId === user.id));
+            if (user.role === 'Manager') {
+                setEmployees(emps.filter(e => e.managerId === user.id));
+                setEvaluations(allEvals.filter(e => e.evaluatorId === user.id));
             } else {
-                setEvaluations(evals);
+                setEmployees(emps);
+                setEvaluations(allEvals);
             }
 
-            // Extract pending for approval queues
+            // Approval queues for Exec/HR
             if (['Executive', 'Admin'].includes(user.role)) {
-                setPendingEvals(evals.filter(e => e.status === 'PENDING_EXEC'));
+                setPendingEvals(allEvals.filter(e => e.status === 'PENDING_EXEC'));
             } else if (['HR', 'HR Manager'].includes(user.role)) {
-                setPendingEvals(evals.filter(e => e.status === 'PENDING_HR'));
+                setPendingEvals(allEvals.filter(e => e.status === 'PENDING_HR'));
             }
 
         } catch (err: any) {
@@ -71,29 +82,71 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
         }
     };
 
-    const handleTemplateSelect = (tmplId: string) => {
-        setSelectedTemplate(tmplId);
-        const tmpl = templates.find(t => t.id === tmplId);
-        if (tmpl) {
-            setKpiScores(tmpl.kpis.map(k => ({ name: k.name, weight: k.weight, score: 0 })));
-        } else {
+    const loadKpisForEmployee = (empId: string) => {
+        if (!empId) {
             setKpiScores([]);
+            return;
         }
+        const emp = employees.find(e => e.id === empId);
+        if (!emp) return;
+
+        let assignedIds = emp.kpiTemplateIds || [];
+        if (assignedIds.length === 0) {
+            const defaultTmpl = templates.find(t => t.department === emp.department);
+            if (defaultTmpl) assignedIds = [defaultTmpl.id];
+        }
+
+        const assignedTemplates = templates.filter(t => assignedIds.includes(t.id));
+        if (assignedTemplates.length === 0) {
+            setKpiScores([]);
+            return;
+        }
+
+        // Combine all KPIs from all assigned templates
+        const combined: { name: string, weight: number, score: number }[] = [];
+        assignedTemplates.forEach(t => {
+            t.kpis.forEach(k => {
+                // Normalize weight based on number of templates so total sum is roughly 100
+                combined.push({
+                    name: `[${t.title}] ${k.name}`,
+                    weight: Number(k.weight) / assignedTemplates.length,
+                    score: 0
+                });
+            });
+        });
+        setKpiScores(combined);
+    };
+
+    const handleEmployeeSelect = (empId: string) => {
+        setSelectedEmployee(empId);
+        loadKpisForEmployee(empId);
+    };
+
+    const calculatePerformancePoints = (score: number) => {
+        // Convert % to 1-5 point scale
+        if (score >= 0.95) return 5;
+        if (score >= 0.85) return 4;
+        if (score >= 0.70) return 3;
+        if (score >= 0.50) return 2;
+        return 1;
     };
 
     const calculateTotalScore = () => {
-        return kpiScores.reduce((sum, kpi) => sum + (kpi.weight * (kpi.score / 100)), 0);
+        const total = kpiScores.reduce((sum, kpi) => sum + (kpi.weight * kpi.score), 0);
+        return total / 10000;
     };
 
     const handleSubmitEvaluation = async () => {
-        if (!selectedEmployee || !selectedTemplate || kpiScores.length === 0) {
-            notify('Validation Error', 'Please select an employee and KPI template.', 'error');
+        if (!selectedEmployee || kpiScores.length === 0) {
+            notify('Validation Error', 'Please select an employee and wait for KPIs to load.', 'error');
             return;
         }
 
         const totalWeight = kpiScores.reduce((sum, kpi) => sum + Number(kpi.weight), 0);
-        if (totalWeight !== 100) {
-            notify('Validation Error', `Total KPI weights must equal 100%. Currently: ${totalWeight}%`, 'error');
+        // Do not strictly check 100% since multiple templates might scale them uniquely, but we normalized them.
+        // Actually since we normalized: weight = k.weight / templates.length. So total should be exactly 100%.
+        if (totalWeight < 90 || totalWeight > 110) {
+            notify('Validation Error', `Total KPI weights seem incorrect. Contact admin. Currently: ${totalWeight}%`, 'error');
             return;
         }
 
@@ -125,7 +178,13 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
         }
 
         const totalScore = calculateTotalScore();
-        const calculatedKwd = (emp.salary * totalScore) * proRataFactor;
+        const scorePoint = calculatePerformancePoints(totalScore);
+        
+        // 1. Performance Bonus logic (Max 10% of salary per quarter)
+        // Rating 5 = 10%, 4 = 8%, 3 = 6%, 2 = 4%, 1 = 2%
+        const ratePerPoint = 0.02; // 2% per point
+        const bonusPct = scorePoint * ratePerPoint;
+        const calculatedKwd = (emp.salary * bonusPct) * proRataFactor;
 
         try {
             await dbService.submitEmployeeEvaluation({
@@ -134,12 +193,12 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
                 quarter,
                 kpiScores,
                 totalScore: Number(totalScore.toFixed(4)),
-                proRataFactor: Number(proRataFactor.toFixed(4)),
+                proRataFactor,
                 calculatedKwd: Number(calculatedKwd.toFixed(3)),
+                status: 'PENDING_EXEC'
             });
             notify('Success', 'Evaluation submitted for executive review.', 'success');
             setSelectedEmployee('');
-            setSelectedTemplate('');
             setKpiScores([]);
             fetchData();
         } catch (error: any) {
@@ -163,92 +222,157 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
         }
     };
 
-    if (loading) return <div className="p-10 text-center flex items-center justify-center">Loading...</div>;
+    const handleEditTemplate = (tmpl: Partial<KPITemplate>) => {
+        setEditingTemplate(tmpl);
+        setIsTemplateModalOpen(true);
+    };
+
+    const handleSaveTemplate = async () => {
+        if (!editingTemplate || !editingTemplate.title || !editingTemplate.kpis || editingTemplate.kpis.length === 0) {
+            notify('Validation Error', 'Title and at least one KPI are required.', 'error');
+            return;
+        }
+
+        const totalWeight = editingTemplate.kpis.reduce((sum, kpi) => sum + Number(kpi.weight), 0);
+        if (totalWeight !== 100 && editingTemplate.kpis.length > 0) {
+            notify('Warning', `Total KPI weight is ${totalWeight}%, it is recommended to be 100%.`, 'warning');
+            // Allow saving anyway but warn
+        }
+
+        setIsSavingTemplate(true);
+        try {
+            if (editingTemplate.id) {
+                // Update
+                await dbService.updateKPITemplate(editingTemplate.id, {
+                    title: editingTemplate.title,
+                    department: editingTemplate.department || '',
+                    roleName: editingTemplate.roleName || '',
+                    kpis: editingTemplate.kpis
+                });
+                notify('Success', 'KPI Template updated inside registry.', 'success');
+            } else {
+                // Insert
+                await dbService.addKPITemplate({
+                    title: editingTemplate.title,
+                    department: editingTemplate.department || '',
+                    roleName: editingTemplate.roleName || '',
+                    kpis: editingTemplate.kpis
+                });
+                notify('Success', 'New KPI Template created.', 'success');
+            }
+            setIsTemplateModalOpen(false);
+            fetchData();
+        } catch (err: any) {
+            notify('Backend Error', err.message, 'error');
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
+    const handleEditHistory = (ev: EmployeeEvaluation) => {
+        // Locked for normal managers if approved for payroll. 
+        // Admins, Executives, and HR Managers can override if errors are found.
+        const canOverride = ['Admin', 'Executive', 'HR Manager'].includes(user.role);
+        if (ev.status === 'APPROVED_FOR_PAYROLL' && !canOverride) {
+            notify('Access Denied', 'This evaluation is already locked for payroll processing. Contact HR to override.', 'error');
+            return;
+        }
+        setEditingEvaluation({ ...ev });
+        setIsHistoryModalOpen(true);
+    };
+
+    const handleSaveHistory = async () => {
+        if (!editingEvaluation) return;
+
+        setIsSavingHistory(true);
+        try {
+            // Recalculate totals
+            const totalScore = editingEvaluation.kpiScores.reduce((sum, kpi) => sum + (kpi.weight * kpi.score), 0) / 10000;
+            const emp = employees.find(e => e.id === editingEvaluation.employeeId);
+            const salary = emp?.salary || 0;
+            const calculatedKwd = (salary * totalScore) * editingEvaluation.proRataFactor;
+
+            await dbService.updateEmployeeEvaluation(editingEvaluation.id, {
+                kpiScores: editingEvaluation.kpiScores,
+                totalScore: Number(totalScore.toFixed(4)),
+                calculatedKwd: Number(calculatedKwd.toFixed(3)),
+                status: 'PENDING_EXEC' // Reset to approval flow if edited
+            });
+
+            notify('Success', 'Historical evaluation updated and resent for signature.', 'success');
+            setIsHistoryModalOpen(false);
+            fetchData();
+        } catch (err: any) {
+            notify('Update Error', err.message, 'error');
+        } finally {
+            setIsSavingHistory(false);
+        }
+    };
 
     return (
-        <div className={`${compactMode ? 'p-4 space-y-4' : 'p-8 space-y-8'} animate-fade-in text-start`}>
-            <div className={`flex flex-col md:flex-row justify-between items-center bg-white ${compactMode ? 'p-4 rounded-2xl' : 'p-8 rounded-[32px]'} border border-slate-200 shadow-sm gap-4`}>
-                <div>
-                    <h2 className={`${compactMode ? 'text-xl' : 'text-3xl'} font-black text-slate-900 tracking-tight flex items-center gap-3`}>
-                        <span className={compactMode ? 'text-2xl' : 'text-4xl'}>⭐</span> {t('performance_evaluations') || 'Performance Evaluations'}
-                    </h2>
-                    <p className={`${compactMode ? 'text-xs' : 'text-sm'} font-bold text-slate-400 mt-1 uppercase tracking-widest`}>{quarter} Cycle</p>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.7s ease' }}>
+            <header>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('performance_evaluations') || 'Performance evaluations'}</h2>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{quarter} Operational performance cycle.</p>
+            </header>
 
-                <div className="flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
-                    <button
-                        onClick={() => setActiveTab('employee')}
-                        className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'employee' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        INDIVIDUAL
-                    </button>
-                    {(['Admin', 'Manager', 'Executive', 'HR Manager'].includes(user.role)) && (
-                        <button
-                            onClick={() => setActiveTab('department')}
-                            className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'department' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+            {/* Standardized Tabs */}
+            <div className="cds--tabs">
+                <ul className="cds--tabs__nav" role="tablist">
+                    {[
+                        { id: 'employee', label: 'INDIVIDUAL', roles: ['Admin', 'Manager', 'Employee', 'HR Manager'] },
+                        { id: 'department', label: 'DEPARTMENT', roles: ['Admin', 'Manager', 'Executive', 'HR Manager'] },
+                        { id: 'company', label: 'COMPANY', roles: ['Admin', 'Executive'] },
+                        { id: 'templates', label: 'TEMPLATES', roles: ['Admin', 'HR Manager'] }
+                    ].filter(tab => tab.roles.includes(user.role)).map(tab => (
+                        <li 
+                            key={tab.id}
+                            className={`cds--tabs__nav-item ${activeTab === tab.id ? 'cds--tabs__nav-item--selected' : ''}`}
+                            onClick={() => setActiveTab(tab.id as any)}
                         >
-                            DEPARTMENT
-                        </button>
-                    )}
-                    {(['Admin', 'Executive'].includes(user.role)) && (
-                        <button
-                            onClick={() => setActiveTab('company')}
-                            className={`px-6 py-2 rounded-xl text-xs font-black tracking-widest transition-all ${activeTab === 'company' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            COMPANY
-                        </button>
-                    )}
-                </div>
+                            <button className="cds--tabs__nav-link" type="button">
+                                {tab.label}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </div>
 
             {activeTab === 'employee' && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+                    {/* Creation Panel */}
                     {(['Manager', 'Admin', 'HR Manager'].includes(user.role)) && (
-                        <div className={`bg-white ${compactMode ? 'p-5 rounded-2xl' : 'p-10 rounded-[40px]'} border border-slate-200 shadow-xl`}>
-                            <h3 className={`${compactMode ? 'text-sm' : 'text-xl'} font-black text-slate-900 ${compactMode ? 'mb-4' : 'mb-6'}`}>Create New Evaluation</h3>
-                            <div className={`grid grid-cols-1 md:grid-cols-3 ${compactMode ? 'gap-3 mb-4' : 'gap-6 mb-8'}`}>
+                        <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-05)' }}>Initiate quality review</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-06)' }}>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Employee</label>
-                                    <select className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl`} value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}>
-                                        <option value="">Select Employee</option>
+                                    <label className="cds--label">Employee registry</label>
+                                    <select className="cds--select-input" value={selectedEmployee} onChange={e => handleEmployeeSelect(e.target.value)}>
+                                        <option value="">Select identity...</option>
                                         {employees.map(e => (
-                                            <option key={e.id} value={e.id}>{e.name} - {e.role}</option>
+                                            <option key={e.id} value={e.id}>{e.name} — {e.department}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">KPI Template</label>
-                                    <select className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl`} value={selectedTemplate} onChange={e => handleTemplateSelect(e.target.value)}>
-                                        <option value="">Select Template</option>
-                                        {templates.map(t => (
-                                            <option key={t.id} value={t.id}>{t.title}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Quarter</label>
-                                    <input type="text" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl font-mono text-center`} value={quarter} onChange={e => setQuarter(e.target.value)} />
+                                    <label className="cds--label">Review cycle</label>
+                                    <input type="text" className="cds--text-input" value={quarter} onChange={e => setQuarter(e.target.value)} />
                                 </div>
                             </div>
 
                             {kpiScores.length > 0 && (
-                                <div className={`bg-slate-50 rounded-2xl ${compactMode ? 'p-4' : 'p-6'} border border-slate-200`}>
-                                    <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-3">KPI Scoring</h4>
-                                    <div className={compactMode ? 'space-y-2' : 'space-y-4'}>
+                                <div style={{ background: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                                    <h4 style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-04)' }}>Metric scoring matrix</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                                         {kpiScores.map((kpi, idx) => (
-                                            <div key={idx} className={`flex flex-col md:flex-row items-center gap-4 bg-white ${compactMode ? 'p-2.5' : 'p-4'} rounded-xl border border-slate-100`}>
-                                                <div className="flex-1">
-                                                    <p className={`font-bold text-slate-800 ${compactMode ? 'text-xs' : 'text-sm'}`}>{kpi.name}</p>
-                                                </div>
-                                                <div className="w-24 text-center">
-                                                    <span className="text-[9px] font-black text-indigo-500 uppercase">Weight: {kpi.weight}%</span>
-                                                </div>
-                                                <div className="w-32 flex items-center gap-2">
-                                                    <input
+                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)', background: 'var(--cds-background)', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                                                <span style={{ flex: 1, fontSize: '0.875rem' }}>{kpi.name}</span>
+                                                <span style={{ width: '80px', fontSize: '0.625rem', color: 'var(--cds-text-secondary)', fontWeight: 600 }}>WT: {kpi.weight}%</span>
+                                                <div style={{ width: '120px', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                                                    <input 
                                                         type="number"
-                                                        min="0" max="150"
-                                                        className={`w-full ${compactMode ? 'px-2 py-1 text-xs' : 'px-3 py-2'} bg-slate-50 border border-slate-200 rounded-lg text-center font-black`}
-                                                        placeholder="Achieved %"
+                                                        className="cds--text-input"
+                                                        style={{ height: '32px', textAlign: 'center' }}
                                                         value={kpi.score === 0 ? '' : kpi.score}
                                                         onChange={e => {
                                                             const newScores = [...kpiScores];
@@ -256,163 +380,140 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
                                                             setKpiScores(newScores);
                                                         }}
                                                     />
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase">%</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>%</span>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-
-                                    <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6">
+                                    <div style={{ marginTop: 'var(--cds-spacing-06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-05)' }}>
                                         <div>
-                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Calculated Performance Factor</p>
-                                            <p className="text-3xl font-black text-indigo-600">{(calculateTotalScore() * 100).toFixed(1)}%</p>
+                                            <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Calculated factor</p>
+                                            <p style={{ fontSize: '2rem', fontWeight: 400, color: 'var(--cds-interactive-01)' }}>{(calculateTotalScore() * 100).toFixed(1)}%</p>
                                         </div>
-                                        <button
-                                            onClick={handleSubmitEvaluation}
-                                            className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg"
-                                        >
-                                            Submit Evaluation
-                                        </button>
+                                        <button onClick={handleSubmitEvaluation} className="cds--btn cds--btn--primary">Submit registry evaluation</button>
                                     </div>
                                 </div>
                             )}
                         </div>
                     )}
 
+                    {/* Pending Sign-offs */}
                     {pendingEvals.length > 0 && (
-                        <div className={`bg-white ${compactMode ? 'p-5 rounded-2xl' : 'p-10 rounded-[40px]'} border border-amber-200 shadow-xl overflow-x-auto relative mt-4`}>
-                            <div className={`absolute top-0 right-0 ${compactMode ? 'p-4 text-2xl' : 'p-8 text-5xl'} opacity-10 pointer-events-none`}>📋</div>
-                            <h3 className={`${compactMode ? 'text-sm' : 'text-xl'} font-black text-slate-900 mb-4 flex items-center gap-3`}>
-                                <span className="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
-                                Pending Sign-Offs
-                            </h3>
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className={`bg-slate-50 ${compactMode ? 'text-[9px]' : 'text-[10px]'} font-black text-slate-400 uppercase tracking-widest border-y border-slate-100`}>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Employee</th>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Quarter</th>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Final Factor</th>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Pro-Rata</th>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Calc. Bonus KWD</th>
-                                        <th className={compactMode ? 'p-2' : 'p-4'}>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {pendingEvals.map(ev => (
-                                        <tr key={ev.id} className="hover:bg-slate-50/50">
-                                            <td className={compactMode ? 'p-2' : 'p-4'}>
-                                                <p className={`font-bold text-slate-900 ${compactMode ? 'text-xs' : 'text-sm'}`}>{ev.employeeName}</p>
-                                                <p className="text-[9px] text-slate-400">{ev.department}</p>
-                                            </td>
-                                            <td className={`p-4 font-mono ${compactMode ? 'text-xs' : 'text-sm'} text-slate-600`}>{ev.quarter}</td>
-                                            <td className={compactMode ? 'p-2' : 'p-4'}>
-                                                <span className={`px-3 py-1 bg-indigo-50 text-indigo-600 rounded-md font-black ${compactMode ? 'text-xs' : 'text-sm'}`}>{(ev.totalScore * 100).toFixed(1)}%</span>
-                                            </td>
-                                            <td className={`${compactMode ? 'p-2' : 'p-4'} text-[10px] font-bold text-slate-500`}>{ev.proRataFactor.toFixed(2)}x</td>
-                                            <td className={`${compactMode ? 'p-2' : 'p-4'} ${compactMode ? 'text-sm' : 'text-lg'} font-black text-emerald-600`}>{ev.calculatedKwd.toLocaleString()} KWD</td>
-                                            <td className={compactMode ? 'p-2' : 'p-4'}>
-                                                <button
-                                                    onClick={() => approveEvaluation(ev.id, ev.status)}
-                                                    className={`px-4 py-1.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-colors`}
-                                                >
-                                                    {user.role === 'Executive' ? 'Sign & Approve' : 'Acknowledge (HR)'}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="cds--tile" style={{ border: '1px solid var(--cds-support-warning)', background: 'var(--cds-background)' }}>
+                           <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                               <div className="hub--status-glow" style={{ background: 'var(--cds-support-warning)' }}></div>
+                               <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Awaiting executive signature</h3>
+                           </div>
+                           <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+                               <thead>
+                                   <tr>
+                                       <th style={{ width: '180px' }}>Identity</th>
+                                       <th style={{ width: '80px' }}>Cycle</th>
+                                       <th>Metric Factor</th>
+                                       <th>Pro-Rata</th>
+                                       <th style={{ textAlign: 'right' }}>Calculated Bonus</th>
+                                       <th style={{ textAlign: 'right' }}>Action</th>
+                                   </tr>
+                               </thead>
+                               <tbody>
+                                   {pendingEvals.map(ev => (
+                                       <tr key={ev.id}>
+                                           <td>
+                                               <p style={{ fontWeight: 600 }}>{ev.employeeName}</p>
+                                               <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>{ev.department}</p>
+                                           </td>
+                                           <td style={{ fontFamily: 'monospace' }}>{ev.quarter}</td>
+                                           <td>
+                                               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-interactive-01)' }}>{(ev.totalScore * 100).toFixed(1)}%</span>
+                                               <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>Rating: {calculatePerformancePoints(ev.totalScore)} / 5</p>
+                                           </td>
+                                           <td style={{ fontSize: '0.75rem' }}>{ev.proRataFactor.toFixed(2)}x</td>
+                                           <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--cds-support-success)' }}>{ev.calculatedKwd.toLocaleString()} KWD</td>
+                                           <td style={{ textAlign: 'right' }}>
+                                               <button onClick={() => approveEvaluation(ev.id, ev.status)} className="cds--btn cds--btn--primary cds--btn--sm">
+                                                   {user.role === 'Executive' ? 'Sign & Commit' : 'Audit & Advance'}
+                                               </button>
+                                           </td>
+                                       </tr>
+                                   ))}
+                               </tbody>
+                           </table>
                         </div>
                     )}
 
-                    {/* Audit History */}
-                    <div className={`bg-white ${compactMode ? 'p-5 rounded-2xl' : 'p-10 rounded-[40px]'} border border-slate-200 shadow-sm mt-4`}>
-                        <h3 className={`${compactMode ? 'text-sm' : 'text-lg'} font-black text-slate-800 ${compactMode ? 'mb-4' : 'mb-6'}`}>Historical Evaluations</h3>
-                        {evaluations.length === 0 ? (
-                            <p className="p-8 text-center text-slate-400 italic">No historical evaluations found.</p>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
-                                            <th className="p-4">Employee</th>
-                                            <th className="p-4">Quarter</th>
-                                            <th className="p-4">Factor</th>
-                                            <th className="p-4">Award KWD</th>
-                                            <th className="p-4">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {evaluations.map(ev => (
-                                            <tr key={ev.id}>
-                                                <td className="p-4">
-                                                    <p className="font-bold text-slate-900">{ev.employeeName}</p>
-                                                    <p className="text-[10px] text-slate-400">{ev.department}</p>
-                                                </td>
-                                                <td className="p-4 font-mono text-xs">{ev.quarter}</td>
-                                                <td className="p-4 text-sm font-bold">{(ev.totalScore * 100).toFixed(1)}%</td>
-                                                <td className="p-4 text-sm font-black text-slate-900">{ev.calculatedKwd.toLocaleString()}</td>
-                                                <td className="p-4">
-                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md border ${ev.status === 'APPROVED_FOR_PAYROLL' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                                        {ev.status.replace(/_/g, ' ')}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
+                    {/* Registry History */}
+                    <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Historical evaluations</h3>
+                        </div>
+                        <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+                           <thead>
+                               <tr>
+                                   <th>Identity</th>
+                                   <th>Cycle</th>
+                                   <th>Factor</th>
+                                   <th>Value (KWD)</th>
+                                   <th>Fulfillment Status</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               {evaluations.map(ev => (
+                                   <tr key={ev.id} onClick={() => handleEditHistory(ev)} style={{ cursor: 'pointer' }}>
+                                       <td>{ev.employeeName}</td>
+                                       <td style={{ fontFamily: 'monospace' }}>{ev.quarter}</td>
+                                       <td style={{ fontWeight: 600 }}>{(ev.totalScore * 100).toFixed(1)}%</td>
+                                       <td style={{ fontWeight: 600 }}>{ev.calculatedKwd.toLocaleString()}</td>
+                                       <td>
+                                           <span className={`cds--tag ${ev.status === 'APPROVED_FOR_PAYROLL' ? 'cds--tag--green' : 'cds--tag--blue'}`}>
+                                               {ev.status.replace(/_/g, ' ')}
+                                           </span>
+                                       </td>
+                                   </tr>
+                               ))}
+                               {evaluations.length === 0 && (
+                                   <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--cds-spacing-08)', color: 'var(--cds-text-secondary)' }}>No registry entries found.</td></tr>
+                               )}
+                           </tbody>
+                        </table>
                     </div>
-                </>
+                </div>
             )}
 
             {activeTab === 'department' && (
-                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-xl overflow-x-auto relative mt-8">
-                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none">🏢</div>
-                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                        Department Operational KPI Status
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 mb-6">Department KPIs are dynamically aggregated from individual team member evaluations for the {quarter} cycle.</p>
-
-                    <table className="w-full text-left border-collapse">
+                <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                    <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Sector operational health</h3>
+                    </div>
+                    <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
                         <thead>
-                            <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
-                                <th className="p-4">Department</th>
-                                <th className="p-4">Staff Evaluated</th>
-                                <th className="p-4">Aggregated Target Score</th>
-                                <th className="p-4">Operational Status</th>
-                                <th className="p-4">Sign-Off</th>
+                            <tr>
+                                <th>Operational Sector</th>
+                                <th>Registry Count</th>
+                                <th>Aggregated Factor</th>
+                                <th>Health Status</th>
+                                <th style={{ textAlign: 'right' }}>Certification</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody>
                             {Array.from(new Set(evaluations.map(e => e.department).filter(Boolean))).map(dept => {
                                 const deptEvals = evaluations.filter(e => e.department === dept && e.quarter === quarter);
                                 if (deptEvals.length === 0) return null;
-
                                 const avgScore = deptEvals.reduce((sum, e) => sum + e.totalScore, 0) / deptEvals.length;
-
                                 return (
-                                    <tr key={dept} className="hover:bg-slate-50/50">
-                                        <td className="p-4">
-                                            <p className="font-bold text-slate-900">{dept}</p>
-                                        </td>
-                                        <td className="p-4 text-sm font-bold text-slate-600">{deptEvals.length} Members</td>
-                                        <td className="p-4">
-                                            <span className={`px-3 py-1 rounded-md font-black text-sm ${avgScore >= 0.85 ? 'bg-emerald-50 text-emerald-600' : avgScore >= 0.6 ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                {(avgScore * 100).toFixed(1)}%
+                                    <tr key={dept}>
+                                        <td>{dept}</td>
+                                        <td>{deptEvals.length} Identifiers</td>
+                                        <td style={{ fontWeight: 600 }}>{(avgScore * 100).toFixed(1)}%</td>
+                                        <td>
+                                            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600, color: avgScore >= 0.85 ? 'var(--cds-support-success)' : 'var(--cds-support-warning)' }}>
+                                                {avgScore >= 0.85 ? 'Optimized' : avgScore >= 0.6 ? 'Stabilized' : 'Critical'}
                                             </span>
                                         </td>
-                                        <td className="p-4">
-                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{avgScore >= 0.85 ? 'Exceeding' : avgScore >= 0.6 ? 'Meeting' : 'Underperforming'}</p>
-                                        </td>
-                                        <td className="p-4">
-                                            <button className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">
-                                                Acknowledge
-                                            </button>
+                                        <td style={{ textAlign: 'right' }}>
+                                            <button onClick={() => notify('Audit Success', `Sector ${dept} acknowledged.`, 'info')} className="cds--btn cds--btn--ghost cds--btn--sm">Acknowledge node</button>
                                         </td>
                                     </tr>
-                                )
+                                );
                             })}
                         </tbody>
                     </table>
@@ -420,44 +521,240 @@ const PerformanceView: React.FC<PerformanceViewProps> = ({ user, compactMode }) 
             )}
 
             {activeTab === 'company' && (
-                <div className="bg-white p-10 rounded-[40px] border border-indigo-200 shadow-xl overflow-x-auto relative mt-8">
-                    <div className="absolute top-0 right-0 p-8 text-5xl opacity-10 pointer-events-none text-indigo-600">🏛️</div>
-                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                        Gross Company KPIs & Strategy Index
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 mb-8 max-w-2xl">Enterprise-wide Key Performance Indicators reflect the holistic productivity, operational health, and aligned goal achievement across all business sectors for {quarter}.</p>
-
-                    {(() => {
-                        const allQ = evaluations.filter(e => e.quarter === quarter);
-                        const avgCompanyScore = allQ.length > 0 ? (allQ.reduce((sum, e) => sum + e.totalScore, 0) / allQ.length) : 0;
-                        const totalBonus = allQ.reduce((sum, e) => sum + e.calculatedKwd, 0);
-
-                        return (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                                <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
-                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Total Org Score</p>
-                                    <p className="text-4xl font-black text-indigo-700">{(avgCompanyScore * 100).toFixed(1)}%</p>
-                                </div>
-                                <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
-                                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Gross Performance Variance</p>
-                                    <p className="text-4xl font-black text-emerald-700">{totalBonus.toLocaleString()} KWD</p>
-                                </div>
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Evaluated Headcount</p>
-                                    <p className="text-4xl font-black text-slate-900">{allQ.length}</p>
-                                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+                        <div className="hub--node" style={{ padding: 'var(--cds-spacing-06)', borderRadius: 0 }}>
+                            <p style={{ fontSize: '0.625rem', color: 'var(--cds-interactive-01)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>Inference profitability engine</p>
+                            <h4 style={{ fontSize: '0.875rem', marginBottom: 'var(--cds-spacing-05)' }}>Input quarterly net yield (KWD)</h4>
+                            <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                                <input 
+                                    type="number" 
+                                    className="cds--text-input hub--node" 
+                                    style={{ flex: 1, fontSize: '1.5rem', padding: 'var(--cds-spacing-04)' }}
+                                    value={financeNetProfit}
+                                    onChange={e => setFinanceNetProfit(Number(e.target.value))}
+                                />
+                                <button className="cds--btn cds--btn--primary" style={{ height: 'auto' }}>Recalculate node shares</button>
                             </div>
-                        )
-                    })()}
+                        </div>
+                        <div className="cds--tile" style={{ border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                            <h4 style={{ fontSize: '0.75rem', fontWeight: 600, padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>Managerial profit attribution</h4>
+                            <div style={{ height: '140px', overflowY: 'auto' }}>
+                                {employees.filter(e => ['Manager', 'Executive'].includes(e.role)).map(mgr => (
+                                    <div key={mgr.id} className="hub--data-row">
+                                        <span>{mgr.name}</span>
+                                        <span style={{ fontWeight: 600 }}>{(financeNetProfit * 0.05).toLocaleString()} KWD</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
 
-                    <div className="flex justify-end pt-6 border-t border-slate-100">
-                        <button className="px-8 py-4 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-600/20">
-                            Executive Sign-Off & Lock Quarter
-                        </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--cds-spacing-05)' }}>
+                        {[
+                            { label: 'Org-wide Factor', val: `${(evaluations.reduce((s, e) => s + e.totalScore, 0) / (evaluations.length || 1) * 100).toFixed(1)}%`, color: 'var(--cds-interactive-01)' },
+                            { label: 'Total PE Load', val: `${evaluations.reduce((s, e) => s + e.calculatedKwd, 0).toLocaleString()} KWD`, color: 'var(--cds-support-success)' },
+                            { label: 'Committed Headcount', val: evaluations.length, color: 'var(--cds-text-primary)' }
+                        ].map((m, i) => (
+                            <div key={i} className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                                <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{m.label}</p>
+                                <p style={{ fontSize: '2.5rem', fontWeight: 400, color: m.color }}>{m.val}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
 
+            {activeTab === 'templates' && (
+                <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                    <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Inference frameworks</h3>
+                        <button onClick={() => handleEditTemplate({ title: '', department: '', roleName: '', kpis: [] })} className="cds--btn cds--btn--primary cds--btn--sm">+ Add Blueprint</button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-05)' }}>
+                        {templates.map(tmpl => (
+                            <div key={tmpl.id} className="cds--tile" style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', borderRadius: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--cds-spacing-04)' }}>
+                                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{tmpl.title}</h4>
+                                    <button onClick={() => handleEditTemplate(tmpl)} className="cds--btn cds--btn--ghost cds--btn--sm">Edit</button>
+                                </div>
+                                <span className="cds--tag cds--tag--blue">{tmpl.department}</span>
+                                <div style={{ marginTop: 'var(--cds-spacing-05)', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                    {tmpl.kpis.map((k, i) => (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--cds-background)', padding: 'var(--cds-spacing-02) var(--cds-spacing-03)', fontSize: '0.75rem' }}>
+                                            <span>{k.name}</span>
+                                            <span style={{ fontWeight: 600 }}>{k.weight}%</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* KPI Template Editor Modal */}
+            {isTemplateModalOpen && editingTemplate && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up" style={{ background: 'var(--cds-background)', color: 'var(--cds-text-primary)', border: '1px solid var(--cds-border-subtle)' }}>
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50" style={{ background: 'var(--cds-layer-01)', borderColor: 'var(--cds-border-subtle)' }}>
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-800" style={{ fontSize: '1.25rem', fontWeight: 600 }}>{editingTemplate.id ? 'Edit Template' : 'Create Template'}</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1" style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Configure Departmental KPIs</p>
+                            </div>
+                            <button onClick={() => setIsTemplateModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--cds-text-secondary)' }}>✕</button>
+                        </div>
+                        
+                        <div className="p-8 overflow-y-auto flex-1 space-y-6" style={{ padding: 'var(--cds-spacing-07)' }}>
+                            <div className="grid grid-cols-2 gap-6" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-06)' }}>
+                                <div>
+                                    <label className="cds--label">Template Title</label>
+                                    <input 
+                                        type="text" 
+                                        className="cds--text-input"
+                                        value={editingTemplate.title || ''} 
+                                        onChange={e => setEditingTemplate({...editingTemplate, title: e.target.value})}
+                                        placeholder="e.g. Senior Frontend Engineer"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="cds--label">Target Department</label>
+                                    <input 
+                                        type="text" 
+                                        className="cds--text-input"
+                                        value={editingTemplate.department || ''} 
+                                        onChange={e => setEditingTemplate({...editingTemplate, department: e.target.value})}
+                                        placeholder="e.g. Engineering"
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 'var(--cds-spacing-07)' }}>
+                                <div className="flex justify-between items-center mb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--cds-spacing-05)' }}>
+                                    <label className="cds--label" style={{ margin: 0 }}>Performance Indicators</label>
+                                    <button 
+                                        onClick={() => setEditingTemplate({
+                                            ...editingTemplate, 
+                                            kpis: [...(editingTemplate.kpis || []), { name: '', weight: 10 }]
+                                        })}
+                                        className="cds--btn cds--btn--ghost cds--btn--sm"
+                                    >
+                                        + Add Rule
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                                    {(editingTemplate.kpis || []).map((kpi, idx) => (
+                                        <div key={idx} style={{ display: 'flex', gap: 'var(--cds-spacing-04)', alignItems: 'center', background: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)' }}>
+                                            <input 
+                                                type="text" 
+                                                className="cds--text-input"
+                                                style={{ flex: 1 }}
+                                                value={kpi.name}
+                                                onChange={e => {
+                                                    const newKpis = [...(editingTemplate.kpis || [])];
+                                                    newKpis[idx].name = e.target.value;
+                                                    setEditingTemplate({...editingTemplate, kpis: newKpis});
+                                                }}
+                                                placeholder="Identifier Description"
+                                            />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)', width: '80px' }}>
+                                                <input 
+                                                    type="number" 
+                                                    className="cds--text-input"
+                                                    value={kpi.weight}
+                                                    onChange={e => {
+                                                        const newKpis = [...(editingTemplate.kpis || [])];
+                                                        newKpis[idx].weight = Number(e.target.value);
+                                                        setEditingTemplate({...editingTemplate, kpis: newKpis});
+                                                    }}
+                                                />
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>%</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    const newKpis = [...(editingTemplate.kpis || [])];
+                                                    newKpis.splice(idx, 1);
+                                                    setEditingTemplate({...editingTemplate, kpis: newKpis});
+                                                }}
+                                                className="cds--btn cds--btn--ghost cds--btn--sm"
+                                                style={{ color: 'var(--cds-support-error)', padding: '0 8px' }}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3" style={{ padding: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'flex-end', gap: 'var(--cds-spacing-04)' }}>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="cds--btn cds--btn--secondary">Cancel</button>
+                            <button 
+                                onClick={handleSaveTemplate} 
+                                disabled={isSavingTemplate}
+                                className="cds--btn cds--btn--primary"
+                            >
+                                {isSavingTemplate ? 'Saving...' : 'Save Configuration'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* History Edit Modal */}
+            {isHistoryModalOpen && editingEvaluation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl animate-fade-in-up" style={{ background: 'var(--cds-background)', color: 'var(--cds-text-primary)', border: '1px solid var(--cds-border-subtle)' }}>
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center" style={{ padding: 'var(--cds-spacing-07)', borderBottom: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Edit Historic Evaluation</h3>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-02)' }}>{editingEvaluation.employeeName} • {editingEvaluation.quarter}</p>
+                            </div>
+                            <button onClick={() => setIsHistoryModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--cds-text-secondary)' }}>✕</button>
+                        </div>
+                        
+                        <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto" style={{ padding: 'var(--cds-spacing-07)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)', maxHeight: '60vh', overflowY: 'auto' }}>
+                            {editingEvaluation.kpiScores.map((kpi, idx) => (
+                                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                                    <span style={{ fontSize: '0.875rem', flex: 1 }}>{kpi.name}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                                        <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', fontWeight: 600 }}>WT: {kpi.weight}%</span>
+                                        <input 
+                                            type="number"
+                                            className="cds--text-input"
+                                            style={{ width: '80px', textAlign: 'center' }}
+                                            value={kpi.score}
+                                            onChange={e => {
+                                                const newScores = [...editingEvaluation.kpiScores];
+                                                newScores[idx].score = Number(e.target.value);
+                                                setEditingEvaluation({...editingEvaluation, kpiScores: newScores});
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-b-[32px]" style={{ padding: 'var(--cds-spacing-07)', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>New Calculated Factor</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 400, color: 'var(--cds-interactive-01)' }}>{(editingEvaluation.kpiScores.reduce((sum, kpi) => sum + (kpi.weight * kpi.score), 0) / 100).toFixed(1)}%</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                                <button onClick={() => setIsHistoryModalOpen(false)} className="cds--btn cds--btn--secondary">Cancel</button>
+                                <button 
+                                    onClick={handleSaveHistory}
+                                    disabled={isSavingHistory}
+                                    className="cds--btn cds--btn--primary"
+                                >
+                                    {isSavingHistory ? 'Saving...' : 'Update Records'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

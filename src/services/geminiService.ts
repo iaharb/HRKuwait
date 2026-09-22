@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Online-only mode – reads from Vite environment variables
-const isMeta = typeof import.meta !== 'undefined' && import.meta.env;
-const geminiKey = isMeta ? import.meta.env.VITE_GEMINI_API_KEY : process.env.VITE_GEMINI_API_KEY;
+export const isMeta = typeof import.meta !== 'undefined' && import.meta.env;
+export const geminiKey = isMeta ? import.meta.env.VITE_GEMINI_API_KEY : process.env.VITE_GEMINI_API_KEY;
 
 const genAI = new GoogleGenerativeAI(geminiKey || '');
 

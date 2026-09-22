@@ -2,17 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/dbService.ts';
 import { useNotifications } from './NotificationSystem.tsx';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../services/supabaseClient.ts';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../services/supabaseClient.ts';
 import { HardwareConfig, AttendanceRecord, OfficeLocation, Announcement, PublicHoliday, DepartmentMetric, ExpenseClaim, ClaimStatus, User } from '../types/types';
-import { runAiTask } from '../services/geminiService.ts';
+import { runAiTask, geminiKey } from '../services/geminiService.ts';
 import { UserManagement } from './UserManagement.tsx';
 
 type TableName = 'employees' | 'leave_requests' | 'payroll_runs' | 'public_holidays' | 'office_locations' | 'department_metrics' | 'announcements';
 
 const DataExplorerTab: React.FC = () => {
   const { t } = useTranslation();
-
-  // ─── Entity definitions ────────────────────────────────────────────
   const entities = [
     { id: 'employees', icon: '👥', label: 'Employees', tables: ['employees', 'employee_allowances', 'leave_balances'] },
     { id: 'leave_requests', icon: '📋', label: 'Leave Requests', tables: ['leave_requests', 'leave_history'] },
@@ -41,7 +39,6 @@ const DataExplorerTab: React.FC = () => {
     try {
       if (!supabase) return;
       let primaryTable = entity.tables[0];
-      // For employees, join related tables
       let select = '*';
       if (entity.id === 'employees') select = '*, employee_allowances(*), leave_balances(*)';
       if (entity.id === 'leave_requests') select = '*, leave_history(*)';
@@ -54,18 +51,15 @@ const DataExplorerTab: React.FC = () => {
     }
   };
 
-  // Load on mount
   React.useEffect(() => { loadEntity(entities[0]); }, []);
 
-  // Load extra detail data when a row is selected
   React.useEffect(() => {
     if (!selectedRow || !supabase) { setDetailData({}); return; }
     setDetailLoading(true);
     const load = async () => {
       const d: typeof detailData = {};
       if (explorerEntity.id === 'employees') {
-        const [hist, bal, allow] = await Promise.all([
-          supabase.from('leave_history').select('*').filter('leave_request_id', 'in', `(SELECT id FROM leave_requests WHERE employee_id = '${selectedRow.id}')`),
+        const [bal, allow] = await Promise.all([
           supabase.from('leave_balances').select('*').eq('employee_id', selectedRow.id),
           supabase.from('employee_allowances').select('*').eq('employee_id', selectedRow.id),
         ]);
@@ -76,17 +70,12 @@ const DataExplorerTab: React.FC = () => {
         const hist = await supabase.from('leave_history').select('*').eq('leave_request_id', selectedRow.id).order('created_at');
         d.leaveHistory = hist.data || [];
       }
-      if (explorerEntity.id === 'expense_claims') {
-        const hist = await supabase.from('expense_claim_history').select('*').eq('claim_id', selectedRow.id).order('created_at');
-        (d as any).claimHistory = hist.data || [];
-      }
       setDetailData(d);
       setDetailLoading(false);
     };
     load();
   }, [selectedRow?.id]);
 
-  // Filter rows by search text
   const filteredExplorer = React.useMemo(() => {
     const q = explorerSearch.toLowerCase();
     if (!q) return explorerData;
@@ -95,7 +84,6 @@ const DataExplorerTab: React.FC = () => {
     );
   }, [explorerData, explorerSearch]);
 
-  // Get flat columns (exclude nested objects)
   const columns = explorerData.length > 0
     ? Object.keys(explorerData[0]).filter(k => {
       const v = explorerData[0][k];
@@ -103,7 +91,6 @@ const DataExplorerTab: React.FC = () => {
     }).slice(0, 8)
     : [];
 
-  // CSV Export
   const exportCsv = () => {
     const csv = [columns.join(','), ...filteredExplorer.map(r => columns.map(c => JSON.stringify(r[c] ?? '')).join(','))].join('\n');
     const a = document.createElement('a');
@@ -112,209 +99,94 @@ const DataExplorerTab: React.FC = () => {
     a.click();
   };
 
-  const renderCell = (v: any) => {
-    if (v === null || v === undefined || v === '') return <span className="text-slate-300">—</span>;
-    if (typeof v === 'boolean') return <span className={`text-[9px] font-black px-2 py-0.5 rounded ${v ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>{v ? 'Yes' : 'No'}</span>;
-    if (typeof v === 'string' && v.match(/^\d{4}-\d{2}-\d{2}/)) return <span className="font-mono text-[11px] text-slate-600">{v.slice(0, 10)}</span>;
-    return <span className="text-[12px] text-slate-700 block truncate max-w-[160px]" title={String(v)}>{String(v)}</span>;
-  };
-
   return (
-    <div className="animate-in slide-in-from-bottom-4 duration-500 text-start">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-xl font-black text-slate-900 tracking-tight">{t('dataExplorer')}</h3>
-          <p className="text-xs text-slate-400 font-medium mt-1">Click any row to inspect full details in the side panel</p>
+    <div style={{ display: 'flex', gap: 'var(--cds-spacing-05)', height: '600px', padding: 'var(--cds-spacing-05)', background: 'var(--cds-layer-01)' }}>
+      {/* Entity Sidebar */}
+      <div className="cds--tile" style={{ width: '220px', padding: 0, display: 'flex', flexDirection: 'column', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', borderRadius: 0 }}>
+        <div style={{ padding: 'var(--cds-spacing-04)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+          <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Registry Entities</p>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {entities.map(e => (
+            <button
+              key={e.id}
+              onClick={() => loadEntity(e)}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: 'var(--cds-spacing-04) var(--cds-spacing-05)',
+                border: 'none',
+                background: explorerEntity.id === e.id ? 'var(--cds-layer-01)' : 'transparent',
+                borderLeft: explorerEntity.id === e.id ? '3px solid var(--cds-interactive-01)' : '3px solid transparent',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                color: explorerEntity.id === e.id ? 'var(--cds-interactive-01)' : 'var(--cds-text-primary)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ marginRight: 'var(--cds-spacing-03)', opacity: explorerEntity.id === e.id ? 1 : 0.6 }}>{e.icon}</span>
+              {e.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="flex gap-6 h-[calc(100vh-320px)] min-h-[560px]">
-
-        {/* ── Left: Entity Sidebar ── */}
-        <div className="w-52 shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Entities</p>
-          </div>
-          <div className="flex-1 overflow-y-auto py-2">
-            {entities.map(e => (
-              <button
-                key={e.id}
-                onClick={() => loadEntity(e)}
-                className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-all text-sm font-bold ${explorerEntity.id === e.id ? 'bg-indigo-50 text-indigo-700 border-r-2 border-indigo-600' : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                <span className="text-base leading-none">{e.icon}</span>
-                <span className="text-[11px] font-black uppercase tracking-wide leading-tight">{e.label}</span>
-              </button>
-            ))}
-          </div>
+      {/* Main Table Area */}
+      <div className="cds--tile" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', borderRadius: 0 }}>
+        <div style={{ padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', gap: 'var(--cds-spacing-04)', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-interactive-01)' }}>{explorerEntity.label.toUpperCase()}</span>
+          <input 
+            className="cds--text-input"
+            placeholder={`Filter ${explorerEntity.label.toLowerCase()}...`}
+            style={{ flex: 1, height: '32px', fontSize: '0.75rem', background: 'var(--cds-background)' }}
+            value={explorerSearch}
+            onChange={e => setExplorerSearch(e.target.value)}
+          />
+          <button onClick={exportCsv} className="cds--btn cds--btn--ghost cds--btn--sm">CSV Export</button>
         </div>
-
-        {/* ── Center: Results Table ── */}
-        <div className={`flex-1 min-w-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 ${selectedRow ? 'lg:flex' : ''}`}>
-          {/* Toolbar */}
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
-              <input
-                type="text"
-                placeholder={`Search ${explorerEntity.label}…`}
-                className="w-full pl-9 pr-4 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
-                value={explorerSearch}
-                onChange={e => setExplorerSearch(e.target.value)}
-              />
-            </div>
-            <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{filteredExplorer.length} rows</span>
-            <button onClick={exportCsv} className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap">↓ CSV</button>
-            <button onClick={() => loadEntity(explorerEntity)} className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black text-slate-600 hover:bg-slate-50 transition-all">↺</button>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1 overflow-auto">
-            {explorerLoading ? (
-              <div className="flex items-center justify-center h-32 gap-3 text-slate-400 text-xs font-bold">
-                <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
-                Loading {explorerEntity.label}…
-              </div>
-            ) : (
-              <table className="w-full text-left">
-                <thead className="sticky top-0 bg-white border-b border-slate-100 z-10">
-                  <tr>
-                    {columns.map(c => (
-                      <th key={c} className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                        {c.replace(/_/g, ' ')}
-                      </th>
-                    ))}
-                    <th className="px-4 py-3 w-6" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredExplorer.length === 0 ? (
-                    <tr><td colSpan={columns.length + 1} className="px-4 py-16 text-center text-slate-300 text-sm font-medium italic">No records found</td></tr>
-                  ) : filteredExplorer.map((row, i) => (
-                    <tr
-                      key={i}
-                      onClick={() => setSelectedRow(prev => prev?.id === row.id ? null : row)}
-                      className={`cursor-pointer transition-colors ${selectedRow?.id === row.id ? 'bg-indigo-50' : 'hover:bg-slate-50/70'}`}
-                    >
-                      {columns.map(c => (
-                        <td key={c} className="px-4 py-3">{renderCell(row[c])}</td>
-                      ))}
-                      <td className="px-4 py-3 text-slate-300 text-xs">›</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+            <thead>
+              <tr>
+                {columns.map(c => <th key={c}>{c.replace(/_/g, ' ')}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {explorerLoading ? (
+                <tr><td colSpan={columns.length || 1} style={{ textAlign: 'center', padding: 'var(--cds-spacing-08)' }}>Accessing registry...</td></tr>
+              ) : filteredExplorer.map((row, i) => (
+                <tr 
+                  key={i} 
+                  onClick={() => setSelectedRow(prev => prev?.id === row.id ? null : row)}
+                  style={{ cursor: 'pointer', background: selectedRow?.id === row.id ? 'var(--cds-layer-01)' : 'transparent' }}
+                >
+                  {columns.map(c => <td key={c} style={{ fontSize: '0.75rem' }}>{row[c] !== null && row[c] !== undefined ? String(row[c]) : '—'}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        {/* ── Right: Slide-out Detail Panel ── */}
-        <div className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden transition-all duration-300 ease-in-out ${selectedRow ? 'w-80 opacity-100' : 'w-0 opacity-0 border-0'}`}>
-          {selectedRow && (
-            <>
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{explorerEntity.label} Detail</p>
-                  <p className="text-sm font-black mt-0.5 truncate max-w-[200px]">{selectedRow.name || selectedRow.employee_name || selectedRow.id}</p>
-                </div>
-                <button onClick={() => setSelectedRow(null)} className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-sm transition-all">✕</button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 text-start">
-                {/* Raw fields */}
-                <div className="space-y-1">
-                  {Object.entries(selectedRow)
-                    .filter(([, v]) => !Array.isArray(v) && typeof v !== 'object')
-                    .map(([k, v]: any) => (
-                      <div key={k} className="flex items-start justify-between gap-2 py-1.5 border-b border-slate-50">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">{k.replace(/_/g, ' ')}</span>
-                        <span className="text-[11px] font-bold text-slate-700 text-right break-all max-w-[160px]">{v === null || v === undefined || v === '' ? '—' : String(v)}</span>
-                      </div>
-                    ))}
-                </div>
-
-                {/* Leave Balances sub-table (for employees) */}
-                {explorerEntity.id === 'employees' && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Leave Balances</p>
-                    {detailLoading ? <div className="text-xs text-slate-300 animate-pulse">Loading…</div> : (
-                      <div className="space-y-1">
-                        {(detailData.leaveBalances || []).map((lb: any) => {
-                          const isSub = lb.leave_type === 'Emergency' || lb.leave_type === 'ShortPermission';
-                          return (
-                            <div key={lb.leave_type} className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${isSub ? 'bg-transparent border border-slate-100 opacity-60' : 'bg-slate-50 border border-transparent'}`}>
-                              <span className={`text-[10px] font-black ${isSub ? 'text-slate-400' : 'text-slate-600'}`}>{lb.leave_type}</span>
-                              <span className={`text-[10px] font-black ${isSub ? 'text-slate-500' : 'text-indigo-600'}`}>{lb.used_days}/{lb.entitled_days}</span>
-                            </div>
-                          );
-                        })}
-                        {!detailData.leaveBalances?.length && <p className="text-xs text-slate-300 italic">No balance records</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Allowances sub-table */}
-                {explorerEntity.id === 'employees' && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Allowances</p>
-                    {detailLoading ? <div className="text-xs text-slate-300 animate-pulse">Loading…</div> : (
-                      <div className="space-y-1">
-                        {(detailData.allowances || []).map((a: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl">
-                            <span className="text-[10px] font-black text-slate-600">{a.name}</span>
-                            <span className="text-[10px] font-black text-emerald-600">{a.type === 'Fixed' ? `${a.value} KWD` : `${a.value}%`}</span>
-                          </div>
-                        ))}
-                        {!detailData.allowances?.length && <p className="text-xs text-slate-300 italic">No allowances</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Leave History timeline */}
-                {explorerEntity.id === 'leave_requests' && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Audit Trail</p>
-                    {detailLoading ? <div className="text-xs text-slate-300 animate-pulse">Loading…</div> : (
-                      <div className="space-y-2">
-                        {(detailData.leaveHistory || []).map((h: any, i: number) => (
-                          <div key={i} className="bg-slate-50 px-3 py-2 rounded-xl border-l-2 border-indigo-300">
-                            <p className="text-[10px] font-black text-slate-700">{h.action}</p>
-                            <p className="text-[9px] text-slate-400 mt-0.5">{h.actor_name} · {h.created_at?.slice(0, 10)}</p>
-                            {h.note && <p className="text-[9px] text-slate-500 italic mt-0.5">"{h.note}"</p>}
-                          </div>
-                        ))}
-                        {!detailData.leaveHistory?.length && <p className="text-xs text-slate-300 italic">No history entries</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Claim History timeline */}
-                {explorerEntity.id === 'expense_claims' && (
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Claim Audit Trail</p>
-                    {detailLoading ? <div className="text-xs text-slate-300 animate-pulse">Loading…</div> : (
-                      <div className="space-y-2">
-                        {((detailData as any).claimHistory || []).map((h: any, i: number) => (
-                          <div key={i} className="bg-slate-50 px-3 py-2 rounded-xl border-l-2 border-emerald-300">
-                            <p className="text-[10px] font-black text-slate-700">{h.action}</p>
-                            <p className="text-[9px] text-slate-400 mt-0.5">{h.actor_role} · {h.created_at?.slice(0, 10)}</p>
-                            {h.notes && <p className="text-[9px] text-slate-500 italic mt-0.5">"{h.notes}"</p>}
-                          </div>
-                        ))}
-                        {!((detailData as any).claimHistory || []).length && <p className="text-xs text-slate-300 italic">No history entries</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
       </div>
+
+      {/* Detail Panel */}
+      {selectedRow && (
+        <div className="cds--tile" style={{ width: '320px', display: 'flex', flexDirection: 'column', padding: 0, background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', borderRadius: 0 }}>
+          <div style={{ padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', background: 'var(--cds-layer-01)', borderBottom: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Registry Properties</span>
+            <button onClick={() => setSelectedRow(null)} style={{ background: 'none', border: 'none', color: 'var(--cds-text-secondary)', cursor: 'pointer', fontSize: '0.875rem' }}>✕</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--cds-spacing-05)' }}>
+            {Object.entries(selectedRow)
+              .filter(([, v]) => !Array.isArray(v) && typeof v !== 'object')
+              .map(([k, v]: any) => (
+                <div key={k} style={{ marginBottom: 'var(--cds-spacing-04)', paddingBottom: 'var(--cds-spacing-03)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                  <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>{k.replace(/_/g, ' ')}</p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 400, wordBreak: 'break-all', fontFamily: 'monospace' }}>{v !== null && v !== undefined ? String(v) : '—'}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -343,19 +215,15 @@ const ClaimsManagerTab: React.FC = () => {
 
   const handleAction = async (claim: ExpenseClaim, action: 'Approve' | 'Reject') => {
     if (!user) return;
-
     let nextStatus: ClaimStatus = claim.status;
-
     if (action === 'Reject') {
       nextStatus = 'Rejected';
     } else {
-      // Approval Progression: Manager -> HR -> Payroll -> Approved -> Paid
       if (claim.status === 'Pending_Manager') nextStatus = 'Pending_HR';
       else if (claim.status === 'Pending_HR') nextStatus = 'Pending_Payroll';
       else if (claim.status === 'Pending_Payroll') nextStatus = 'Approved';
       else if (claim.status === 'Approved') nextStatus = 'Paid';
     }
-
     try {
       await dbService.updateExpenseClaimStatus(claim.id, user, nextStatus, `${action}ed by ${user.role}`);
       notify("Success", `Claim ${action.toLowerCase()}ed.`, "success");
@@ -366,63 +234,69 @@ const ClaimsManagerTab: React.FC = () => {
   };
 
   return (
-    <div className="animate-in slide-in-from-bottom-4 duration-500 text-start space-y-8">
-      <div>
-        <h3 className="text-xl font-black text-slate-900 tracking-tight">Expense Claims Manager</h3>
-        <p className="text-xs text-slate-400 font-medium mt-1">Multi-stage approval workflow for business reimbursements.</p>
+    <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', borderRadius: 0 }}>
+      <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Expense Claims Management</h4>
+          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Multi-stage financial approval ledger</p>
+        </div>
+        <button onClick={loadClaims} className="cds--btn cds--btn--ghost cds--btn--sm">SYNC_LEDGER 🔄</button>
       </div>
 
-      <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
-        <table className="w-full text-left">
+      <div style={{ overflowX: 'auto' }}>
+        <table className="cds--data-table cds--data-table--compact cds--data-table--short cds--data-table--zebra">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
-              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Details</th>
-              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+            <tr>
+              <th style={{ paddingLeft: 'var(--cds-spacing-05)' }}>Node_ID / Member</th>
+              <th>Transaction_Context</th>
+              <th style={{ textAlign: 'right' }}>Credit_Amount</th>
+              <th style={{ textAlign: 'center' }}>Quantum_Status</th>
+              <th style={{ textAlign: 'right', paddingRight: 'var(--cds-spacing-05)' }}>Operations</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="p-20 text-center text-slate-300 italic">Synchronizing claims registry...</td></tr>
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--cds-spacing-08)', fontStyle: 'italic', color: 'var(--cds-text-secondary)' }}>Synchronizing encrypted registry...</td></tr>
             ) : claims.length === 0 ? (
-              <tr><td colSpan={5} className="p-20 text-center text-slate-300 italic">No expense claims found</td></tr>
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--cds-spacing-08)', color: 'var(--cds-text-disabled)' }}>No active claim nodes found.</td></tr>
             ) : claims.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-8 py-6">
-                  <p className="text-sm font-black text-slate-900">{c.employeeName}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{c.date}</p>
+              <tr key={c.id}>
+                <td style={{ paddingLeft: 'var(--cds-spacing-05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                    <div style={{ width: '24px', height: '24px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                      {c.employeeName[0]}
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '0.875rem' }}>{c.employeeName}</p>
+                      <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{c.date}</p>
+                    </div>
+                  </div>
                 </td>
-                <td className="px-8 py-6">
-                  <p className="text-xs font-bold text-slate-700">{c.merchant}</p>
-                  <p className="text-[9px] text-slate-400 italic">"{c.category}"</p>
+                <td>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 600 }}>{c.merchant}</p>
+                  <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{c.category}</p>
                 </td>
-                <td className="px-8 py-6 text-right">
-                  <p className="text-lg font-black text-indigo-600">{c.amount.toFixed(3)} <span className="text-[9px]">KWD</span></p>
+                <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--cds-interactive-01)', fontSize: '0.875rem' }}>
+                  {c.amount.toFixed(3)} <span style={{ fontSize: '0.625rem', opacity: 0.7 }}>KWD</span>
                 </td>
-                <td className="px-8 py-6 text-center">
-                  <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${c.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                    c.status === 'Rejected' ? 'bg-rose-50 text-rose-600' :
-                      c.status === 'Paid' ? 'bg-indigo-50 text-indigo-600' :
-                        'bg-slate-100 text-slate-500'
-                    }`}>
-                    {c.status.replace(/_/g, ' ')}
+                <td style={{ textAlign: 'center' }}>
+                  <span className={`cds--tag ${
+                    c.status === 'Approved' || c.status === 'Paid' ? 'cds--tag--green' : 
+                    c.status === 'Rejected' ? 'cds--tag--red' : 
+                    'cds--tag--cool-gray'
+                  }`} style={{ fontSize: '0.625rem', margin: 0 }}>
+                    {c.status.toUpperCase().replace(/_/g, ' ')}
                   </span>
                 </td>
-                <td className="px-8 py-6">
-                  <div className="flex justify-center gap-3">
-                    {['Pending_Manager', 'Pending_HR', 'Pending_Payroll', 'Approved'].includes(c.status) && (
-                      <>
-                        <button onClick={() => handleAction(c, 'Approve')} className="h-10 px-6 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">
-                          {c.status === 'Approved' ? 'Mark Paid' : 'Approve'}
-                        </button>
-                        <button onClick={() => handleAction(c, 'Reject')} className="h-10 px-6 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 active:scale-95 transition-all">
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </div>
+                <td style={{ textAlign: 'right', paddingRight: 'var(--cds-spacing-05)' }}>
+                  {['Pending_Manager', 'Pending_HR', 'Pending_Payroll', 'Approved'].includes(c.status) && (
+                    <div style={{ display: 'flex', gap: 'var(--cds-spacing-02)', justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleAction(c, 'Approve')} className="cds--btn cds--btn--primary cds--btn--sm">
+                        {c.status === 'Approved' ? 'Mark Paid' : 'Authorize'}
+                      </button>
+                      <button onClick={() => handleAction(c, 'Reject')} className="cds--btn cds--btn--ghost cds--btn--sm" style={{ color: 'var(--cds-text-error)' }}>Abstain</button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -449,6 +323,83 @@ const AdminCenter: React.FC = () => {
   const [syncingHw, setSyncingHw] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
   const [analyzingOt, setAnalyzingOt] = useState(false);
+  const [purgingOt, setPurgingOt] = useState(false);
+
+  // -- Registry Integrity Audit State --
+  const [auditStats, setAuditStats] = useState<{ healthy: number; risks: number; alerts: number } | null>(null);
+  const [auditRisks, setAuditRisks] = useState<any[]>([]);
+  const [auditing, setAuditing] = useState(false);
+
+  // -- Data Fetchers (Defined early to avoid hoisting issues) --
+  async function fetchTableData(tableName: TableName) {
+    setLoading(true);
+    try {
+      let data: any[] = [];
+      switch (tableName) {
+        case 'employees': data = await dbService.getEmployees(); break;
+        case 'leave_requests': data = await dbService.getLeaveRequests(); break;
+        case 'payroll_runs': data = await dbService.getPayrollRuns(); break;
+        case 'public_holidays': data = await dbService.getPublicHolidays(); break;
+        case 'office_locations': data = await dbService.getOfficeLocations(); break;
+        case 'department_metrics': data = await dbService.getDepartmentMetrics(); break;
+        case 'announcements': data = await dbService.getAnnouncements(); break;
+      }
+      setTableData(data);
+    } catch (err) {
+      notify(t('fetchFailed'), t('latencyMessage'), "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchHwConfig() {
+    const config = await dbService.getHardwareConfig();
+    setHwConfig(config);
+  }
+
+  async function fetchWorksheetData() {
+    setLoading(true);
+    try {
+      const logs = await dbService.getAttendanceWorksheet(wsFilter.year, wsFilter.month);
+      setWorksheetLogs(logs);
+    } catch (err) {
+      notify("Sync Failed", "Could not synchronize worksheet data.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchMasterHub() {
+    setLoading(true);
+    const [nodes, holidays, metrics] = await Promise.all([
+      dbService.getOfficeLocations(),
+      dbService.getPublicHolidays(),
+      dbService.getDepartmentMetrics()
+    ]);
+    setOfficeNodes(nodes);
+    setHolidayRegistry(holidays);
+    setDeptMetrics(metrics);
+    setLoading(false);
+  }
+
+  async function fetchIntelligence() {
+    setLoading(true);
+    try {
+      const data = await dbService.getAnnouncements();
+      setAnnouncements(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchLeaveRuns() {
+    try {
+      const runs = await dbService.getPayrollRuns();
+      setLeaveRuns(runs.filter(r => (r.cycleType === 'Leave_Run' || r.cycle_type === 'Leave_Run')));
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   // AI Configuration State
   const [aiUrl, setAiUrl] = useState(localStorage.getItem('ai_provider_url') || '');
@@ -495,6 +446,8 @@ const AdminCenter: React.FC = () => {
       fetchIntelligence();
     } else if (activeTab === 'Maintenance') {
       fetchLeaveRuns();
+    } else if (activeTab === 'Integrity') {
+      runRegistryAudit();
     }
   }, [activeTab, selectedTable, wsFilter.month, wsFilter.year]);
 
@@ -552,66 +505,7 @@ const AdminCenter: React.FC = () => {
     });
   };
 
-  const fetchTableData = async (tableName: TableName) => {
-    setLoading(true);
-    try {
-      let data: any[] = [];
-      switch (tableName) {
-        case 'employees': data = await dbService.getEmployees(); break;
-        case 'leave_requests': data = await dbService.getLeaveRequests(); break;
-        case 'payroll_runs': data = await dbService.getPayrollRuns(); break;
-        case 'public_holidays': data = await dbService.getPublicHolidays(); break;
-        case 'office_locations': data = await dbService.getOfficeLocations(); break;
-        case 'department_metrics': data = await dbService.getDepartmentMetrics(); break;
-        case 'announcements': data = await dbService.getAnnouncements(); break;
-      }
-      setTableData(data);
-    } catch (err) {
-      notify(t('fetchFailed'), t('latencyMessage'), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchHwConfig = async () => {
-    const config = await dbService.getHardwareConfig();
-    setHwConfig(config);
-  };
-
-  const fetchWorksheetData = async () => {
-    setLoading(true);
-    try {
-      const logs = await dbService.getAttendanceWorksheet(wsFilter.year, wsFilter.month);
-      setWorksheetLogs(logs);
-    } catch (err) {
-      notify("Sync Failed", "Could not synchronize worksheet data.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMasterHub = async () => {
-    setLoading(true);
-    const [nodes, holidays, metrics] = await Promise.all([
-      dbService.getOfficeLocations(),
-      dbService.getPublicHolidays(),
-      dbService.getDepartmentMetrics()
-    ]);
-    setOfficeNodes(nodes);
-    setHolidayRegistry(holidays);
-    setDeptMetrics(metrics);
-    setLoading(false);
-  };
-
-  const fetchIntelligence = async () => {
-    setLoading(true);
-    try {
-      const data = await dbService.getAnnouncements();
-      setAnnouncements(data);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSyncHardware = async () => {
     setSyncingHw(true);
@@ -655,14 +549,27 @@ const AdminCenter: React.FC = () => {
     }
   };
 
-  const fetchLeaveRuns = async () => {
-    try {
-      const runs = await dbService.getPayrollRuns();
-      setLeaveRuns(runs.filter(r => r.cycleType === 'Leave_Run'));
-    } catch (e) {
-      console.error(e);
-    }
+  const handlePurgeLowOvertime = async () => {
+    confirm({
+      title: isAr ? "تطهير العمل الإضافي الصغير؟" : "Purge Small Overtime?",
+      message: isAr 
+        ? "سيتم حذف جميع سجلات العمل الإضافي المعلقة التي تساوي ساعة واحدة أو أقل لتنظيف سير العمل."
+        : "This will permanently delete all pending overtime records <= 1 hour to declutter the workflow.",
+      onConfirm: async () => {
+        setPurgingOt(true);
+        try {
+          await dbService.purgeLowOvertime();
+          notify(t('success'), "Small overtime records purged from registry.", "success");
+        } catch (e: any) {
+          console.error('Purge Failed:', e);
+          notify("Error", e.message || "Registry cleanup failed.", "error");
+        } finally {
+          setPurgingOt(false);
+        }
+      }
+    });
   };
+
 
   const handleRollbackLeaveRun = async () => {
     if (!selectedLeaveRunId) return notify(t('warning'), "Please select a leave payout to reverse", 'warning');
@@ -790,6 +697,74 @@ const AdminCenter: React.FC = () => {
     setLoading(false);
   };
 
+  const runRegistryAudit = async () => {
+    setAuditing(true);
+    try {
+      const emps = await dbService.getEmployees();
+      const risks: any[] = [];
+      let healthyCount = 0;
+      const today = new Date();
+
+      emps.forEach(emp => {
+        let empRisksFound = 0;
+        
+        // 1. Data Integrity Checks
+        if (!emp.civilId || emp.civilId.length < 10) {
+          risks.push({ emp, category: 'registryHealth', issue: t('missingCivilId'), severity: 'critical' });
+          empRisksFound++;
+        }
+        if (!emp.iban || emp.iban.length < 15) {
+          risks.push({ emp, category: 'wpsCompliance', issue: t('missingIban'), severity: 'high' });
+          empRisksFound++;
+        }
+        if (!emp.department) {
+          risks.push({ emp, category: 'fieldAudit', issue: t('missingDept'), severity: 'high' });
+          empRisksFound++;
+        }
+        const isExempt = emp.role === 'Admin' || emp.role === 'Executive' || emp.role === 'HR Manager';
+        if (!emp.managerId && !isExempt) {
+          risks.push({ emp, category: 'fieldAudit', issue: t('missingManager'), severity: 'medium' });
+          empRisksFound++;
+        }
+
+        // 2. Document Expiry Checks (Unified Radar)
+        const checkDocs = [
+          { type: 'Civil ID', date: emp.civilIdExpiry },
+          { type: 'Passport', date: emp.passportExpiry },
+          { type: 'Izn Amal', date: emp.iznAmalExpiry }
+        ];
+
+        checkDocs.forEach(doc => {
+          if (doc.date) {
+            const exp = new Date(doc.date);
+            const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            if (diff < 90) {
+              risks.push({
+                emp,
+                category: 'docIntegrityRadar',
+                issue: `${doc.type} expires in ${diff} days`,
+                severity: diff < 30 ? 'critical' : (diff < 60 ? 'high' : 'medium'),
+                metadata: { days: diff, type: doc.type }
+              });
+              empRisksFound++;
+            }
+          }
+        });
+
+        if (empRisksFound === 0) healthyCount++;
+      });
+
+      setAuditStats({ healthy: healthyCount, risks: risks.length, alerts: risks.filter(r => r.severity === 'critical').length });
+      setAuditRisks(risks);
+      notify(t('success'), "Registry Integrity Audit complete.", "success");
+    } catch (err) {
+      console.error(err);
+      notify(t('critical'), "Integrity Audit engine failed.", "error");
+    } finally {
+      setAuditing(false);
+    }
+  };
+
   const handleSaveAiConfig = () => {
     localStorage.setItem('ai_provider_url', aiUrl);
     localStorage.setItem('ai_provider_model', aiModel);
@@ -835,20 +810,21 @@ const AdminCenter: React.FC = () => {
   };
 
   const SectionHeading = ({ icon, title, subtitle, onAdd }: any) => (
-    <div className="mb-6 flex items-center justify-between">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">
+    <div style={{ marginBottom: 'var(--cds-spacing-07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+          {icon && <span style={{ marginRight: 'var(--cds-spacing-03)' }}>{icon}</span>}
           {title}
-        </h2>
-        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+        </h3>
+        {subtitle && <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{subtitle}</p>}
       </div>
       {onAdd && (
         <button
           onClick={onAdd}
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-slate-50 hover:bg-slate-900/90 h-9 px-4 py-2"
-          title="Add New Entry"
+          className="cds--btn cds--btn--primary cds--btn--sm"
+          style={{ height: '32px' }}
         >
-          Add Item
+          {isAr ? 'إضافة سجل' : 'Registry_Add +'}
         </button>
       )}
     </div>
@@ -859,137 +835,249 @@ const AdminCenter: React.FC = () => {
     : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-16 font-sans text-slate-950" dir={isAr ? 'rtl' : 'ltr'}>
-      {/* Header Panel */}
-      <div className="flex flex-col space-y-1.5 text-start">
-        <h2 className="text-3xl font-bold tracking-tight">{t('controlTower')}</h2>
-        <p className="text-sm text-slate-500">{t('controlTowerSub')}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.7s ease' }}>
+      <header>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('adminCenter')}</h2>
+          <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{isAr ? 'إدارة النظام والبيانات الأساسية' : 'Root registry management and system configuration.'}</p>
+      </header>
+
+      {/* Standardized Tabs Navigation - Single Row */}
+      <div className="cds--tabs" style={{ marginBottom: 'var(--cds-spacing-05)', width: '100%', overflowX: 'auto', background: 'var(--cds-background)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+        <ul className="cds--tabs__nav" role="tablist" style={{ display: 'flex', gap: '2px', padding: 0, margin: 0, listStyle: 'none' }}>
+           {[
+             { id: 'Integrity', label: t('integrityReport'), icon: '🛡️' },
+             { id: 'Registry', label: t('registry'), icon: '📜' },
+             { id: 'Users', label: 'Users', icon: '👤' },
+             { id: 'Claims', label: 'Claims', icon: '🧾' },
+             { id: 'Configuration', label: t('settings'), icon: '⚙️' },
+             { id: 'Connectors', label: 'Hardware', icon: '🔌' },
+             { id: 'Worksheet', label: 'Worksheet', icon: '📅' },
+             { id: 'MasterData', label: 'Hub', icon: '🏦' },
+             { id: 'Terminal', label: 'Terminal', icon: '⌨️' },
+             { id: 'Maintenance', label: 'Purge', icon: '🧹' }
+           ].map(tab => (
+            <li 
+              key={tab.id}
+              className={`cds--tabs__nav-item ${activeTab === tab.id ? 'cds--tabs__nav-item--selected' : ''}`}
+              role="presentation"
+              style={{ flex: '1 0 auto', minWidth: '100px' }}
+            >
+              <button
+                className="cds--tabs__nav-link"
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{ 
+                  width: '100%',
+                  padding: '0 var(--cds-spacing-05)',
+                  fontSize: '0.75rem',
+                  fontWeight: activeTab === tab.id ? 600 : 400,
+                  background: activeTab === tab.id ? 'var(--cds-layer-01)' : 'transparent',
+                  color: activeTab === tab.id ? 'var(--cds-interactive-01)' : 'var(--cds-text-secondary)',
+                  border: 'none',
+                  borderBottom: activeTab === tab.id ? '2px solid var(--cds-interactive-01)' : '2px solid transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 'var(--cds-spacing-03)',
+                  height: '40px',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span style={{ fontSize: '1rem', opacity: activeTab === tab.id ? 1 : 0.7 }}>{tab.icon}</span>
+                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tab.label}</span>
+              </button>
+            </li>
+           ))}
+        </ul>
       </div>
 
-      {/* Main Tab Navigation */}
-      <div className="inline-flex h-9 items-center justify-start rounded-lg bg-slate-100 p-1 text-slate-500 w-full overflow-x-auto lg:w-max">
-        {[
-          { id: 'Integrity', label: t('healthMatrix') },
-          { id: 'Registry', label: t('dataExplorer') },
-          { id: 'Claims', label: 'Claims' },
-          { id: 'MasterData', label: t('masterData') },
-          { id: 'Intelligence', label: t('tickerHub') },
-          { id: 'Worksheet', label: t('dailyWorksheet') },
-          { id: 'Connectors', label: t('hybridConnectors') },
-          { id: 'Users', label: 'Access Control' },
-          { id: 'Maintenance', label: t('maintenance') },
-          { id: 'Terminal', label: t('sqlTerminal') }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeTab === tab.id ? 'bg-white text-slate-950 shadow-sm' : 'hover:bg-slate-50 hover:text-slate-900'
-              }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-12">
+      <main>
         {activeTab === 'Registry' && <DataExplorerTab />}
         {activeTab === 'Claims' && <ClaimsManagerTab />}
         {activeTab === 'Users' && <div className="animate-in slide-in-from-bottom-4 duration-500"><UserManagement /></div>}
 
-        {
-          activeTab === 'Integrity' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 animate-in slide-in-from-bottom-6 duration-700">
-              <div className="lg:col-span-1 bg-white p-12 rounded-[64px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] flex flex-col justify-between text-start">
-                <div className="space-y-8">
-                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('registryStatus')}</h3>
+        {activeTab === 'Integrity' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'slide-up 0.4s ease' }}>
+            
+            {/* Core Infrastructure Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+               {/* Connection Status Tile */}
+               <div className="cds--tile" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-06)' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('registryStatus')}</h4>
                   {connectionReport ? (
-                    <div className="flex items-center gap-8 p-8 bg-slate-50 rounded-[40px] border border-slate-100 shadow-inner">
-                      <div className={`w-20 h-20 rounded-[28px] flex items-center justify-center text-3xl shadow-xl ${connectionReport.success ? 'bg-emerald-50 text-emerald-600 shadow-emerald-500/10' : 'bg-rose-50 text-rose-600 shadow-rose-500/10'}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-05)', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)' }}>
+                      <div style={{ fontSize: '1.5rem', color: connectionReport.success ? 'var(--cds-support-success)' : 'var(--cds-support-error)' }}>
                         {connectionReport.success ? '⚡' : '❌'}
                       </div>
                       <div>
-                        <p className="text-lg font-black text-slate-900">
-                          {connectionReport.success ? t('handshakeVerified') : t('handshakeFailed')}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1.5">{connectionReport.message}</p>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{connectionReport.success ? t('handshakeVerified') : t('handshakeFailed')}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{connectionReport.message}</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-10 text-center text-slate-300 italic border-2 border-dashed border-slate-100 rounded-[40px]">
+                    <div style={{ padding: 'var(--cds-spacing-07)', textAlign: 'center', color: 'var(--cds-text-disabled)', border: '1px dashed var(--cds-border-subtle)' }}>
                       {t('runDiagnostics')}
                     </div>
                   )}
-                </div>
-                <div className="space-y-5 pt-16">
-                  <button onClick={checkConnection} className="w-full py-6 bg-slate-900 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl hover:bg-black active:scale-95 transition-all">{t('executeDiagnostics')}</button>
-                </div>
-              </div>
+                  <button onClick={checkConnection} className="cds--btn cds--btn--primary cds--btn--sm" style={{ width: '100%' }}>{t('executeDiagnostics')}</button>
+               </div>
 
-              <div className="lg:col-span-1 bg-white p-12 rounded-[64px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] text-start">
-                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-12">{t('networkTelemetry')}</h3>
-                <div className="h-56 flex items-end gap-3 px-2">
-                  {latencyHistory.map((ping, i) => (
-                    <div
-                      key={i}
-                      className={`flex-1 rounded-t-2xl transition-all duration-700 shadow-sm ${ping > 1000 ? 'bg-rose-500 shadow-rose-500/20' : 'bg-emerald-500 shadow-emerald-500/20'}`}
-                      style={{ height: `${Math.max(10, Math.min(100, (ping / 2000) * 100))}%` }}
-                    ></div>
-                  ))}
-                  {latencyHistory.length === 0 && <div className="w-full text-center text-slate-200 font-black uppercase tracking-widest py-20 opacity-30">{t('nullFeed')}</div>}
-                </div>
-                <p className="mt-10 text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.25em]">{t('latencyMonitor')}</p>
-              </div>
-
-              <div className="lg:col-span-1 bg-indigo-600 p-16 rounded-[64px] shadow-2xl text-white text-start relative overflow-hidden flex flex-col justify-between border border-indigo-500">
-                <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform duration-1000">🛰️</div>
-                <div className="space-y-4">
-                  <h3 className="text-[11px] font-black text-indigo-200 uppercase tracking-[0.3em]">{t('cloudStatus')}</h3>
-                  <p className="text-3xl font-black tracking-tighter leading-tight">{t('cloudOptimized')}</p>
-                </div>
-                <div className="pt-12">
-                  <div className="px-8 py-4 bg-white/10 rounded-[24px] border border-white/10 backdrop-blur-3xl shadow-2xl">
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-100">{t('authBridge')}</span>
+               {/* Telemetry Tile */}
+               <div className="cds--tile" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-06)' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('networkTelemetry')}</h4>
+                  <div style={{ height: '120px', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                    {latencyHistory.map((ping, i) => (
+                      <div
+                        key={i}
+                        style={{ 
+                          flex: 1, 
+                          height: `${Math.max(10, Math.min(100, (ping / 2000) * 100))}%`, 
+                          background: ping > 1000 ? 'var(--cds-support-error)' : 'var(--cds-support-success)',
+                          opacity: 0.8
+                        }}
+                      ></div>
+                    ))}
+                    {latencyHistory.length === 0 && <div style={{ width: '100%', textAlign: 'center', fontSize: '0.75rem', color: 'var(--cds-text-disabled)' }}>{t('nullFeed')}</div>}
                   </div>
+                  <p style={{ fontSize: '0.625rem', textAlign: 'center', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('latencyMonitor')}</p>
+               </div>
+
+               {/* System Stats Tile */}
+               <div className="cds--tile" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', padding: 'var(--cds-spacing-06)', background: 'var(--cds-interactive-01)', color: 'white' }}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f4f4f4', textTransform: 'uppercase' }}>{t('systemIntegrity')}</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ fontSize: '1.25rem', fontWeight: 600 }}>{auditStats ? `${auditStats.healthy} Healthy` : 'Awaiting Audit'}</p>
+                      <p style={{ fontSize: '0.75rem', opacity: 0.8 }}>{auditStats ? `${auditStats.risks} Active Risks Detected` : 'Registry integrity scan pending'}</p>
+                    </div>
+                    <div style={{ fontSize: '2rem' }}>🛡️</div>
+                  </div>
+                  <button 
+                    onClick={runRegistryAudit} 
+                    disabled={auditing}
+                    className="cds--btn cds--btn--secondary cds--btn--sm" 
+                    style={{ width: '100%', border: '1px solid white', color: 'white' }}
+                  >
+                    {auditing ? 'CALCULATING...' : t('integrityReport')}
+                  </button>
+               </div>
+            </div>
+
+            {/* System Integrity Report - The Restored Functionality */}
+            {auditRisks.length > 0 && (
+              <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', borderRadius: 0 }}>
+                <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{t('integrityReport')}</h3>
+                    <span className="cds--tag cds--tag--red" style={{ fontSize: '0.625rem' }}>{auditStats?.alerts} CRITICAL_ALERTS</span>
+                  </div>
+                  <button onClick={() => setAuditRisks([])} className="cds--btn cds--btn--ghost cds--btn--sm">Dismiss</button>
                 </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="cds--data-table cds--data-table--compact">
+                    <thead>
+                      <tr>
+                        <th>{t('members')}</th>
+                        <th>Category</th>
+                        <th>Risk Severity</th>
+                        <th>Condition</th>
+                        <th style={{ textAlign: 'right' }}>Resolution</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditRisks.map((risk, i) => (
+                        <tr key={i}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                              <div style={{ width: '24px', height: '24px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                                {risk.emp.name[0]}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 600 }}>{isAr && risk.emp.nameArabic ? risk.emp.nameArabic : risk.emp.name}</span>
+                                <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{risk.emp.nationality}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td><span className="cds--tag cds--tag--warm-gray" style={{ fontSize: '0.625rem' }}>{t(risk.category)}</span></td>
+                          <td>
+                            <span className={`cds--tag ${risk.severity === 'critical' ? 'cds--tag--red' : risk.severity === 'high' ? 'cds--tag--magenta' : 'cds--tag--cyan'}`} style={{ fontSize: '0.625rem' }}>
+                              {risk.severity.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.75rem', fontWeight: 600 }}>{risk.issue}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="cds--btn cds--btn--ghost cds--btn--sm" style={{ padding: 0, justifyContent: 'center', width: '32px' }} title="Send Alert">🔔</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Network Topology Visualizer - Optional but premium */}
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-05)' }}>Network Node Topology</h4>
+              <div style={{ display: 'flex', gap: 'var(--cds-spacing-07)', overflowX: 'auto', padding: 'var(--cds-spacing-05) 0' }}>
+                 {[
+                   { name: 'Registry Gateway', status: 'Online', load: '12%' },
+                   { name: 'Biometric Node', status: 'Online', load: '4%' },
+                   { name: 'Audit Engine', status: 'Idle', load: '0%' },
+                   { name: 'WPS Proxy', status: 'Online', load: '22%' },
+                   { name: 'Auth Controller', status: 'Online', load: '8%' }
+                 ].map(node => (
+                   <div key={node.name} style={{ flex: '0 0 160px', padding: 'var(--cds-spacing-04)', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', textAlign: 'center' }}>
+                      <div style={{ width: '40px', height: '40px', margin: '0 auto var(--cds-spacing-03) auto', background: 'var(--cds-background)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--cds-support-success)' }}>
+                        <div style={{ width: '8px', height: '8px', background: 'var(--cds-support-success)', borderRadius: '50%' }}></div>
+                      </div>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 600 }}>{node.name}</p>
+                      <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>LOAD: {node.load}</p>
+                   </div>
+                 ))}
               </div>
             </div>
-          )}
+
+          </div>
+        )}
 
         {activeTab === 'MasterData' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in slide-in-from-bottom-6 duration-700 text-start">
-            <div className="bg-white p-12 rounded-[56px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] space-y-12">
-              <SectionHeading icon="📍" title={t('officeLocations')} subtitle={t('officeNodesSub')} onAdd={() => { setEditItem({ type: 'Office', data: {} }); setIsCapturing(true); }} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.5s ease' }}>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+              <SectionHeading title={t('officeLocations')} subtitle={t('officeNodesSub')} onAdd={() => { setEditItem({ type: 'Office', data: {} }); setIsCapturing(true); }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)', marginTop: 'var(--cds-spacing-05)' }}>
                 {officeNodes.map(node => (
-                  <div key={node.id} className="p-8 bg-slate-50 rounded-[32px] border border-slate-100 shadow-inner group relative">
-                    <p className="text-lg font-black text-slate-900 mb-1">{isAr && node.nameArabic ? node.nameArabic : node.name}</p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{isAr && node.addressArabic ? node.addressArabic : node.address}</p>
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => { setEditItem({ type: 'Office', data: node }); setIsCapturing(true); }} className="w-8 h-8 rounded-lg bg-white text-indigo-600 flex items-center justify-center hover:bg-slate-50 text-xs shadow-sm border border-slate-100">✏️</button>
-                      <button onClick={() => handleDeleteItem('Office', node.id)} className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 text-xs shadow-sm">🗑️</button>
+                  <div key={node.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--cds-spacing-04)', background: 'var(--cds-layer-01)', borderLeft: '4px solid var(--cds-interactive-01)' }}>
+                    <div>
+                      <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{isAr && node.nameArabic ? node.nameArabic : node.name}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{isAr && node.addressArabic ? node.addressArabic : node.address}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--cds-spacing-02)' }}>
+                      <button onClick={() => { setEditItem({ type: 'Office', data: node }); setIsCapturing(true); }} className="cds--btn cds--btn--ghost cds--btn--sm">{isAr ? 'تعديل' : 'Edit'}</button>
+                      <button onClick={() => handleDeleteItem('Office', node.id)} className="cds--btn cds--btn--danger--ghost cds--btn--sm">{isAr ? 'حذف' : 'Delete'}</button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white p-12 rounded-[56px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] space-y-12">
-              <SectionHeading icon="📅" title={t('publicHolidays')} subtitle={t('publicHolidaysSub')} onAdd={() => { setEditItem({ type: 'Holiday', data: {} }); setIsCapturing(true); }} />
-              <div className="space-y-4">
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+              <SectionHeading title={t('publicHolidays')} subtitle={t('publicHolidaysSub')} onAdd={() => { setEditItem({ type: 'Holiday', data: {} }); setIsCapturing(true); }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: 'var(--cds-spacing-05)' }}>
                 {holidayRegistry.map(h => (
-                  <div key={h.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[28px] border border-slate-100 shadow-inner group transition-all hover:bg-white hover:shadow-lg">
-                    <div>
-                      <p className="text-sm font-black text-slate-800">{isAr && h.nameArabic ? h.nameArabic : h.name}</p>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{h.date}</p>
+                  <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--cds-spacing-03) var(--cds-spacing-04)', background: 'var(--cds-layer-01)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, width: '80px', color: 'var(--cds-link-primary)' }}>{h.date}</div>
+                      <p style={{ fontSize: '0.875rem' }}>{isAr && h.nameArabic ? h.nameArabic : h.name}</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className={`px-4 py-1.5 ${h.isFixed ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'} rounded-xl text-[9px] font-black uppercase tracking-widest border`}>
+                    <div style={{ display: 'flex', gap: 'var(--cds-spacing-02)', alignItems: 'center' }}>
+                      <span className={`cds--tag ${h.isFixed ? 'cds--tag--blue' : 'cds--tag--warm-gray'}`} style={{ fontSize: '0.625rem', margin: 0 }}>
                         {h.isFixed ? t('fixed') : t('variable')}
                       </span>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setEditItem({ type: 'Holiday', data: h }); setIsCapturing(true); }} className="w-8 h-8 rounded-lg bg-white text-indigo-600 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-slate-50 transition-all text-xs shadow-sm border border-slate-100">✏️</button>
-                        <button onClick={() => handleDeleteItem('Holiday', h.id)} className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-rose-100 transition-all text-xs shadow-sm">🗑️</button>
-                      </div>
+                      <button onClick={() => { setEditItem({ type: 'Holiday', data: h }); setIsCapturing(true); }} className="cds--btn cds--btn--ghost cds--btn--sm">✏️</button>
+                      <button onClick={() => handleDeleteItem('Holiday', h.id)} className="cds--btn cds--btn--ghost cds--btn--sm" style={{ color: 'var(--cds-support-error)' }}>🗑️</button>
                     </div>
                   </div>
                 ))}
@@ -999,22 +1087,25 @@ const AdminCenter: React.FC = () => {
         )}
 
         {activeTab === 'Intelligence' && (
-          <div className="space-y-12 animate-in slide-in-from-bottom-6 duration-700 text-start">
-            <div className="bg-white p-16 rounded-[64px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] space-y-12">
-              <SectionHeading icon="📣" title={t('tickerBroadcast')} subtitle={t('tickerBroadcastSub')} onAdd={() => { setEditItem({ type: 'Announcement', data: {} }); setIsCapturing(true); }} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.5s ease' }}>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+              <SectionHeading title={t('tickerBroadcast')} subtitle={t('tickerBroadcastSub')} onAdd={() => { setEditItem({ type: 'Announcement', data: {} }); setIsCapturing(true); }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--cds-spacing-05)', marginTop: 'var(--cds-spacing-05)' }}>
                 {announcements.map(ann => (
-                  <div key={ann.id} className="p-10 bg-slate-50 rounded-[40px] border border-slate-100 hover:border-indigo-600/20 transition-all group relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-5 text-4xl group-hover:scale-125 transition-transform duration-500">📎</div>
-                    <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => { setEditItem({ type: 'Announcement', data: ann }); setIsCapturing(true); }} className="w-9 h-9 rounded-xl bg-white text-indigo-600 flex items-center justify-center hover:bg-slate-50 shadow-sm border border-slate-200 text-xs">✏️</button>
-                      <button onClick={() => handleDeleteItem('Announcement', ann.id)} className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 shadow-sm text-xs">🗑️</button>
+                  <div key={ann.id} style={{ padding: 'var(--cds-spacing-05)', background: 'var(--cds-layer-01)', borderLeft: '4px solid var(--cds-interactive-01)', position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-03)' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{isAr && ann.titleArabic ? ann.titleArabic : ann.title}</h4>
+                      <div style={{ display: 'flex', gap: 'var(--cds-spacing-02)' }}>
+                        <button onClick={() => { setEditItem({ type: 'Announcement', data: ann }); setIsCapturing(true); }} className="cds--btn cds--btn--ghost cds--btn--sm">✏️</button>
+                        <button onClick={() => handleDeleteItem('Announcement', ann.id)} className="cds--btn cds--btn--danger--ghost cds--btn--sm">🗑️</button>
+                      </div>
                     </div>
-                    <h4 className="text-xl font-black text-slate-900 mb-2 truncate pr-16">{isAr && ann.titleArabic ? ann.titleArabic : ann.title}</h4>
-                    <p className="text-sm text-slate-500 font-medium leading-relaxed line-clamp-2">{isAr && ann.contentArabic ? ann.contentArabic : ann.content}</p>
-                    <div className="mt-6 pt-6 border-t border-slate-200/60 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{ann.createdAt}</span>
-                      <span className={`px-3 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest ${ann.priority === 'Urgent' ? 'text-rose-600 border-rose-100' : 'text-indigo-600'}`}>{ann.priority === 'Urgent' ? t('urgent') : t('normal')}</span>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginBottom: 'var(--cds-spacing-04)', lineHeight: 1.5 }}>{isAr && ann.contentArabic ? ann.contentArabic : ann.content}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-disabled)', textTransform: 'uppercase' }}>{ann.createdAt}</span>
+                      <span className={`cds--tag ${ann.priority === 'Urgent' ? 'cds--tag--red' : 'cds--tag--blue'}`} style={{ fontSize: '0.625rem', margin: 0 }}>
+                        {ann.priority === 'Urgent' ? t('urgent') : t('normal')}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -1024,392 +1115,288 @@ const AdminCenter: React.FC = () => {
         )}
 
         {activeTab === 'Worksheet' && (
-          <div className="space-y-12 animate-in slide-in-from-bottom-6 duration-700 text-start">
-            <div className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-xl shadow-slate-900/[0.02] flex flex-wrap justify-between items-center gap-6">
-              <SectionHeading icon="📋" title={t('dailyWorksheet')} subtitle={t('dailyWorksheetSub')} />
-              <div className="flex gap-4">
-                <select className="px-5 py-4 bg-slate-50 rounded-2xl text-xs font-bold border border-slate-100 shadow-inner outline-none" value={wsFilter.month} onChange={e => setWsFilter({ ...wsFilter, month: parseInt(e.target.value) })}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', animation: 'slide-up 0.5s ease' }}>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-05)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('dailyWorksheet')}</h3>
+                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{t('dailyWorksheetSub')}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                <select className="cds--select-input cds--select-input--sm" style={{ padding: '0 1rem', height: '32px' }} value={wsFilter.month} onChange={e => setWsFilter({ ...wsFilter, month: parseInt(e.target.value) })}>
                   {monthsList.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                 </select>
-                <select className="px-5 py-4 bg-slate-50 rounded-2xl text-xs font-bold border border-slate-100 shadow-inner outline-none" value={wsFilter.year} onChange={e => setWsFilter({ ...wsFilter, year: parseInt(e.target.value) })}>
+                <select className="cds--select-input cds--select-input--sm" style={{ padding: '0 1rem', height: '32px' }} value={wsFilter.year} onChange={e => setWsFilter({ ...wsFilter, year: parseInt(e.target.value) })}>
                   <option value={2025}>2025</option>
                   <option value={2026}>2026</option>
                 </select>
               </div>
             </div>
 
-            <div className="bg-white rounded-[48px] border border-slate-200 shadow-xl overflow-hidden">
-              <div className="overflow-x-auto max-h-[700px]">
-                <table className="w-full text-start">
-                  <thead>
-                    <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                      <th className="px-10 py-6">{t('date')}</th>
-                      <th className="px-10 py-6">{t('employee')}</th>
-                      <th className="px-10 py-6">{t('identityLink')}</th>
-                      <th className="px-10 py-6">{t('clockIn')}</th>
-                      <th className="px-10 py-6">{t('clockOut')}</th>
-                      <th className="px-10 py-6">{t('status')}</th>
+            <div className="cds--data-table-container" style={{ border: '1px solid var(--cds-border-subtle)' }}>
+              <table className="cds--data-table cds--data-table--short">
+                <thead>
+                  <tr>
+                    <th>{t('date')}</th>
+                    <th>{t('employee')}</th>
+                    <th>{t('clockIn')}</th>
+                    <th>{t('clockOut')}</th>
+                    <th>{t('status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {worksheetLogs.length > 0 ? worksheetLogs.map(log => (
+                    <tr key={log.id}>
+                      <td>{log.date}</td>
+                      <td style={{ fontWeight: 600 }}>{log.employeeName}</td>
+                      <td style={{ color: 'var(--cds-interactive-01)', fontFamily: 'monospace' }}>{log.clockIn}</td>
+                      <td style={{ color: 'var(--cds-text-secondary)', fontFamily: 'monospace' }}>{log.clockOut}</td>
+                      <td>
+                        <span className={`cds--tag ${log.status === 'Present' ? 'cds--tag--green' : 'cds--tag--red'}`} style={{ fontSize: '0.625rem', margin: 0 }}>
+                          {log.status.toUpperCase()}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {worksheetLogs.length > 0 ? worksheetLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-10 py-6 font-black text-slate-500">{log.date}</td>
-                        <td className="px-10 py-6 font-black text-slate-900">{log.employeeName}</td>
-                        <td className="px-10 py-6">
-                          <span className="px-3 py-1 bg-slate-100 text-slate-400 text-[9px] font-black rounded-lg uppercase tracking-tight">{t('verified')}</span>
-                        </td>
-                        <td className="px-10 py-6 font-mono text-xs font-black text-indigo-600">{log.clockIn}</td>
-                        <td className="px-10 py-6 font-mono text-xs font-black text-slate-400">{log.clockOut}</td>
-                        <td className="px-10 py-6">
-                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${log.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{log.status}</span>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={6} className="p-32 text-center text-slate-300 italic">{t('noWorksheetLogs')}</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  )) : (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--cds-spacing-10)', fontStyle: 'italic', color: 'var(--cds-text-disabled)' }}>{t('noWorksheetLogs')}</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
         {activeTab === 'Maintenance' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in slide-in-from-bottom-6 duration-700 text-start">
-            <div className="bg-white p-16 rounded-[64px] border border-slate-200 shadow-xl space-y-12">
-              <SectionHeading icon="⏪" title={t('payrollRollback')} subtitle={t('rollbackSub')} />
-
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('year')}</label>
-                    <select
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-rose-500/5 transition-all"
-                      value={rollbackFilter.year}
-                      onChange={e => setRollbackFilter({ ...rollbackFilter, year: parseInt(e.target.value) })}
-                    >
-                      <option value={2025}>2025</option>
-                      <option value={2026}>2026</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('month')}</label>
-                    <select
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-rose-500/5 transition-all"
-                      value={rollbackFilter.month}
-                      onChange={e => setRollbackFilter({ ...rollbackFilter, month: parseInt(e.target.value) })}
-                    >
-                      {monthsList.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('cycle')}</label>
-                    <select
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-rose-500/5 transition-all"
-                      value={rollbackFilter.cycle}
-                      onChange={e => setRollbackFilter({ ...rollbackFilter, cycle: e.target.value as any })}
-                    >
-                      <option value="Monthly">{t('monthly')}</option>
-                      <option value="Bi-Weekly">{t('biWeekly')}</option>
-                    </select>
-                  </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 'var(--cds-spacing-07)', animation: 'slide-up 0.5s ease' }}>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+              <SectionHeading title={t('payrollRollback')} subtitle={t('rollbackSub')} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)', marginTop: 'var(--cds-spacing-05)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--cds-spacing-04)' }}>
+                   <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('year')}</label>
+                      <select className="cds--select-input" value={rollbackFilter.year} onChange={e => setRollbackFilter({ ...rollbackFilter, year: parseInt(e.target.value) })}>
+                        <option value={2025}>2025</option>
+                        <option value={2026}>2026</option>
+                      </select>
+                   </div>
+                   <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('month')}</label>
+                      <select className="cds--select-input" value={rollbackFilter.month} onChange={e => setRollbackFilter({ ...rollbackFilter, month: parseInt(e.target.value) })}>
+                        {monthsList.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                      </select>
+                   </div>
+                   <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('cycle')}</label>
+                      <select className="cds--select-input" value={rollbackFilter.cycle} onChange={e => setRollbackFilter({ ...rollbackFilter, cycle: e.target.value as any })}>
+                        <option value="Monthly">{t('monthly')}</option>
+                        <option value="Bi-Weekly">{t('biWeekly')}</option>
+                      </select>
+                   </div>
                 </div>
 
-                <div className="p-8 bg-rose-50 rounded-[40px] border border-rose-100 space-y-4">
-                  <p className="text-xs text-rose-800 font-bold leading-relaxed">
-                    ⚠️ {t('rollbackWarning')}
-                  </p>
+                <div style={{ padding: 'var(--cds-spacing-05)', background: 'var(--cds-support-error-inverse)', color: 'var(--cds-text-inverse)', borderRadius: '4px' }}>
+                   <p style={{ fontSize: '0.75rem', fontWeight: 600 }}>⚠️ {t('rollbackWarning')}</p>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4">
-                  <button
-                    onClick={handleRollbackPayroll}
-                    disabled={loading}
-                    className="flex-1 py-6 bg-rose-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-rose-600/20 active:scale-95 transition-all hover:bg-rose-700"
-                  >
-                    {loading ? '...' : t('executeRollback')}
-                  </button>
-                  <button
-                    onClick={handleRollbackJV}
-                    disabled={loading}
-                    className="flex-1 py-6 bg-slate-900 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 active:scale-95 transition-all hover:bg-black"
-                  >
-                    {loading ? '...' : (isAr ? 'التراجع عن اليومية' : 'Reverse JV Lock')}
-                  </button>
+                <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+                  <button onClick={handleRollbackPayroll} disabled={loading} className="cds--btn cds--btn--danger cds--btn--sm" style={{ flex: 1 }}>{loading ? '...' : t('executeRollback')}</button>
+                  <button onClick={handleRollbackJV} disabled={loading} className="cds--btn cds--btn--secondary cds--btn--sm" style={{ flex: 1 }}>{loading ? '...' : (isAr ? 'التراجع عن اليومية' : 'Reverse JV Lock')}</button>
                 </div>
 
-                <div className="pt-8 border-t border-slate-100 flex flex-col md:flex-row items-end gap-6">
-                  <div className="flex-1 w-full space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Reverse Pay Leave</label>
-                    <select
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-rose-500/5 transition-all"
-                      value={selectedLeaveRunId}
-                      onChange={e => setSelectedLeaveRunId(e.target.value)}
-                    >
-                      <option value="">-- Select Paid Leave Record --</option>
-                      {leaveRuns.map(run => (
-                        <option key={run.id} value={run.id}>{run.periodKey} ({run.totalDisbursement} KWD)</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    onClick={handleRollbackLeaveRun}
-                    disabled={loading || !selectedLeaveRunId}
-                    className="md:w-auto w-full py-4 px-8 bg-white border-2 border-slate-900 text-slate-900 rounded-[24px] font-black text-[12px] uppercase tracking-[0.2em] shadow-sm active:scale-95 transition-all disabled:opacity-50 hover:bg-slate-50"
-                  >
-                    {loading ? '...' : 'Reverse Pay Leave'}
-                  </button>
+                <div style={{ borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-06)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)' }}>
+                   <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Reverse Pay Leave</label>
+                   <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+                      <select className="cds--select-input" style={{ flex: 1 }} value={selectedLeaveRunId} onChange={e => setSelectedLeaveRunId(e.target.value)}>
+                        <option value="">-- Select Paid Leave Record --</option>
+                        {leaveRuns.map(run => (
+                          <option key={run.id} value={run.id}>{run.periodKey} ({run.totalDisbursement} KWD)</option>
+                        ))}
+                      </select>
+                      <button onClick={handleRollbackLeaveRun} disabled={loading || !selectedLeaveRunId} className="cds--btn cds--btn--ghost cds--btn--sm">Reverse</button>
+                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-900 p-16 rounded-[64px] shadow-2xl flex flex-col justify-center text-white space-y-10 relative overflow-hidden border border-white/5">
-              <div className="absolute top-0 right-0 p-12 opacity-5">🛡️</div>
-              <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{t('auditPolicyEnforced')}</h4>
-              <p className="text-2xl font-bold leading-relaxed">
-                {t('rollbackAuditDesc')}
-              </p>
-              <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                {t('sessionSecured')}
-              </div>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-10)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+               <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-interactive-01)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-05)' }}>{t('auditPolicyEnforced')}</h4>
+               <p style={{ fontSize: '1.25rem', fontWeight: 400, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-07)', lineHeight: 1.6 }}>{t('rollbackAuditDesc')}</p>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--cds-support-success)' }}></div>
+                 {t('sessionSecured')}
+               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'Connectors' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in duration-700 text-start">
-            <div className="bg-white p-20 rounded-[64px] border border-slate-200 shadow-xl space-y-16">
-              <div>
-                <SectionHeading icon="📠" title={t('biometricNode')} subtitle={t('biometricNodeSub')} />
-                <div className="space-y-8">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('hwIpAddress')}</label>
-                    <input className="w-full px-8 py-6 bg-slate-50 border border-slate-100 rounded-[28px] font-black text-lg outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={hwConfig?.serverIp || ''} placeholder="192.168.1.1" />
-                  </div>
-                  <button className="w-full py-6 bg-slate-900 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl hover:bg-black active:scale-95 transition-all">{t('probeNodeStatus')}</button>
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.5s ease' }}>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+              <SectionHeading title={t('biometricNode')} subtitle={t('biometricNodeSub')} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', marginTop: 'var(--cds-spacing-05)' }}>
+                 <div>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('hwIpAddress')}</label>
+                    <input className="cds--text-input cds--text-input--sm" value={hwConfig?.serverIp || ''} readOnly placeholder="192.168.1.1" />
+                 </div>
+                 <button className="cds--btn cds--btn--secondary cds--btn--sm">{t('probeNodeStatus')}</button>
               </div>
 
-              <div className="pt-16 border-t border-slate-100">
-                <SectionHeading icon="🧠" title={t('inferenceBridge')} subtitle={t('inferenceBridgeSub')} />
-                <div className="space-y-8">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('localApiEndpoint')}</label>
-                    <input className="w-full px-8 py-6 bg-slate-50 border border-slate-100 rounded-[28px] font-black outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={aiUrl} onChange={e => setAiUrl(e.target.value)} placeholder="http://localhost:11434/api/generate" />
-                    <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase ps-2">{t('geminiDefault')}</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('selectedIntelModel')}</label>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <select
-                        className="flex-1 px-8 py-5 bg-slate-50 border border-slate-100 rounded-[24px] font-black text-sm outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner"
-                        value={['llama3', 'mistral', 'qwen2.5', 'phi3', 'gemma2'].includes(aiModel) ? aiModel : 'custom'}
-                        onChange={e => {
-                          if (e.target.value !== 'custom') setAiModel(e.target.value);
-                        }}
-                      >
-                        <option value="llama3">Llama 3 (Meta Inference)</option>
-                        <option value="mistral">Mistral (High Density)</option>
-                        <option value="qwen2.5">Qwen 2.5 (Registry Expert)</option>
-                        <option value="phi3">Phi-3 (Compute Efficient)</option>
-                        <option value="gemma2">Gemma 2 (Google Local)</option>
-                        <option value="custom">-- Custom Local Model --</option>
+              <div style={{ marginTop: 'var(--cds-spacing-08)', paddingTop: 'var(--cds-spacing-07)', borderTop: '1px solid var(--cds-border-subtle)' }}>
+                <SectionHeading title={t('inferenceBridge')} subtitle={t('inferenceBridgeSub')} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', marginTop: 'var(--cds-spacing-05)' }}>
+                   <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('localApiEndpoint')}</label>
+                      <input className="cds--text-input cds--text-input--sm" value={aiUrl} onChange={e => setAiUrl(e.target.value)} placeholder="http://localhost:11434/api/generate" />
+                   </div>
+                   <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: 'var(--cds-spacing-02)' }}>{t('selectedIntelModel')}</label>
+                      <select className="cds--select-input" value={['llama3', 'mistral', 'qwen2.5', 'phi3', 'gemma2'].includes(aiModel) ? aiModel : 'custom'} onChange={e => e.target.value !== 'custom' && setAiModel(e.target.value)}>
+                         <option value="llama3">Llama 3 (Meta Inference)</option>
+                         <option value="mistral">Mistral (High Density)</option>
+                         <option value="qwen2.5">Qwen 2.5 (Registry Expert)</option>
+                         <option value="phi3">Phi-3 (Compute Efficient)</option>
+                         <option value="gemma2">Gemma 2 (Google Local)</option>
+                         <option value="custom">-- Custom Local Model --</option>
                       </select>
-
-                      {(!['llama3', 'mistral', 'qwen2.5', 'phi3', 'gemma2'].includes(aiModel)) && (
-                        <input
-                          className="flex-1 px-8 py-5 bg-indigo-50 border border-indigo-100 rounded-[24px] font-black text-sm outline-none focus:ring-8 focus:ring-indigo-500/20 transition-all shadow-inner text-indigo-700 animate-in slide-in-from-right-4"
-                          value={aiModel}
-                          onChange={e => setAiModel(e.target.value)}
-                          placeholder="Handle: e.g. codellama"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Inference API Key (Optional)</label>
-                    <input
-                      type="password"
-                      className="w-full px-8 py-6 bg-slate-50 border border-slate-100 rounded-[28px] font-black outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner"
-                      value={aiKey}
-                      onChange={e => setAiKey(e.target.value)}
-                      placeholder="Enter API Key for hosted providers"
-                    />
-                  </div>
-
-                  <button onClick={handleSaveAiConfig} className="w-full py-6 bg-indigo-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-indigo-600/20 active:scale-95 transition-all border border-indigo-500">{t('commitAiLogic')}</button>
+                   </div>
+                   <button onClick={handleSaveAiConfig} className="cds--btn cds--btn--primary cds--btn--sm">{t('commitAiLogic')}</button>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-900 p-20 rounded-[64px] shadow-2xl flex flex-col items-center justify-center text-center space-y-12 relative overflow-hidden group border border-white/5">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-transparent to-transparent opacity-30"></div>
-              <div className="w-40 h-40 rounded-[48px] bg-white/5 border border-white/10 backdrop-blur-3xl flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-1000 shadow-2xl shadow-black/50 relative z-10">⌛</div>
-              <div className="space-y-6 max-w-md relative z-10">
-                <h3 className="text-4xl font-black text-white tracking-tighter leading-none">{t('registryOverhaul')}</h3>
-                <p className="text-slate-400 text-lg leading-relaxed font-medium opacity-80">{t('overhaulDesc')}</p>
-              </div>
-              <div className="w-full space-y-5 relative z-10 max-w-sm">
-                <button onClick={handleSyncHardware} disabled={syncingHw} className="w-full py-6 bg-white text-slate-900 rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl transition-all active:scale-95 disabled:opacity-50 hover:bg-indigo-50">{t('pullLogs')}</button>
-                <button onClick={handleReconstructHistory} disabled={reconstructing} className="w-full py-6 bg-indigo-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-50 border border-indigo-500">{t('backfillRegistry')}</button>
-                <button onClick={handleAnalyzeOvertime} disabled={analyzingOt} className="w-full py-6 bg-emerald-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.25em] shadow-2xl shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50 border border-emerald-500 hover:bg-emerald-700">
-                  {analyzingOt ? 'Analyzing Registry...' : (isAr ? 'تحليل العمل الإضافي' : 'Analyze Overtime')}
-                </button>
-              </div>
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-08)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)', alignItems: 'center', textAlign: 'center' }}>
+               <div style={{ fontSize: '3rem', opacity: 0.5 }}>⌛</div>
+               <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('registryOverhaul')}</h3>
+               <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', lineHeight: 1.5 }}>{t('overhaulDesc')}</p>
+               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                  <button onClick={handleSyncHardware} disabled={syncingHw} className="cds--btn cds--btn--ghost cds--btn--sm" style={{ width: '100%' }}>{t('pullLogs')}</button>
+                  <button onClick={handleReconstructHistory} disabled={reconstructing} className="cds--btn cds--btn--ghost cds--btn--sm" style={{ width: '100%' }}>{t('backfillRegistry')}</button>
+                  <button onClick={handleAnalyzeOvertime} disabled={analyzingOt} className="cds--btn cds--btn--primary cds--btn--sm" style={{ width: '100%' }}>{t('analyzeOvertime')}</button>
+               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'Terminal' && (
-          <div className="bg-slate-950 p-16 rounded-[64px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5 animate-in zoom-in-95 duration-700 text-start">
-            <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-10">
-              <div className="space-y-3">
-                <h3 className="text-4xl font-black text-white tracking-tighter flex items-center gap-6 leading-none">
-                  <span className="w-4 h-4 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.5)]"></span>
-                  {t('registryTerminal')}
-                </h3>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ps-10">{t('directSqlBridge')}</p>
-              </div>
-              <div className="flex gap-4">
-                <button onClick={() => setTerminalSql('')} className="px-10 py-4 bg-white/5 text-slate-400 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all">Clear</button>
-                <button onClick={handleExecuteTerminalSql} disabled={loading || !terminalSql.trim()} className="px-12 py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-emerald-600/20 active:scale-95 disabled:opacity-50 transition-all border border-emerald-500">Commit Query</button>
-              </div>
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', animation: 'fade-in 0.5s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--cds-spacing-05)' }}>
+               <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('registryTerminal')}</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{t('directSqlBridge')}</p>
+               </div>
+               <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+                  <button onClick={() => setTerminalSql('')} className="cds--btn cds--btn--ghost cds--btn--sm">Clear</button>
+                  <button onClick={handleExecuteTerminalSql} disabled={loading || !terminalSql.trim()} className="cds--btn cds--btn--primary cds--btn--sm">Commit Query</button>
+               </div>
             </div>
 
-            <div className="relative group rounded-[48px] overflow-hidden border border-white/10 shadow-2xl">
-              <textarea
-                className="w-full min-h-[550px] bg-slate-900 p-16 font-mono text-base text-emerald-400 outline-none focus:ring-0 shadow-inner transition-all selection:bg-emerald-500/20"
-                spellCheck={false}
-                value={terminalSql}
-                onChange={e => setTerminalSql(e.target.value)}
-              />
-              <div className="absolute bottom-10 right-16 text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pointer-events-none select-none">
-                {t('encryptedSessionActive')}
-              </div>
-            </div>
+            <textarea
+              style={{ width: '100%', minHeight: '400px', padding: 'var(--cds-spacing-05)', background: 'var(--cds-layer-01)', color: '#24a148', fontFamily: 'monospace', fontSize: '0.875rem', border: '1px solid var(--cds-border-subtle)', outline: 'none' }}
+              spellCheck={false}
+              value={terminalSql}
+              onChange={e => setTerminalSql(e.target.value)}
+            />
           </div>
         )}
-      </div>
+      </main>
 
       {/* Capture Hub Overlay */}
       {
         isCapturing && editItem && (
-          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-300">
-            <div className="bg-white w-full max-w-2xl rounded-[64px] shadow-2xl overflow-hidden border border-slate-200">
-              <div className="p-12 border-b border-slate-100 flex justify-between items-center text-start">
+          <div className="cds--modal is-visible" style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+            <div className="cds--modal-container" style={{ width: '100%', maxWidth: '600px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', boxShadow: '0 12px 24px rgba(0,0,0,0.2)' }}>
+              <div className="cds--modal-header" style={{ padding: 'var(--cds-spacing-06)', borderBottom: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{t('captureHub')} {editItem.type}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-1">{t('globalRegistryWriteMode')}</p>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{t('captureHub')} {editItem.type}</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-02)' }}>{t('globalRegistryWriteMode')}</p>
                 </div>
-                <button onClick={() => setIsCapturing(false)} className="w-14 h-14 rounded-[20px] bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-all text-2xl font-light">✕</button>
+                <button onClick={() => setIsCapturing(false)} className="cds--btn cds--btn--ghost cds--btn--sm">✕</button>
               </div>
-              <div className="p-12 space-y-10 text-start">
+              <div className="cds--modal-content" style={{ padding: 'var(--cds-spacing-07)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
                 {editItem.type === 'Announcement' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('englishTitle')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.title || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, title: e.target.value } })} placeholder="System Update" />
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+                      <div>
+                        <label className="cds--label">{t('englishTitle')}</label>
+                        <input className="cds--text-input" value={editItem.data.title || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, title: e.target.value } })} />
                       </div>
-                      <div className="space-y-3" dir="rtl">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('arabicTitle')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner text-right" value={editItem.data.titleArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, titleArabic: e.target.value } })} placeholder="تحديث النظام" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('englishContent')}</label>
-                        <textarea className="w-full p-8 bg-slate-50 rounded-[32px] border border-slate-100 font-medium h-48 outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner resize-none" value={editItem.data.content || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, content: e.target.value } })} placeholder="English message content..." />
-                      </div>
-                      <div className="space-y-3" dir="rtl">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('arabicContent')}</label>
-                        <textarea className="w-full p-8 bg-slate-50 rounded-[32px] border border-slate-100 font-medium h-48 outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner resize-none text-right" value={editItem.data.contentArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, contentArabic: e.target.value } })} placeholder="محتوى الرسالة بالعربي..." />
+                      <div dir="rtl">
+                        <label className="cds--label">{t('arabicTitle')}</label>
+                        <input className="cds--text-input" value={editItem.data.titleArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, titleArabic: e.target.value } })} />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('urgencyLevel')}</label>
-                        <select className="w-full p-5 bg-slate-50 rounded-[20px] border border-slate-100 font-black text-[10px] uppercase tracking-widest outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.priority || 'Normal'} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, priority: e.target.value } })}>
-                          <option value="Normal">Normal</option>
-                          <option value="Urgent">Urgent</option>
-                        </select>
-                      </div>
+                    <div>
+                      <label className="cds--label">{t('englishContent')}</label>
+                      <textarea className="cds--text-input" style={{ minHeight: '80px' }} value={editItem.data.content || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, content: e.target.value } })} />
                     </div>
-                  </div>
+                    <div dir="rtl">
+                      <label className="cds--label">{t('arabicContent')}</label>
+                      <textarea className="cds--text-input" style={{ minHeight: '80px' }} value={editItem.data.contentArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, contentArabic: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label className="cds--label">{t('urgencyLevel')}</label>
+                      <select className="cds--select-input" value={editItem.data.priority || 'Normal'} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, priority: e.target.value } })}>
+                        <option value="Normal">Normal</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    </div>
+                  </>
                 )}
+
                 {editItem.type === 'Holiday' && (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('englishDesignation')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.name || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, name: e.target.value } })} placeholder="Eid Al-Adha" />
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+                      <div>
+                        <label className="cds--label">{t('englishDesignation')}</label>
+                        <input className="cds--text-input" value={editItem.data.name || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, name: e.target.value } })} />
                       </div>
-                      <div className="space-y-3" dir="rtl">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('arabicDesignation')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner text-right" value={editItem.data.nameArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, nameArabic: e.target.value } })} placeholder="عيد الأضحى" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('calendarDate')}</label>
-                        <input type="date" className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.date || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, date: e.target.value } })} />
-                      </div>
-                      <div className="flex flex-col justify-center gap-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('policy')}</label>
-                        <label className="flex items-center gap-4 p-5 bg-slate-50 rounded-[20px] border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
-                          <input type="checkbox" className="w-6 h-6 rounded-lg accent-indigo-600" checked={editItem.data.isFixed} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, isFixed: e.target.checked } })} />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{t('fixedDate')}</span>
-                        </label>
+                      <div dir="rtl">
+                        <label className="cds--label">{t('arabicDesignation')}</label>
+                        <input className="cds--text-input" value={editItem.data.nameArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, nameArabic: e.target.value } })} />
                       </div>
                     </div>
-                  </div>
+                    <div>
+                      <label className="cds--label">{t('calendarDate')}</label>
+                      <input type="date" className="cds--text-input" value={editItem.data.date || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, date: e.target.value } })} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                      <input type="checkbox" checked={editItem.data.isFixed} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, isFixed: e.target.checked } })} />
+                      <label className="cds--label" style={{ marginBottom: 0 }}>{t('fixedDate')}</label>
+                    </div>
+                  </>
                 )}
+
                 {editItem.type === 'Office' && (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('englishDesignation')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.name || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, name: e.target.value } })} placeholder="Grand Tower Hub" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+                      <div>
+                        <label className="cds--label">{t('englishDesignation')}</label>
+                        <input className="cds--text-input" value={editItem.data.name || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, name: e.target.value } })} />
                       </div>
-                      <div className="space-y-3" dir="rtl">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('arabicDesignation')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner text-right" value={editItem.data.nameArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, nameArabic: e.target.value } })} placeholder="برج التحرير" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('englishAddress')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.address || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, address: e.target.value } })} placeholder="Kuwait City, Block 3..." />
-                      </div>
-                      <div className="space-y-3" dir="rtl">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('arabicAddress')}</label>
-                        <input className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner text-right" value={editItem.data.addressArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, addressArabic: e.target.value } })} placeholder="مدينة الكويت، قطعة 3..." />
+                      <div dir="rtl">
+                        <label className="cds--label">{t('arabicDesignation')}</label>
+                        <input className="cds--text-input" value={editItem.data.nameArabic || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, nameArabic: e.target.value } })} />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('gpsLatitude')}</label>
-                        <input type="number" step="any" className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.lat || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, lat: parseFloat(e.target.value) } })} placeholder="29.3759" />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-05)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-02)' }}>
+                        <label className="cds--label">{t('gpsLatitude')}</label>
+                        <input type="number" step="any" className="cds--text-input" value={editItem.data.lat || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, lat: parseFloat(e.target.value) } })} />
                       </div>
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('gpsLongitude')}</label>
-                        <input type="number" step="any" className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.lng || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, lng: parseFloat(e.target.value) } })} placeholder="47.9774" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-02)' }}>
+                        <label className="cds--label">{t('gpsLongitude')}</label>
+                        <input type="number" step="any" className="cds--text-input" value={editItem.data.lng || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, lng: parseFloat(e.target.value) } })} />
                       </div>
                     </div>
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('attendanceRadius')}</label>
-                      <input type="number" className="w-full p-6 bg-slate-50 rounded-[28px] border border-slate-100 font-bold outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-inner" value={editItem.data.radius || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, radius: parseInt(e.target.value) } })} placeholder="250" />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-02)' }}>
+                      <label className="cds--label">{t('attendanceRadius')}</label>
+                      <input type="number" className="cds--text-input" value={editItem.data.radius || ''} onChange={e => setEditItem({ ...editItem, data: { ...editItem.data, radius: parseInt(e.target.value) } })} />
                     </div>
                   </div>
                 )}
               </div>
-              <div className="p-12 bg-slate-50 flex gap-6">
-                <button onClick={() => setIsCapturing(false)} className="flex-1 py-6 bg-white border border-slate-200 rounded-[32px] font-black text-[11px] uppercase tracking-[0.2em] text-slate-400 hover:bg-slate-100 transition-all active:scale-95">{t('cancel')}</button>
-                <button onClick={handleSaveCaptured} className="flex-1 py-6 bg-slate-900 text-white rounded-[32px] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 hover:bg-black">{t('commitToRegistry')}</button>
+              <div className="cds--modal-footer" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-layer-02)', display: 'flex', gap: 'var(--cds-spacing-05)' }}>
+                <button onClick={() => setIsCapturing(false)} className="cds--btn cds--btn--secondary" style={{ flex: 1 }}>{t('cancel')}</button>
+                <button onClick={handleSaveCaptured} className="cds--btn cds--btn--primary" style={{ flex: 1 }}>{t('commitToRegistry')}</button>
               </div>
             </div>
           </div>

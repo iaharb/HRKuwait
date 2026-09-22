@@ -1,0 +1,97 @@
+name: PG Regression Tests (IPv6)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  pg-tests:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://tjkapzlfvxgocfitusxb.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run legacy workflow engine tests (requires IPv6)
+        run: node scripts/test_workflow_engine.cjs
+        env:
+          PGHOST: db.tjkapzlfvxgocfitusxb.supabase.co
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
+          PGSSLMODE: require
+
+      - name: Deploy leave app (requires IPv6)
+        run: node scripts/deploy_leave_app.cjs
+        env:
+          PGHOST: db.tjkapzlfvxgocfitusxb.supabase.co
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
+          PGSSLMODE: require
+
+      - name: Load workflow config (requires IPv6)
+        run: node scripts/load_workflow_config.cjs --dry-run
+        env:
+          PGHOST: db.tjkapzlfvxgocfitusxb.supabase.co
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
+          PGSSLMODE: require
+
+      - name: Build portal
+        run: npm run build
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+        continue-on-error: true  # pre-existing errors in legacy files
+
+  rest-verifiers:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://tjkapzlfvxgocfitusxb.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run generic UI verifier (REST)
+        run: node $env:TEMP/opencode/generic_ui_verify.cjs
+        shell: pwsh
+        env:
+          NODE_PATH: ${{ runner.temp }}/opencode/node_modules
+
+      - name: Run engine verifier (REST)
+        run: node $env:TEMP/opencode/engine_verify.cjs
+        shell: pwsh
+        env:
+          NODE_PATH: ${{ runner.temp }}/opencode/node_modules

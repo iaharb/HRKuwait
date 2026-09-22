@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type Theme = 'glass' | 'shadcn';
+export type Theme = 'glass' | 'shadcn' | 'dark';
 
 interface ThemeContextType {
     theme: Theme;
@@ -18,12 +18,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         localStorage.setItem('ui_theme', theme);
         const root = window.document.documentElement;
-        root.classList.remove('theme-glass', 'theme-shadcn');
+        root.classList.remove('theme-glass', 'theme-shadcn', 'theme-dark');
         root.classList.add(`theme-${theme}`);
+        // Wire data attribute for Carbon tokens
+        root.setAttribute('data-carbon-theme', theme === 'dark' ? 'g100' : 'white');
     }, [theme]);
 
     const toggleTheme = () => {
-        setTheme(prev => prev === 'glass' ? 'shadcn' : 'glass');
+        setTheme(prev => {
+            if (prev === 'glass') return 'dark';
+            if (prev === 'dark') return 'shadcn';
+            return 'glass';
+        });
     };
 
     return (

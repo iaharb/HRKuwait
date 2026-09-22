@@ -16,10 +16,22 @@ const initialNodes: any[] = [
             label: '1. Select Period',
             type: 'step',
             actor: 'Payroll Manager',
-            description: 'Choose month, year, and cycle architecture (Monthly/Bi-Weekly)',
+            description: 'Choose month/year from Jan 2026 onwards',
             icon: '📅'
         },
         position: { x: 350, y: 0 },
+    },
+    {
+        id: 'vc',
+        type: 'workflowNode',
+        data: {
+            label: 'VC Approvals',
+            type: 'step',
+            actor: 'Executive/HR',
+            description: 'Approve Overtime/Bonuses to flag them for this period',
+            icon: '💎'
+        },
+        position: { x: 600, y: 90 },
     },
     {
         id: '2',
@@ -100,6 +112,7 @@ const initialNodes: any[] = [
 
 const initialEdges: any[] = [
     { id: 'e1-2', source: '1', target: '2', animated: true },
+    { id: 'evc-2', source: 'vc', target: '2', animated: true, label: 'Approved VC' },
     { id: 'e2-3', source: '2', target: '3', animated: true },
     { id: 'e3-4', source: '3', target: '4', animated: true },
     { id: 'e4-5', source: '4', target: '5', animated: true },

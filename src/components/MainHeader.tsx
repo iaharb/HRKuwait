@@ -7,7 +7,7 @@ import { View, User, Notification } from '../types/types.ts';
 interface MainHeaderProps {
     user: User;
     language: 'en' | 'ar';
-    theme: 'shadcn' | 'glass';
+    theme: 'shadcn' | 'glass' | 'dark';
     toggleTheme: () => void;
     compactMode: boolean;
     setCompactMode: (mode: boolean) => void;
@@ -75,96 +75,58 @@ const MainHeader: React.FC<MainHeaderProps> = ({
     }, []);
 
     return (
-        <div className={`flex items-center justify-between ${compactMode ? 'py-2 mb-4' : 'py-4 mb-8'} px-0 transition-all no-print`}>
-            <div className="space-y-0.5">
-                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-start">
-                    <Link to="/dashboard" className="hover:text-indigo-600 transition-colors cursor-pointer">{t('enterprise')}</Link>
-                    <span className="text-slate-300">/</span>
-                    <span className="text-indigo-600">{viewTitle}</span>
-                </div>
-                <h1 className={`${compactMode ? 'text-lg' : 'text-xl'} font-black text-slate-900 tracking-tight text-start`}>{viewTitle}</h1>
-            </div>
-
-            <div className="flex items-center gap-3">
-                {/* Display Settings Dropdown */}
-                <div className="relative" ref={settingsRef}>
-                    <button
-                        onClick={() => setShowDisplaySettings(!showDisplaySettings)}
-                        className={`flex items-center gap-2 h-9 px-4 rounded-xl border transition-all ${showDisplaySettings ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
-                    >
-                        <span className="text-sm">⚙️</span>
-                        <span className="text-[10px] font-black uppercase tracking-wider">Display Settings</span>
-                    </button>
-
-                    {showDisplaySettings && (
-                        <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 z-[100] animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-3 border-b border-slate-50 mb-1">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Interface Options</p>
-                            </div>
-
-                            <button
-                                onClick={() => { toggleTheme(); setShowDisplaySettings(false); }}
-                                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl transition-colors group"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm">🪩</span>
-                                    <span className="text-xs font-bold text-slate-700">{theme === 'shadcn' ? 'Glassmorphism' : 'Shadcn Base'}</span>
-                                </div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-indigo-500 transition-colors"></div>
-                            </button>
-
-                            <button
-                                onClick={() => { setCompactMode(!compactMode); setShowDisplaySettings(false); }}
-                                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl transition-colors group"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm">🗜️</span>
-                                    <span className="text-xs font-bold text-slate-700">{compactMode ? 'Normal Spacing' : 'Compact UI'}</span>
-                                </div>
-                                {compactMode && <div className="w-2 h-2 rounded-full bg-indigo-500"></div>}
-                            </button>
-
-                            <button
-                                onClick={() => { setPresentationMode(true); setShowDisplaySettings(false); }}
-                                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl transition-colors group"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm">📽️</span>
-                                    <span className="text-xs font-bold text-slate-700">Presentation Mode</span>
-                                </div>
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Notifications */}
-                <div className="relative">
-                    <button
-                        onClick={() => setShowNotifications(!showNotifications)}
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${showNotifications ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
-                    >
-                        <span className="text-lg">🔔</span>
-                        {notifications.filter(n => !n.isRead).length > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[8px] rounded-full flex items-center justify-center border-2 border-white font-black">
-                                {notifications.filter(n => !n.isRead).length}
-                            </span>
-                        )}
-                    </button>
-                </div>
-
-                {/* Scope Selection */}
-                <button
-                    onClick={onOpenScopeModal}
-                    className="bg-white px-4 h-9 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2.5 hover:bg-slate-50 transition-all"
-                >
-                    <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                        {user.role === 'Admin' ? 'Global Admin' : `${user.department} Scope`}
-                    </span>
-                    <span className="text-[8px] opacity-40">▼</span>
-                </button>
-            </div>
+    <header className="cds--header" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '48px', backgroundColor: 'var(--cds-text-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1000, padding: '0 var(--cds-spacing-05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Link to="/dashboard" style={{ textDecoration: 'none', color: '#fff', fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                <span style={{ color: 'var(--cds-interactive-01)' }}>IBM</span>
+                <span>HR Kuwait</span>
+            </Link>
+            <div style={{ marginLeft: 'var(--cds-spacing-07)', height: '24px', width: '1px', backgroundColor: 'var(--cds-border-strong)' }}></div>
+            <span style={{ marginLeft: 'var(--cds-spacing-05)', fontSize: '0.875rem', opacity: 0.8 }}>{viewTitle}</span>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            {/* Display Settings */}
+            <div style={{ position: 'relative', height: '100%' }} ref={settingsRef}>
+                <button
+                    onClick={() => setShowDisplaySettings(!showDisplaySettings)}
+                    style={{ height: '48px', padding: '0 var(--cds-spacing-05)', background: showDisplaySettings ? 'var(--cds-layer-01)' : 'transparent', border: 'none', borderRight: '1px solid var(--cds-border-strong)', cursor: 'pointer', color: '#fff' }}
+                    title="Display Settings"
+                >
+                    ⚙️
+                </button>
+                {showDisplaySettings && (
+                    <div style={{ position: 'absolute', right: 0, top: '48px', width: '200px', backgroundColor: 'var(--cds-layer-02)', color: 'var(--cds-text-primary)', border: '1px solid var(--cds-border-subtle)', zIndex: 1100, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
+                        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Interface</div>
+                        <button onClick={() => { toggleTheme(); setShowDisplaySettings(false); }} style={{ width: '100%', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--cds-text-primary)' }}>
+                            {theme === 'glass' ? '🌙 Switch to Dark Mode' : theme === 'dark' ? '🏢 Switch to Enterprise' : '🌊 Switch to Glass Mode'}
+                        </button>
+                        <button onClick={() => { setCompactMode(!compactMode); setShowDisplaySettings(false); }} style={{ width: '100%', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>{compactMode ? 'Default Spacing' : 'High Density'}</button>
+                    </div>
+                )}
+            </div>
+
+            {/* Notifications */}
+            <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                style={{ height: '48px', padding: '0 var(--cds-spacing-05)', background: 'transparent', border: 'none', borderRight: '1px solid var(--cds-border-strong)', cursor: 'pointer', color: '#fff', position: 'relative' }}
+            >
+                🔔
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                    <span style={{ position: 'absolute', top: '10px', right: '10px', width: '8px', height: '8px', backgroundColor: 'var(--cds-text-error)', borderRadius: '50%' }}></span>
+                )}
+            </button>
+
+            {/* User Profile / Scope */}
+            <button
+                onClick={onOpenScopeModal}
+                style={{ height: '48px', padding: '0 var(--cds-spacing-05)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}
+            >
+                <div style={{ width: '24px', height: '24px', backgroundColor: 'var(--cds-interactive-01)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>{user.name[0]}</div>
+                {!compactMode && <span>{user.role === 'Admin' ? 'Global Admin' : user.department}</span>}
+            </button>
+        </div>
+    </header>
     );
 };
 

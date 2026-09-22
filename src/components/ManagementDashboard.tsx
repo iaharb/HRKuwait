@@ -183,11 +183,9 @@ export const ManagementDashboard: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="p-8 space-y-6 animate-pulse">
-                <div className="h-40 bg-slate-100 rounded-3xl"></div>
-                <div className="grid grid-cols-2 gap-6">
-                    <div className="h-64 bg-slate-100 rounded-3xl"></div>
-                    <div className="h-64 bg-slate-100 rounded-3xl"></div>
+            <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)' }}>
+                <div style={{ padding: 'var(--cds-spacing-10)', textAlign: 'center', fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>
+                    Loading Management Telemetry...
                 </div>
             </div>
         );
@@ -196,19 +194,19 @@ export const ManagementDashboard: React.FC = () => {
     if (runIds.length === 0) {
         const isOffline = !supabase || !isSupabaseConfigured;
         return (
-            <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-                    <span className="text-4xl mb-4 block">{isOffline ? '🔌' : '📊'}</span>
-                    <h3 className="text-lg font-bold text-slate-900">
+            <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', animation: 'fade-in 0.5s ease', minHeight: '100%' }}>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-10)', textAlign: 'center', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <span style={{ fontSize: '2rem', display: 'block', marginBottom: 'var(--cds-spacing-05)', color: isOffline ? '#fa4d56' : '#f1c21b' }}>{isOffline ? '🔌' : '📊'}</span>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
                         {isOffline ? 'Database Offline — Mock Mode Active' : 'No Management Data Available'}
                     </h3>
-                    <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
+                    <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-04)', maxWidth: '600px', marginInline: 'auto' }}>
                         {isOffline
                             ? 'Strategy Dashboard requires a live Supabase connection with finalized payroll runs and GL journal entries. Connect your database to unlock this view.'
                             : 'Finalize at least one payroll run and generate its Journal Voucher (JV) via Finance → JV Generator. The data will populate here automatically.'}
                     </p>
                     {!isOffline && (
-                        <div className="mt-8 inline-flex items-center gap-3 px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-2xl text-indigo-700 text-sm font-bold">
+                        <div style={{ marginTop: 'var(--cds-spacing-07)', display: 'inline-flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', background: '#d0e2ff', border: '1px solid #4589ff', color: '#0043ce', fontSize: '0.875rem', fontWeight: 600, fontFamily: 'monospace' }}>
                             <span>📍</span>
                             Go to <strong>Finance → JV Generator</strong> to generate your first journal voucher
                         </div>
@@ -219,161 +217,157 @@ export const ManagementDashboard: React.FC = () => {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+        <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
 
             {/* --- Executive KPI Row --- */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Labor Cost (YTD)</p>
-                    <div className="flex items-baseline gap-2">
-                        <h4 className="text-3xl font-black text-indigo-600">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-06)' }}>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>Total Labor Cost (YTD)</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)' }}>
+                        <h4 style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)' }}>
                             {varianceData.reduce((acc, m) => acc + m.total, 0).toLocaleString('en-KW', { minimumFractionDigits: 0 })}
                         </h4>
-                        <span className="text-xs font-bold text-slate-400">KWD</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>KWD</span>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">EOSB Funding Ratio</p>
-                    <div className="flex items-baseline gap-2">
-                        <h4 className="text-3xl font-black text-emerald-600">
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>EOSB Funding Ratio</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)' }}>
+                        <h4 style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: '#24a148' }}>
                             {eosbMetrics.trueLiability > 0 ? ((eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100).toFixed(1) : '100.0'}%
                         </h4>
-                        <span className="text-xs font-bold text-slate-400">Target: 100%</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>Target: 100%</span>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Statutory Burden Rate</p>
-                    <div className="flex items-baseline gap-2">
-                        <h4 className="text-3xl font-black text-amber-600">{pifssStatics.burdenRate.toFixed(1)}%</h4>
-                        <span className="text-xs font-bold text-slate-400">Employer PIFSS</span>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>Statutory Burden Rate</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)' }}>
+                        <h4 style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: '#f1c21b' }}>{pifssStatics.burdenRate.toFixed(1)}%</h4>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>Employer PIFSS</span>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Payroll Volatility</p>
-                    <div className="flex items-baseline gap-2">
-                        <h4 className="text-3xl font-black text-rose-600">
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>Payroll Volatility</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--cds-spacing-03)' }}>
+                        <h4 style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: '#da1e28' }}>
                             {varianceData.length > 1 ?
                                 (((varianceData[varianceData.length - 1].total - varianceData[varianceData.length - 2].total) / varianceData[varianceData.length - 2].total) * 100).toFixed(1)
                                 : '0.0'}%
                         </h4>
-                        <span className="text-xs font-bold text-slate-400">MoM Change</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>MoM Change</span>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 'var(--cds-spacing-07)' }}>
 
                 {/* 1. Payroll Expense Distribution */}
-                <section className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
-                    <div className="mb-6">
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight">Payroll Expense Distribution</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Composition of total compensation by account type.</p>
+                <section className="cds--tile" style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <div style={{ marginBottom: 'var(--cds-spacing-06)' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Payroll Expense Distribution</h3>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Composition of total compensation by account type.</p>
                     </div>
-                    <div className="h-80 w-full">
+                    <div style={{ height: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={expenseDistribution}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    paddingAngle={5}
+                                    innerRadius={70}
+                                    outerRadius={110}
+                                    paddingAngle={2}
                                     dataKey="value"
                                 >
                                     {expenseDistribution.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(v: number) => v.toLocaleString() + ' KWD'} />
-                                <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" />
+                                <Tooltip contentStyle={{ borderRadius: '0', border: '1px solid var(--cds-border-strong)', background: 'var(--cds-layer-01)', fontFamily: 'monospace' }} formatter={(v: number) => v.toLocaleString() + ' KWD'} />
+                                <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </section>
 
                 {/* 2. Monthly Payroll Volatility */}
-                <section className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
-                    <div className="mb-6">
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight">Monthly Payroll Volatility</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Tracking MoM budget vs actual disbursement spikes.</p>
+                <section className="cds--tile" style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <div style={{ marginBottom: 'var(--cds-spacing-06)' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Monthly Payroll Volatility</h3>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Tracking MoM budget vs actual disbursement spikes.</p>
                     </div>
-                    <div className="h-80 w-full">
+                    <div style={{ height: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={varianceData}>
                                 <defs>
                                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#0f62fe" stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor="#0f62fe" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} tickFormatter={(v) => (v / 1000).toFixed(0) + 'k'} />
-                                <Tooltip />
-                                <Area type="monotone" dataKey="total" stroke="#4F46E5" strokeWidth={4} fillOpacity={1} fill="url(#colorTotal)" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--cds-border-subtle)" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--cds-text-secondary)', fontSize: 10, fontFamily: 'monospace' }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--cds-text-secondary)', fontSize: 10, fontFamily: 'monospace' }} tickFormatter={(v) => (v / 1000).toFixed(0) + 'k'} />
+                                <Tooltip contentStyle={{ borderRadius: '0', border: '1px solid var(--cds-border-strong)', background: 'var(--cds-layer-01)', fontFamily: 'monospace' }} />
+                                <Area type="monotone" dataKey="total" stroke="#0f62fe" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                 </section>
 
                 {/* 3. Leave Utilization (Wellness Tracking) */}
-                <section className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
-                    <div className="mb-6">
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight">Leave Utilization & Wellness</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Statistical monitoring of Sick vs Annual Leave expenses.</p>
+                <section className="cds--tile" style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                    <div style={{ marginBottom: 'var(--cds-spacing-06)' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Leave Utilization & Wellness</h3>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Statistical monitoring of Sick vs Annual Leave expenses.</p>
                     </div>
-                    <div className="h-80 w-full">
+                    <div style={{ height: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={varianceData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
-                                <Tooltip />
-                                <Legend iconType="rect" />
-                                <Bar dataKey="sickLeave" name="Sick Leave Cost" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={20} />
-                                <Bar dataKey="annualLeave" name="Annual Leave Cost" fill="#10B981" radius={[4, 4, 0, 0]} barSize={20} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--cds-border-subtle)" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--cds-text-secondary)', fontSize: 10, fontFamily: 'monospace' }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--cds-text-secondary)', fontSize: 10, fontFamily: 'monospace' }} />
+                                <Tooltip contentStyle={{ borderRadius: '0', border: '1px solid var(--cds-border-strong)', background: 'var(--cds-layer-01)', fontFamily: 'monospace' }} />
+                                <Legend iconType="rect" wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace' }} />
+                                <Bar dataKey="sickLeave" name="Sick Leave Cost" fill="#da1e28" barSize={32} />
+                                <Bar dataKey="annualLeave" name="Annual Leave Cost" fill="#24a148" barSize={32} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </section>
 
                 {/* 4. Strategic Risk: EOSB Liability Cover */}
-                <section className="bg-slate-900 p-8 rounded-[32px] text-white overflow-hidden relative group shadow-2xl">
-                    <div className="absolute top-0 right-0 p-12 opacity-[0.05] pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-                        <span className="text-[140px]">🏦</span>
-                    </div>
-                    <div className="relative z-10 space-y-6">
+                <section className="cds--tile" style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-interactive-01)', background: '#161616', color: '#f4f4f4', overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
                         <div>
-                            <h3 className="text-lg font-black tracking-tight text-indigo-400 uppercase tracking-widest">EOSB Liability Coverage</h3>
-                            <p className="text-slate-400 text-sm font-medium mt-1">Comparing Accrued Provision (200300) against Payout Trend.</p>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#4589ff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EOSB Liability Coverage</h3>
+                            <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#c6c6c6', marginTop: '4px' }}>Comparing Accrued Provision (200300) against Payout Trend.</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-8 pt-4">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 'var(--cds-spacing-07)', paddingTop: 'var(--cds-spacing-04)' }}>
                             <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Provision Balance</p>
-                                <p className="text-3xl font-black text-white">{eosbMetrics.provisionBalance.toLocaleString()} <span className="text-xs text-slate-400">KWD</span></p>
+                                <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#8d8d8d', textTransform: 'uppercase', marginBottom: '4px' }}>Total Provision Balance</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: '#fff' }}>{eosbMetrics.provisionBalance.toLocaleString()} <span style={{ fontSize: '0.875rem', color: '#c6c6c6' }}>KWD</span></p>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">True Liability Estimate</p>
-                                <p className="text-3xl font-black text-indigo-400">{eosbMetrics.trueLiability.toLocaleString()} <span className="text-xs text-slate-400">KWD</span></p>
+                                <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#8d8d8d', textTransform: 'uppercase', marginBottom: '4px' }}>True Liability Estimate</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: '#4589ff' }}>{eosbMetrics.trueLiability.toLocaleString()} <span style={{ fontSize: '0.875rem', color: '#c6c6c6' }}>KWD</span></p>
                             </div>
                         </div>
 
-                        <div className="space-y-2 pt-4">
-                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <div style={{ paddingTop: 'var(--cds-spacing-04)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#8d8d8d', textTransform: 'uppercase' }}>
                                 <span>Risk Assessment: {eosbMetrics.trueLiability === 0 ? 'Optimal' : (eosbMetrics.provisionBalance / eosbMetrics.trueLiability) > 0.9 ? 'Optimal Coverage' : 'Underfunded'}</span>
                                 <span>{eosbMetrics.trueLiability > 0 ? ((eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100).toFixed(0) : '100'}% Cover</span>
                             </div>
-                            <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                            <div style={{ height: '12px', background: 'rgba(255,255,255,0.1)' }}>
                                 <div
-                                    className="h-full bg-indigo-500 transition-all duration-1000"
-                                    style={{ width: `${Math.min(100, (eosbMetrics.trueLiability > 0 ? (eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100 : 100))}%` }}
+                                    style={{ height: '100%', background: '#4589ff', transition: 'width 1s ease', width: `${Math.min(100, (eosbMetrics.trueLiability > 0 ? (eosbMetrics.provisionBalance / eosbMetrics.trueLiability) * 100 : 100))}%` }}
                                 ></div>
                             </div>
                         </div>
 
-                        <p className="text-[11px] text-slate-500 font-medium italic">
+                        <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#8d8d8d', fontStyle: 'italic', marginTop: 'var(--cds-spacing-03)' }}>
                             * Management Recommendation: Review "Provision for Indemnity" monthly to ensure alignment with tenure growth.
                         </p>
                     </div>

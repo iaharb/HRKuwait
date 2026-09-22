@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/dbService.ts';
-import { Employee, User, LeaveBalances } from '../types/types';
+import { Employee, User, LeaveBalances, KPITemplate } from '../types/types';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabaseClient.ts';
 import { useNotifications } from './NotificationSystem.tsx';
@@ -19,17 +19,21 @@ const BalanceBar: React.FC<{ used: number; entitled: number; color: string }> = 
   const pct = entitled > 0 ? Math.min(100, (used / entitled) * 100) : 0;
   const isOver = used > entitled;
   return (
-    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+    <div style={{ width: '100%', background: 'var(--cds-layer-01)', height: '4px', overflow: 'hidden' }}>
       <div
-        className={`h-full rounded-full transition-all duration-700 ${isOver ? 'bg-rose-500' : color}`}
-        style={{ width: `${pct}%` }}
+        style={{ 
+          height: '100%', 
+          background: isOver ? 'var(--cds-support-error)' : color,
+          width: `${pct}%`,
+          transition: 'width 0.7s ease'
+        }}
       />
     </div>
   );
 };
 
 // ─── Expandable employee detail panel ─────────────────────────────────────────
-const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ emp, currentUser }) => {
+const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User, kpiTemplates: KPITemplate[] }> = ({ emp, currentUser, kpiTemplates }) => {
   const { i18n } = useTranslation();
   const { notify } = useNotifications();
   const [tab, setTab] = useState<'balances' | 'allowances' | 'documents' | 'performance'>('balances');
@@ -42,6 +46,65 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
   const [period, setPeriod] = useState<string>('2026 Annual');
   const [justification, setJustification] = useState<string>('');
   const [isSubmittingBonus, setIsSubmittingBonus] = useState(false);
+
+  // New KPI States
+  const [assignedKpis, setAssignedKpis] = useState<string[]>(emp.kpiTemplateIds || []);
+  const [latestScore, setLatestScore] = useState<number | null>(null);
+  const [latestEval, setLatestEval] = useState<any | null>(null);
+  const [isSavingKpis, setIsSavingKpis] = useState(false);
+  const [bonusHistory, setBonusHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Enforce default department template
+    const defaultTmpl = kpiTemplates.find(t => t.department === emp.department);
+    if (defaultTmpl && !assignedKpis.includes(defaultTmpl.id)) {
+      setAssignedKpis(prev => [...prev, defaultTmpl.id]);
+    }
+    
+    // Fetch latest scoring if any
+    dbService.getEmployeeEvaluations().then(evals => {
+      const empEvals = evals.filter(e => e.employeeId === emp.id).sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      if (empEvals.length > 0) {
+        setLatestScore(empEvals[0].totalScore);
+        setLatestEval(empEvals[0]);
+        // Automatically adjust the manager slider based on KPI factor (factor is 0 to 1.5 roughly)
+        // 0.6 = 3, 0.85+ = 4+, 1.0+ = 5
+        let suggestedRating = 3;
+        const s = empEvals[0].totalScore;
+        if (s >= 1.0) suggestedRating = 5;
+        else if (s >= 0.85) suggestedRating = 4;
+        else if (s >= 0.6) suggestedRating = 3;
+        else if (s >= 0.4) suggestedRating = 2;
+        else suggestedRating = 1;
+
+        setRating(suggestedRating);
+        // PE is now read-only for records; Profit Share becomes the active nomination
+        setJustification(`PE Score: ${(s * 100).toFixed(1)}% (${suggestedRating}/5 Points). Verified for ${empEvals[0].quarter}.`);
+      }
+
+      // Fetch full history of PR, PS and CB
+      supabase.from('variable_compensation')
+        .select('*')
+        .eq('employee_id', emp.id)
+        .in('comp_type', ['PERFORMANCE_BONUS', 'PROFIT_SHARE', 'BONUS'])
+        .order('created_at', { ascending: false })
+        .then(({ data }) => {
+          if (data) setBonusHistory(data);
+        });
+    });
+  }, [emp.id]);
+
+  const saveKpiAssignments = async () => {
+    setIsSavingKpis(true);
+    try {
+      await dbService.updateEmployee(emp.id, { kpiTemplateIds: assignedKpis });
+      notify("Success", "KPI Templates assigned successfully.", "success");
+    } catch (e: any) {
+      notify("Error", e.message, "error");
+    } finally {
+      setIsSavingKpis(false);
+    }
+  };
 
   useEffect(() => {
     // Autocalculate recommended bonus based on rating
@@ -128,44 +191,52 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
   ];
 
   return (
-    <tr>
-      <td colSpan={6} className="px-0 pb-0">
-        <div className="mx-6 mb-4 bg-slate-50 border border-slate-200 rounded-[28px] overflow-hidden animate-in slide-in-from-top-2 duration-300">
-          {/* Tab Row */}
-          <div className="flex gap-1 p-3 border-b border-slate-100 bg-white rounded-t-[28px]">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+    <div style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', margin: 'var(--cds-spacing-05)', display: 'flex', flexDirection: 'column' }}>
+      {/* Tab Row */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`cds--tabs__nav-item ${tab === t.id ? 'cds--tabs__nav-item--selected' : ''}`}
+            style={{ 
+              padding: 'var(--cds-spacing-04) var(--cds-spacing-06)', 
+              fontSize: '0.75rem', 
+              fontWeight: tab === t.id ? 600 : 400,
+              background: tab === t.id ? 'var(--cds-background)' : 'transparent',
+              border: 'none',
+              borderBottom: tab === t.id ? '2px solid var(--cds-interactive-01)' : '2px solid transparent',
+              cursor: 'pointer',
+              color: tab === t.id ? 'var(--cds-text-primary)' : 'var(--cds-text-secondary)'
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
           {/* Leave Balances */}
           {tab === 'balances' && (
-            <div className="p-6">
+            <div style={{ padding: 'var(--cds-spacing-06)' }}>
               {loadingBal ? (
-                <div className="flex items-center gap-3 text-slate-400 text-xs font-bold"><div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />Loading balances…</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)', fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Loading balances…</div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
                   {leaveTypes.map(lt => {
                     const remaining = Math.max(0, lt.entitled - lt.used);
                     return (
-                      <div key={lt.key} className={`p-4 rounded-2xl border space-y-2 transition-all duration-300 ${lt.isSubLevel ? 'bg-slate-50/50 border-transparent opacity-80 hover:opacity-100' : 'bg-white border-slate-100 shadow-sm'}`}>
-                        <div className="flex items-center justify-between">
-                          <div className={`flex items-center gap-2 ${lt.isSubLevel ? 'grayscale opacity-75' : ''}`}>
-                            <span className="text-base">{lt.icon}</span>
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${lt.isSubLevel ? 'text-slate-500' : 'text-slate-700'}`}>{lt.label}</span>
+                      <div key={lt.key} className="cds--tile" style={{ padding: 'var(--cds-spacing-05)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-02)' }}>
+                            <span style={{ fontSize: '1rem' }}>{lt.icon}</span>
+                            <span style={{ fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{lt.label}</span>
                           </div>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg ${lt.used > lt.entitled ? 'bg-rose-100 text-rose-600' : (lt.isSubLevel ? 'bg-slate-200/50 text-slate-500' : 'bg-slate-100 text-slate-600')}`}>
+                          <span style={{ fontSize: '0.625rem', padding: '2px 6px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', fontWeight: 600 }}>
                             {lt.used}/{lt.entitled}
                           </span>
                         </div>
-                        <BalanceBar used={lt.used} entitled={lt.entitled} color={lt.color} />
-                        <p className={`text-[9px] font-bold ${lt.isSubLevel ? 'text-slate-400' : 'text-slate-500'}`}>{remaining} {lt.key === 'ShortPerm' ? 'hrs' : 'days'} remaining</p>
+                        <BalanceBar used={lt.used} entitled={lt.entitled} color="var(--cds-interactive-01)" />
+                        <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', fontWeight: 600 }}>{remaining} {lt.key === 'ShortPerm' ? 'hrs' : 'days'} remaining</p>
                       </div>
                     );
                   })}
@@ -176,32 +247,32 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
 
           {/* Allowances */}
           {tab === 'allowances' && (
-            <div className="p-6">
+            <div style={{ padding: 'var(--cds-spacing-06)' }}>
               {emp.allowances?.length > 0 ? (
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
                   {emp.allowances.map((a, i) => (
-                    <div key={i} className="flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <span className="text-base">{a.isHousing ? '🏠' : '💼'}</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cds-background)', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                        <span style={{ fontSize: '1rem' }}>{a.isHousing ? '🏠' : '💼'}</span>
                         <div>
-                          <p className="text-sm font-black text-slate-800">
+                          <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>
                             {i18n.language === 'ar' && a.nameArabic ? a.nameArabic : a.name}
                           </p>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${a.type === 'Fixed' ? 'bg-indigo-50 text-indigo-600' : 'bg-violet-50 text-violet-600'}`}>
+                          <span className="cds--tag cds--tag--blue" style={{ fontSize: '0.625rem', marginTop: '2px' }}>
                             {a.type}
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm font-black text-slate-900">
+                      <p style={{ fontSize: '1rem', fontWeight: 400 }}>
                         {a.type === 'Fixed'
                           ? `${Number(a.value).toLocaleString()} KWD`
                           : `${a.value}%`}
                       </p>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between bg-indigo-600 px-5 py-3 rounded-2xl text-white mt-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Total Allowances</span>
-                    <span className="text-sm font-black">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cds-interactive-01)', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', color: '#ffffff', marginTop: 'var(--cds-spacing-03)' }}>
+                    <span style={{ fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Allowances</span>
+                    <span style={{ fontSize: '1.125rem', fontWeight: 600 }}>
                       {emp.allowances.reduce((s, a) =>
                         s + (a.type === 'Fixed' ? Number(a.value) : (emp.salary * Number(a.value) / 100)), 0
                       ).toLocaleString()} KWD
@@ -209,15 +280,15 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 font-medium text-center py-8">No allowances on record.</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', textAlign: 'center', padding: 'var(--cds-spacing-08)' }}>No allowances on record.</p>
               )}
             </div>
           )}
 
           {/* Documents */}
           {tab === 'documents' && (
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div style={{ padding: 'var(--cds-spacing-06)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
                 {[
                   { icon: '🪪', label: 'Civil ID', value: emp.civilId, expiry: emp.civilIdExpiry },
                   { icon: '🛂', label: 'Passport', value: emp.passportNumber, expiry: emp.passportExpiry },
@@ -225,20 +296,20 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
                   { icon: '🏦', label: 'IBAN', value: emp.iban, expiry: null },
                   { icon: '🔐', label: 'PIFSS No.', value: emp.pifssNumber, expiry: null },
                 ].map((doc, i) => {
-                  const st = getDocStatus(doc.expiry || undefined);
+                  const status = getDocStatus(doc.expiry || undefined);
                   return (
-                    <div key={i} className="bg-white px-5 py-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{doc.icon}</span>
+                    <div key={i} className="cds--tile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cds-background)', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                        <span style={{ fontSize: '1.25rem' }}>{doc.icon}</span>
                         <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{doc.label}</p>
-                          <p className="text-sm font-black text-slate-800 mt-0.5">
-                            {doc.value ? doc.value : (doc.expiry ? doc.expiry : '—')}
+                          <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{doc.label}</p>
+                          <p style={{ fontSize: '0.875rem', fontWeight: 600, marginTop: '2px' }}>
+                            {doc.value || doc.expiry || '—'}
                           </p>
                         </div>
                       </div>
                       {doc.expiry && (
-                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg shrink-0 ${st.cls}`}>{st.label}</span>
+                        <span className={`cds--tag ${status.label === 'Expired' ? 'cds--tag--red' : 'cds--tag--green'}`} style={{ fontSize: '0.625rem' }}>{status.label}</span>
                       )}
                     </div>
                   );
@@ -249,78 +320,184 @@ const EmployeeDetailPanel: React.FC<{ emp: Employee, currentUser: User }> = ({ e
 
           {/* Performance & Bonus Workflow */}
           {tab === 'performance' && (
-            <div className="p-6 bg-indigo-50/30">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h4 className="text-lg font-black text-slate-800 tracking-tight">Executive Performance & Bonus Nomination</h4>
-                  <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">Linked to Executive Workflow - PAM Exempt</p>
+            <div style={{ padding: 'var(--cds-spacing-06)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+              <div>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>KPI Templates & Scoring</h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: '2px' }}>Operational KPI management and operational factor tracking.</p>
+              </div>
+
+              <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 'var(--cds-spacing-07)' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 'var(--cds-spacing-04)' }}>Assigned KPI Templates</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)', marginBottom: 'var(--cds-spacing-05)' }}>
+                      {kpiTemplates.map(tmpl => {
+                        const isAssigned = assignedKpis.includes(tmpl.id);
+                        const expectedDefaultTmpl = kpiTemplates.find(t => t.department === emp.department);
+                        const isDefault = expectedDefaultTmpl ? expectedDefaultTmpl.id === tmpl.id : false;
+                        const canEdit = ['Manager', 'Executive', 'Admin', 'HR Manager'].includes(currentUser.role);
+                        if (!canEdit && !isAssigned) return null;
+
+                        return (
+                          <button
+                            key={tmpl.id}
+                            disabled={!canEdit || isDefault}
+                            onClick={() => {
+                              if (canEdit && !isDefault) {
+                                if (isAssigned) setAssignedKpis(assignedKpis.filter(id => id !== tmpl.id));
+                                else setAssignedKpis([...assignedKpis, tmpl.id]);
+                              }
+                            }}
+                            className={`cds--tag ${isAssigned ? 'cds--tag--blue' : 'cds--tag--disabled'}`}
+                            style={{ cursor: canEdit && !isDefault ? 'pointer' : 'default', border: isAssigned ? 'none' : '1px solid var(--cds-border-subtle)' }}
+                          >
+                            {isAssigned && '✓ '} {tmpl.title} {isDefault && '(Default)'}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                       {kpiTemplates.filter(t => assignedKpis.includes(t.id)).map(tmpl => (
+                           <div key={tmpl.id} style={{ background: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)' }}>
+                               <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>{tmpl.title} Breakdown</p>
+                               {tmpl.kpis.map((k, idx) => {
+                                   const evalScore = latestEval?.kpiScores?.find((s:any) => s.name === `[${tmpl.title}] ${k.name}`);
+                                   return (
+                                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cds-background)', padding: 'var(--cds-spacing-03) var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', marginBottom: '2px' }}>
+                                        <div style={{ flex: 1, fontSize: '0.75rem' }}>{k.name}</div>
+                                        <div style={{ width: '60px', textAlign: 'center', fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>W: {k.weight}%</div>
+                                        <div style={{ width: '100px', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: evalScore ? 'var(--cds-interactive-01)' : 'var(--cds-text-disabled)' }}>
+                                            {evalScore ? `${evalScore.score}%` : 'Pending'}
+                                        </div>
+                                     </div>
+                                   )
+                               })}
+                           </div>
+                       ))}
+                    </div>
+
+                    {['Manager', 'Executive', 'Admin', 'HR Manager'].includes(currentUser.role) && (
+                      <button
+                        onClick={saveKpiAssignments}
+                        disabled={isSavingKpis}
+                        className="cds--btn cds--btn--primary cds--btn--sm"
+                        style={{ marginTop: 'var(--cds-spacing-05)' }}
+                      >
+                        {isSavingKpis ? 'Saving...' : 'Save Assignments'}
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ width: '180px', background: 'var(--cds-layer-01)', padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-02)' }}>Latest Score</p>
+                    {latestScore !== null ? (
+                      <p style={{ fontSize: '2rem', fontWeight: 600, color: latestScore >= 0.85 ? 'var(--cds-support-success)' : 'var(--cds-text-primary)' }}>
+                        {(latestScore * 100).toFixed(0)}%
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-disabled)' }}>Not Evaluated</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm">
-                <div className="space-y-4">
+              {['Manager', 'Executive'].includes(emp.role) && ['Admin', 'Executive', 'HR Manager'].includes(currentUser.role) && (
+                <>
                   <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Review Period</label>
-                    <select value={period} onChange={e => setPeriod(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500">
-                      <option value="2025 Annual">2025 Annual Review</option>
-                      <option value="2026 Annual">2026 Annual Review</option>
-                      <option value="Special Case">Ad-Hoc Specialized</option>
-                    </select>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Profit Sharing Nomination</h4>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--cds-interactive-01)', marginTop: '2px', fontStyle: 'italic' }}>Executive & Leadership Review Level</p>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block flex justify-between">
-                      <span>Performance Rating (1-5)</span>
-                      <span className="text-indigo-600 font-extrabold">{rating} / 5</span>
-                    </label>
-                    <input
-                      type="range" min="1" max="5" step="0.5"
-                      value={rating} onChange={(e) => setRating(Number(e.target.value))}
-                      className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-1">
-                      <span>Needs Work (1)</span>
-                      <span>Target (3)</span>
-                      <span>Exceptional (5)</span>
+                  <div className="cds--tile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-07)', padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                      <div>
+                        <label className="cds--label">Review Period</label>
+                        <select value={period} onChange={e => setPeriod(e.target.value)} className="cds--select-input">
+                          <option value="2025 Annual">2025 Annual Review</option>
+                          <option value="2026 Annual">2026 Annual Review</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-02)' }}>
+                          <label className="cds--label" style={{ marginBottom: 0 }}>Performance Rating</label>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-interactive-01)' }}>{rating} / 5</span>
+                        </div>
+                        <input
+                          type="range" min="1" max="5" step="0.5"
+                          value={rating} onChange={(e) => setRating(Number(e.target.value))}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Manager Justification</label>
-                    <textarea
-                      value={justification} onChange={(e) => setJustification(e.target.value)}
-                      placeholder="Detail specific accomplishments matching the rating..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-indigo-500 min-h-[85px] resize-none"
-                    ></textarea>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 flex items-center justify-between border-t border-slate-100 pt-6 mt-2">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-xl text-indigo-600">📈</div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">System Recommended Bonus</p>
-                      <p className="text-2xl font-black text-slate-900 leading-none mt-1">
-                        {bonusPct}% <span className="text-sm text-slate-500 font-bold ml-1">of Basic Salary (≈ {(emp.salary * (bonusPct / 100)).toLocaleString()} KWD)</span>
-                      </p>
+                      <label className="cds--label">Manager Justification</label>
+                      <textarea
+                        value={justification} onChange={(e) => setJustification(e.target.value)}
+                        className="cds--text-input"
+                        style={{ minHeight: '100px', resize: 'none' }}
+                      ></textarea>
+                    </div>
+
+                    <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-06)', marginTop: 'var(--cds-spacing-02)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)' }}>
+                        <div style={{ width: '40px', height: '40px', background: 'var(--cds-layer-01)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--cds-border-subtle)' }}>📈</div>
+                        <div>
+                          <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Recommended Bonus</p>
+                          <p style={{ fontSize: '1.25rem', fontWeight: 600 }}>{bonusPct}% <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--cds-text-secondary)' }}>(≈ {(emp.salary * (bonusPct / 100)).toLocaleString()} KWD)</span></p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={submitPerformanceBonus}
+                        disabled={isSubmittingBonus}
+                        className="cds--btn cds--btn--primary"
+                      >
+                        {isSubmittingBonus ? 'Submitting...' : 'Initiate Review'}
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={submitPerformanceBonus}
-                    disabled={isSubmittingBonus}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20 disabled:opacity-50"
-                  >
-                    {isSubmittingBonus ? 'Submitting...' : 'Initiate Bonus Workflow ➔'}
-                  </button>
-                </div>
+                </>
+              )}
+
+              <div style={{ borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-07)' }}>
+                <h4 style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 'var(--cds-spacing-05)' }}>Payment & Performance History</h4>
+                {bonusHistory.length > 0 ? (
+                  <div style={{ border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                    <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+                      <thead style={{ background: 'var(--cds-layer-01)' }}>
+                        <tr>
+                          <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>Period</th>
+                          <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>Category</th>
+                          <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>Notes</th>
+                          <th style={{ fontSize: '0.625rem', fontWeight: 600, textAlign: 'right' }}>Amount</th>
+                          <th style={{ fontSize: '0.625rem', fontWeight: 600, textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bonusHistory.map((h, i) => (
+                          <tr key={i}>
+                            <td style={{ fontSize: '0.75rem' }}>{h.sub_type || 'N/A'}</td>
+                            <td>
+                              <span className="cds--tag cds--tag--blue" style={{ fontSize: '0.625rem' }}>{h.comp_type.replace('_', ' ')}</span>
+                            </td>
+                            <td style={{ fontSize: '0.75rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.notes || '—'}</td>
+                            <td style={{ fontSize: '0.75rem', fontWeight: 600, textAlign: 'right' }}>{h.amount.toLocaleString()} KWD</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: h.status === 'APPROVED_FOR_PAYROLL' ? 'var(--cds-support-success)' : 'var(--cds-support-warning)', margin: '0 auto' }}></div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: 'var(--cds-spacing-08)', border: '1px dashed var(--cds-border-subtle)', textAlign: 'center', fontSize: '0.75rem', color: 'var(--cds-text-disabled)' }}>
+                    No historical records available.
+                  </div>
+                )}
               </div>
             </div>
           )}
-        </div>
-      </td>
-    </tr>
+    </div>
   );
 };
 
@@ -337,32 +514,15 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [kpiTemplates, setKpiTemplates] = useState<KPITemplate[]>([]);
 
   const fetchEmployees = async () => {
     setLoading(true);
     try {
+      const templates = await dbService.getKPITemplates();
+      setKpiTemplates(templates);
       let data = await dbService.getEmployees();
-
-      const getWeight = (pos: string) => {
-        const p = pos.toLowerCase();
-        if (p.includes('ceo') || p.includes('general manager')) return 100;
-        if (p.includes('director') || p.includes('head of')) return 80;
-        if (p.includes('manager')) return 60;
-        if (p.includes('lead')) return 40;
-        return 10;
-      };
-
-      if (user.role === 'Manager') {
-        data = data.filter(e => e.managerId === user.id);
-      } else if (user.role === 'HR') {
-        const targetDept = user.department;
-        data = data.filter(e => /ceo/i.test(e.position) || e.department === targetDept);
-      }
-
-      setEmployees([...data].sort((a, b) => {
-        const diff = getWeight(b.position) - getWeight(a.position);
-        return diff !== 0 ? diff : a.name.localeCompare(b.name);
-      }));
+      setEmployees(data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -371,31 +531,6 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
   };
 
   useEffect(() => { fetchEmployees(); }, [user.id, user.department, user.role]);
-
-  const handleStatusChange = async (employeeId: string, newStatus: Employee['status']) => {
-    setUpdatingId(employeeId);
-    try {
-      await dbService.updateEmployee(employeeId, { status: newStatus });
-      setEmployees(prev => prev.map(emp => emp.id === employeeId ? { ...emp, status: newStatus } : emp));
-    } catch (err) {
-      console.error('Status update failed', err);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const getComplianceStatus = (emp: Employee) => {
-    const dates = [emp.civilIdExpiry, emp.passportExpiry, emp.iznAmalExpiry]
-      .filter(Boolean)
-      .map(d => Math.ceil((new Date(d!).getTime() - Date.now()) / 86400000));
-
-    if (dates.length === 0) return { label: t('unknown'), color: 'bg-slate-200', text: 'text-slate-500' };
-    const min = Math.min(...dates);
-    if (min < 0) return { label: t('expired'), color: 'bg-rose-100', text: 'text-rose-600' };
-    if (min <= 30) return { label: `${min}d`, color: 'bg-orange-100', text: 'text-orange-600' };
-    if (min <= 90) return { label: t('warning'), color: 'bg-amber-100', text: 'text-amber-600' };
-    return { label: t('secure'), color: 'bg-emerald-100', text: 'text-emerald-600' };
-  };
 
   const filtered = useMemo(() => {
     if (aiFilteredIds !== null) {
@@ -408,248 +543,113 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user, onAddClick,
         || e.position.toLowerCase().includes(search)
         || e.department.toLowerCase().includes(search);
       if (!textMatch) return false;
-      if (balanceFilter === 'low') {
-        const remaining = (e.leaveBalances?.annual ?? 30) - (e.leaveBalances?.annualUsed ?? 0);
-        return remaining < 5;
-      }
-      if (balanceFilter === 'overdue') {
-        return (e.leaveBalances?.annualUsed ?? 0) > (e.leaveBalances?.annual ?? 30);
-      }
       return true;
     });
-  }, [employees, filter, balanceFilter]);
+  }, [employees, filter]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const canManage = ['Admin', 'Manager', 'HR', 'HR Manager', 'HR Officer', 'Executive'].includes(user.role);
 
-  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setItemsPerPage(parseInt(e.target.value));
-    setCurrentPage(1);
-  };
-
   const toggleExpand = (id: string) => setExpandedId(prev => prev === id ? null : id);
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 text-start">
+    <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.8s ease' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--cds-border-subtle)', paddingBottom: 'var(--cds-spacing-06)' }}>
         <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{t('directory')}</h2>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-lg tracking-widest border border-indigo-100 italic">
-              {user.role === 'Admin' ? 'Global Registry' : `${user.department} Scope`}
-            </span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">• {filtered.length} {t('members')}</span>
-          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.5px' }}>WORKFORCE_NODE_REGISTRY</h2>
+          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', fontFamily: 'monospace', textTransform: 'uppercase' }}>System Status: Operational | Total Nodes: {employees.length}</p>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch gap-4">
-          {/* Balance filter chips */}
-          <div className="flex gap-2 items-center">
-            {(['all', 'low', 'overdue'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => { setBalanceFilter(f); setCurrentPage(1); }}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${balanceFilter === f
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                  : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300'
-                  }`}
-              >
-                {f === 'all' ? 'All' : f === 'low' ? '⚠ Low Balance' : '🔴 Overdue'}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative group flex-1">
+        <div style={{ display: 'flex', gap: 'var(--cds-spacing-05)', alignItems: 'center' }}>
+          <div style={{ position: 'relative', width: '300px' }}>
             <AISearchBar
-              data={employees}
-              onFilter={(ids) => {
-                setAiFilteredIds(ids)
-                setCurrentPage(1);
-              }}
-              placeholder={t('searchPlaceholder')}
-              contextMessage="KUWAIT HR REPORTING - Employee directory. Return matching IDs."
-              extractInfo={emp => `Name: ${emp.name}, ArabicName: ${emp.nameArabic}, Position: ${emp.position}, Dept: ${emp.department}, Status: ${emp.status}`}
-              onQueryChange={(q) => {
-                setFilter(q);
-                setCurrentPage(1);
-              }}
-              initialValue={filter}
+                data={employees}
+                onFilter={setAiFilteredIds}
+                placeholder="Filter Registry..."
+                contextMessage="EMPLOYEE_REGISTRY_SCAN - Searching for active nodes."
+                extractInfo={emp => `${emp.name} | ${emp.department} | ${emp.position} | ${emp.id}`}
+                onQueryChange={(q) => { setFilter(q); setExpandedId(null); }}
+                initialValue={filter}
             />
           </div>
           {canManage && (
-            <button
-              onClick={onAddClick}
-              className="bg-indigo-600 text-white px-10 py-5 rounded-[28px] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all active:scale-95 shadow-xl shadow-indigo-600/20 border border-indigo-500"
-            >
-              + {t('enroll')}
+            <button className="cds--btn cds--btn--primary cds--btn--sm" onClick={onAddClick} style={{ height: '32px' }}>
+              Initialize New Node
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-[48px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        {loading ? (
-          <div className="p-32 flex flex-col justify-center items-center gap-4">
-            <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('syncing')}</p>
-          </div>
-        ) : filtered.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-start">
-                <thead>
-                  <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                    <th className="px-10 py-6 text-start">{t('identifierTh')}</th>
-                    <th className="px-10 py-6 text-start">{t('members')}</th>
-                    <th className="px-10 py-6 text-start">{t('documentHealth')}</th>
-                    <th className="px-10 py-6 text-start">{t('careerPlacement')}</th>
-                    <th className="px-10 py-6 text-start">{t('registryStatus')}</th>
-                    <th className="px-10 py-6 text-end" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {paginatedData.map(emp => {
-                    const health = getComplianceStatus(emp);
-                    const isManager = /manager|head|director|ceo|lead/i.test(emp.position);
-                    const isCEO = emp.position.toLowerCase().includes('ceo');
-                    const isExpanded = expandedId === emp.id;
-
-                    return (
-                      <React.Fragment key={emp.id}>
-                        <tr
-                          onClick={() => toggleExpand(emp.id)}
-                          className={`transition-colors group cursor-pointer ${isExpanded ? 'bg-indigo-50/40' : 'hover:bg-slate-50/50'} ${isManager ? 'bg-indigo-50/20' : ''}`}
-                        >
-                          <td className="px-10 py-8">
-                            <div className="relative inline-block">
-                              <div className={`w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-lg font-black border border-slate-200 overflow-hidden shadow-inner ring-4 ring-white ${isExpanded ? 'ring-indigo-200' : 'group-hover:ring-indigo-100'} transition-all ${isManager ? 'ring-indigo-100' : ''}`}>
-                                {emp.faceToken ? (
-                                  <img src={emp.faceToken} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
-                                ) : (
-                                  <span className="opacity-30">{emp.name[0]}</span>
-                                )}
-                              </div>
-                              {isManager && (
-                                <div className={`absolute -top-1 -right-1 w-5 h-5 ${isCEO ? 'bg-amber-500' : 'bg-indigo-600'} text-white rounded-full flex items-center justify-center text-[10px] shadow-lg border-2 border-white`}>
-                                  {isCEO ? '👑' : '★'}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-10 py-8">
-                            <div className="text-start">
-                              <p className="text-lg font-black text-slate-900 leading-tight">
-                                {language === 'ar' && emp.nameArabic ? emp.nameArabic : emp.name}
-                              </p>
-                              <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                                {emp.nationality === 'Kuwaiti' ? '🇰🇼 Kuwaiti National' : `🌍 Expat • ${emp.nationality}`}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-10 py-8 text-start">
-                            <div className={`inline-flex items-center gap-2 px-4 py-1.5 ${health.color} rounded-xl border border-transparent shadow-sm`}>
-                              <span className={`text-[10px] font-black uppercase tracking-wider ${health.text}`}>{health.label}</span>
-                            </div>
-                          </td>
-                          <td className="px-10 py-8 text-start">
-                            <p className="text-sm font-black text-slate-800 leading-tight">
-                              {language === 'ar' && emp.positionArabic ? emp.positionArabic : emp.position}
-                            </p>
-                            <p className="text-[11px] text-indigo-600 font-extrabold uppercase mt-1 tracking-wider">
-                              {language === 'ar' && emp.departmentArabic ? emp.departmentArabic : emp.department}
-                            </p>
-                          </td>
-                          <td className="px-10 py-8 text-start">
-                            {canManage ? (
-                              <div className="relative inline-block w-full max-w-[140px]" onClick={e => e.stopPropagation()}>
-                                <select
-                                  disabled={updatingId === emp.id}
-                                  value={emp.status}
-                                  onChange={e => handleStatusChange(emp.id, e.target.value as Employee['status'])}
-                                  className="w-full appearance-none text-[11px] font-black uppercase tracking-widest rounded-xl px-4 py-2 bg-slate-50 border border-slate-200 outline-none hover:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all disabled:opacity-50"
-                                >
-                                  <option value="Active">{t('active')}</option>
-                                  <option value="On Leave">{t('onleave')}</option>
-                                  <option value="Terminated">{t('terminated')}</option>
-                                </select>
-                                <div className={`pointer-events-none absolute inset-y-0 ${language === 'ar' ? 'left-0 pl-3' : 'right-0 pr-3'} flex items-center text-slate-400 text-[10px]`}>▼</div>
-                              </div>
-                            ) : (
-                              <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${emp.status === 'Active' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                {t(emp.status.toLowerCase().replace(' ', '')) || emp.status}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-10 py-8 text-end">
-                            <div className="flex items-center justify-end gap-2">
-                              <span className={`text-slate-300 text-xs transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                              {canManage && (
-                                <button
-                                  onClick={e => { e.stopPropagation(); onEditClick?.(emp); }}
-                                  className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-95"
-                                >
-                                  <span className="text-xl">⚙️</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Expandable detail panel */}
-                        {isExpanded && <EmployeeDetailPanel emp={emp} currentUser={user} />}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="p-8 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
-              <div className="flex items-center gap-8">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  {filtered.length.toLocaleString(language === 'ar' ? 'ar-KW' : 'en-KW')} {t('orgRegistry')}
+      {loading ? (
+        <div style={{ padding: 'var(--cds-spacing-10)', textAlign: 'center' }}>
+          <div className="cds--loading cds--loading--small" style={{ margin: '0 auto' }}></div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-04)', fontFamily: 'monospace' }}>SYNCHRONIZING_REGISTRY...</p>
+        </div>
+      ) : (
+        <div className="cds--registry-grid">
+          {filtered.map(emp => {
+            const isExpanded = expandedId === emp.id;
+            const isActive = emp.status === 'Active';
+            return (
+              <div 
+                key={emp.id} 
+                className={`cds--registry-card ${isExpanded ? 'active' : ''}`}
+                onClick={() => toggleExpand(emp.id)}
+                style={{ cursor: 'pointer', position: 'relative' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-05)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                      <div className={`cds--status-indicator ${isActive ? 'cds--status-indicator--active' : 'cds--status-indicator--inactive'}`}></div>
+                      <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>NODE_{emp.id.slice(0, 8)}</span>
+                   </div>
+                   <div style={{ fontSize: '0.625rem', padding: '2px 6px', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-interactive-01)', fontFamily: 'monospace' }}>
+                      LVL_{emp.role === 'Admin' ? 'EX' : 'OP'}
+                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{i18n.language === 'ar' ? 'عرض:' : 'View:'}</span>
-                  <select
-                    value={itemsPerPage}
-                    onChange={handleItemsPerPageChange}
-                    className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
-                  >
-                    <option value={5}>05</option>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                  </select>
+
+                <div style={{ marginBottom: 'var(--cds-spacing-05)' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '2px' }}>{language === 'ar' && emp.nameArabic ? emp.nameArabic : emp.name}</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', fontFamily: 'monospace' }}>{emp.position}</p>
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-03)', padding: 'var(--cds-spacing-04)', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--cds-border-subtle)', marginBottom: 'var(--cds-spacing-05)' }}>
+                   <div>
+                      <p style={{ fontSize: '0.5rem', color: 'var(--cds-text-disabled)', textTransform: 'uppercase' }}>Division</p>
+                      <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)' }}>{emp.department}</p>
+                   </div>
+                   <div>
+                      <p style={{ fontSize: '0.5rem', color: 'var(--cds-text-disabled)', textTransform: 'uppercase' }}>Joined</p>
+                      <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)' }}>{emp.joinDate ? new Date(emp.joinDate).toLocaleDateString('en-GB') : '—'}</p>
+                   </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <div style={{ display: 'flex', gap: '2px' }}>
+                      <div style={{ width: '4px', height: '4px', background: 'var(--cds-interactive-01)' }}></div>
+                      <div style={{ width: '4px', height: '4px', background: 'var(--cds-interactive-01)', opacity: 0.6 }}></div>
+                      <div style={{ width: '4px', height: '4px', background: 'var(--cds-interactive-01)', opacity: 0.3 }}></div>
+                   </div>
+                   {canManage && (
+                     <button 
+                       className="cds--btn cds--btn--ghost cds--btn--sm"
+                       onClick={(e) => { e.stopPropagation(); onEditClick?.(emp); }}
+                       style={{ height: '24px', fontSize: '0.625rem', textTransform: 'uppercase', padding: '0 8px' }}
+                     >
+                       MODIFY_NODE
+                     </button>
+                   )}
+                </div>
+
+                {isExpanded && (
+                  <div style={{ gridColumn: '1 / -1', marginTop: 'var(--cds-spacing-07)', animation: 'fade-in 0.4s ease' }} onClick={(e) => e.stopPropagation()}>
+                    <EmployeeDetailPanel emp={emp} currentUser={user} kpiTemplates={kpiTemplates} />
+                  </div>
+                )}
               </div>
-              <div className="flex gap-3">
-                <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-900 transition-all disabled:opacity-30 active:scale-95 shadow-sm">
-                  {i18n.language === 'ar' ? 'السابق' : 'Prev'}
-                </button>
-                <div className="flex items-center px-6 text-[11px] font-black text-slate-900 bg-white border border-slate-200 rounded-xl shadow-inner">
-                  {currentPage.toLocaleString(language === 'ar' ? 'ar-KW' : 'en-KW')} <span className="mx-2 opacity-30">/</span> {totalPages.toLocaleString(language === 'ar' ? 'ar-KW' : 'en-KW')}
-                </div>
-                <button disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)} className="px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-900 transition-all disabled:opacity-30 active:scale-95 shadow-sm">
-                  {i18n.language === 'ar' ? 'التالي' : 'Next'}
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="p-40 text-center flex flex-col items-center gap-6">
-            <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex items-center justify-center text-4xl grayscale opacity-20">👥</div>
-            <div>
-              <h4 className="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">{t('noRecords')}</h4>
-              <p className="text-xs text-slate-400 font-medium mt-2">{i18n.language === 'ar' ? 'اضبط الفلاتر أو جرب مصطلح بحث مختلف.' : 'Adjust your filters or try a different search term.'}</p>
-            </div>
-            <button onClick={() => { setFilter(''); setBalanceFilter('all'); }} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest underline underline-offset-4">
-              {i18n.language === 'ar' ? 'مسح جميع الفلاتر' : 'Clear All Filters'}
-            </button>
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,0 +1,1 @@
+CREATE OR REPLACE FUNCTION fn_count_working_days(p_start DATE, p_end DATE) RETURNS INTEGER AS \$\$ DECLARE v_count INTEGER := 0; v_curr DATE := p_start; BEGIN WHILE v_curr <= p_end LOOP IF EXTRACT(DOW FROM v_curr) <> 5 THEN v_count := v_count + 1; END IF; v_curr := v_curr + 1; END LOOP; RETURN v_count; END; \$\$ LANGUAGE plpgsql;

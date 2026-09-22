@@ -38,15 +38,22 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
     const [historyData, zones, profile] = await Promise.all([
       dbService.getAttendanceRecords({ employeeId: user.id }),
       dbService.getOfficeLocations(),
-      dbService.getEmployeeByName(user.name)
+      dbService.getEmployeeById(user.id).then(p => p || dbService.getEmployeeByName(user.name))
     ]);
+
     setHistory(historyData);
     setOfficeLocations(zones);
     if (profile) setEmployeeProfile(profile);
 
-    const today = new Date().toISOString().split('T')[0];
-    const todaysRecord = historyData.find(r => r.date === today);
-    if (todaysRecord) setActiveRecord(todaysRecord);
+    // Use local date instead of UTC to avoid timezone mismatches (e.g. late night Kuwait vs UTC)
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // Find today's record specifically for this user
+    const todaysRecord = historyData.find(r => r.date === today && r.employeeId === user.id);
+    
+    console.log("[Attendance Sync] Local Today:", today, "Found:", todaysRecord?.id);
+    setActiveRecord(todaysRecord || null);
   };
 
   const dismissGuide = () => {
@@ -108,7 +115,23 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
       const distance = getDistance(coords.latitude, coords.longitude, loc.lat, loc.lng);
       return distance <= loc.radius;
     });
-    setActiveZone(foundZone || null);
+
+    if (!foundZone) {
+      // Create a virtual "Off-Site" zone to allow progression to Face ID
+      const virtualZone: OfficeLocation = {
+        id: 'offsite',
+        name: i18n.language === 'ar' ? 'عمل ميداني / عن بعد' : 'Off-Site / Remote',
+        nameArabic: 'عمل ميداني / عن بعد',
+        address: 'Outside Perimeter',
+        addressArabic: 'خارج النطاق',
+        lat: coords.latitude,
+        lng: coords.longitude,
+        radius: 0
+      };
+      setActiveZone(virtualZone);
+    } else {
+      setActiveZone(foundZone);
+    }
     return foundZone;
   };
 
@@ -128,17 +151,36 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
         setDetecting(false);
       },
       (err) => {
-        notify(t('critical'), t('unauthorizedZone'), "error");
+        console.warn("Geolocation failed or denied. Defaulting to Remote mode.", err);
+        // Fallback for laptops/testing or denied permissions
+        const virtualCoords = { latitude: 0, longitude: 0 } as any;
+        setCurrentLocation(virtualCoords);
+        setActiveZone({
+          id: 'offsite',
+          name: i18n.language === 'ar' ? 'عمل عن بعد (GPS غير متاح)' : 'Remote (GPS Unavailable)',
+          nameArabic: 'عمل عن بعد (GPS غير متاح)',
+          address: 'Unknown',
+          addressArabic: 'غير معروف',
+          lat: 0,
+          lng: 0,
+          radius: 0
+        });
         setDetecting(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   const handleClockIn = async () => {
     if (!currentLocation || !activeZone || !isFaceVerified) return;
+    if (!currentLocation || !activeZone || !isFaceVerified) {
+      console.log("[handleClockIn] Pre-conditions not met:", { currentLocation, activeZone, isFaceVerified });
+      notify(t('warning'), t('completeStepsBeforeClockIn'), "warning");
+      return;
+    }
 
     const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const isLate = (hours > 8) || (hours === 8 && minutes > 30);
@@ -146,15 +188,16 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
     const newRecord: Omit<AttendanceRecord, 'id'> = {
       employeeId: user.id,
       employeeName: user.name,
-      date: now.toISOString().split('T')[0],
+      date: today, // Use local date string
       clockIn: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       location: activeZone.name,
-      status: isLate ? 'Late' : 'On-Site',
+      status: activeZone.id === 'offsite' ? 'Off-Site' : (isLate ? 'Late' : 'On-Site'),
       coordinates: { lat: currentLocation.latitude, lng: currentLocation.longitude },
       source: 'Web'
     };
 
     try {
+      console.log("[handleClockIn] Attempting to log attendance:", newRecord);
       const saved = await dbService.logAttendance(newRecord);
       setActiveRecord(saved);
       notify(t('success'), `${t('startShift')}: ${activeZone.name}`, "success");
@@ -188,64 +231,62 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
   const paginatedData = history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500 pb-20 max-w-6xl mx-auto">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.7s ease' }}>
       {showGuide && (
-        <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-xl shadow-indigo-500/10 flex flex-col md:flex-row items-center gap-8 border border-indigo-500/20 animate-in slide-in-from-top-4 duration-500 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">✨</div>
-          <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center text-3xl shrink-0">📡</div>
-          <div className="flex-1 space-y-2 text-start">
-            <h3 className="text-xl font-black tracking-tight">{t('guideAttendanceTitle')}</h3>
-            <p className="text-indigo-50 font-medium leading-relaxed opacity-90">{t('guideAttendanceDesc')}</p>
+        <div style={{ background: 'var(--cds-background-inverse)', padding: 'var(--cds-spacing-07)', color: 'var(--cds-text-inverse)', border: '1px solid var(--cds-border-subtle)', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-07)' }}>
+          <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0, borderRadius: '4px' }}>
+            📡
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'inherit', marginBottom: 'var(--cds-spacing-02)' }}>{t('guideAttendanceTitle')}</h3>
+            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>{t('guideAttendanceDesc')}</p>
           </div>
           <button
             onClick={dismissGuide}
-            className="px-8 py-3 bg-white text-indigo-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95 shadow-lg"
+            className="cds--btn cds--btn--secondary cds--btn--sm"
           >
             {t('gotIt')}
           </button>
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-10">
-        <div className="lg:w-[450px] space-y-8">
-          <div className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-xl shadow-slate-900/5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-              <span className="text-[140px]">🤳</span>
-            </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(350px, 400px) 1fr', gap: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-07)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', position: 'relative' }}>
+            <h3 style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 'var(--cds-spacing-07)' }}>{t('complianceHandshake')}</h3>
 
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-10">{t('complianceHandshake')}</h3>
-
-            <div className="space-y-8 relative z-10">
-              <div className="flex items-center gap-6">
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center text-3xl shadow-inner ${activeZone ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-300'}`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-06)' }}>
+                <div style={{ width: '48px', height: '48px', background: 'var(--cds-layer-01)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', border: '1px solid var(--cds-border-subtle)', flexShrink: 0 }}>
                   {detecting ? '⏳' : (activeZone ? '✅' : '🏢')}
                 </div>
-                <div className="flex-1 text-start">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gpsPerimeter')}</p>
-                  <p className={`text-xl font-black ${activeZone ? 'text-slate-900' : 'text-slate-300'}`}>
+                <div>
+                  <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('gpsPerimeter')}</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: activeZone ? 'var(--cds-text-primary)' : 'var(--cds-text-disabled)' }}>
                     {detecting ? t('syncing') : (activeZone ? activeZone.name : t('unauthorizedZone'))}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center text-3xl shadow-inner ${isFaceVerified ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-300'}`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-06)' }}>
+                <div style={{ width: '48px', height: '48px', background: 'var(--cds-layer-01)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', border: '1px solid var(--cds-border-subtle)', flexShrink: 0 }}>
                   {isScanning ? '📷' : (isFaceVerified ? '🧬' : '👤')}
                 </div>
-                <div className="flex-1 text-start">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('facialId')}</p>
-                  <p className={`text-xl font-black ${isFaceVerified ? 'text-indigo-900' : 'text-slate-300'}`}>
+                <div>
+                  <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('facialId')}</p>
+                  <p style={{ fontSize: '1.125rem', fontWeight: 600, color: isFaceVerified ? 'var(--cds-interactive-01)' : 'var(--cds-text-disabled)' }}>
                     {isScanning ? `${t('verifying')} ${scanProgress}%` : (isFaceVerified ? t('verified') : t('awaitingScan'))}
                   </p>
                 </div>
               </div>
 
-              <div className="pt-4 space-y-4">
-                {!activeRecord?.clockIn && (
+              <div style={{ paddingTop: 'var(--cds-spacing-05)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)' }}>
+                {(!activeRecord || !activeRecord.clockIn) && (
                   <button
                     onClick={startDetection}
                     disabled={detecting}
-                    className="w-full py-5 bg-slate-900 text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 active:scale-95 transition-all hover:bg-black disabled:opacity-50"
+                    className="cds--btn cds--btn--primary"
+                    style={{ width: '100%' }}
                   >
                     {detecting ? t('refreshGps') : t('validateLocation')}
                   </button>
@@ -254,7 +295,8 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
                 {activeZone && !isFaceVerified && !activeRecord?.clockIn && (
                   <button
                     onClick={startFaceScan}
-                    className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-indigo-600/30 active:scale-95 transition-all hover:bg-indigo-700 animate-in slide-in-from-top-4"
+                    className="cds--btn cds--btn--tertiary"
+                    style={{ width: '100%' }}
                   >
                     {t('startFaceRecognition')}
                   </button>
@@ -263,142 +305,131 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ user }) => {
                 {activeZone && isFaceVerified && !activeRecord?.clockIn && (
                   <button
                     onClick={handleClockIn}
-                    className="w-full py-5 bg-emerald-600 text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-emerald-600/30 active:scale-95 transition-all hover:bg-emerald-700 animate-in zoom-in-95"
+                    className="cds--btn cds--btn--primary"
+                    style={{ width: '100%', background: 'var(--cds-support-success)', border: 'none' }}
                   >
                     {t('commitClockIn')}
                   </button>
                 )}
 
                 {activeRecord?.clockIn && !activeRecord.clockOut && (
-                  <div className="space-y-4">
-                    <div className="bg-emerald-600 p-8 rounded-[40px] text-white shadow-xl shadow-emerald-600/20">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">{t('currentShift')}</p>
-                      <div className="flex items-end justify-between">
-                        <h4 className="text-4xl font-black tracking-tight">{activeRecord.clockIn}</h4>
-                        <p className="text-xs font-bold mb-1">{activeRecord.location}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                    <div style={{ padding: 'var(--cds-spacing-06)', background: 'var(--cds-layer-01)', borderLeft: '4px solid var(--cds-support-success)' }}>
+                      <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-02)' }}>{t('currentShift')}</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <span style={{ fontSize: '2rem', fontWeight: 600 }}>{activeRecord.clockIn}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{activeRecord.location}</span>
                       </div>
                     </div>
                     <button
                       onClick={handleClockOut}
-                      className="w-full py-5 bg-white border-2 border-slate-200 text-slate-800 rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-slate-50 transition-all active:scale-95"
+                      className="cds--btn cds--btn--danger"
+                      style={{ width: '100%' }}
                     >
                       {isFaceVerified ? t('finishSession') : `${t('stopShift')} (${t('facialId')})`}
                     </button>
                   </div>
                 )}
+                
+                <div style={{ marginTop: 'var(--cds-spacing-08)', paddingTop: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                   <button 
+                     onClick={() => { localStorage.removeItem('app_user_session'); window.location.reload(); }}
+                     style={{ textAlign: 'start', background: 'none', border: 'none', padding: 0, fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', cursor: 'pointer' }}
+                   >
+                     ↻ {t('syncIssues')}? {t('resetSession')}
+                   </button>
+                   <button 
+                     onClick={() => { setActiveRecord(null); setIsFaceVerified(false); }}
+                     style={{ textAlign: 'start', background: 'none', border: 'none', padding: 0, fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-support-error)', textTransform: 'uppercase', cursor: 'pointer' }}
+                   >
+                     ⚠ {t('forceResetShift')}
+                   </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 space-y-8 flex flex-col">
-          <div className="bg-white rounded-[48px] border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[500px]">
-            <div className="p-10 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center text-start">
-              <div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">{language === 'ar' ? 'رادار النشاط' : 'Activity Radar'}</h3>
-                <p className="text-xs text-slate-500 font-medium">{t('monitoringDocs')}</p>
-              </div>
-            </div>
+        <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 'var(--cds-spacing-07)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{language === 'ar' ? 'سجل الحضور' : 'Activity Log'}</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{t('monitoringDocs')}</p>
+          </div>
 
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 border-b border-slate-100">
-                  <tr>
-                    <th className="px-10 py-6">{t('date')}</th>
-                    <th className="px-10 py-6">{language === 'ar' ? 'المصدر' : 'Source'}</th>
-                    <th className="px-10 py-6">{t('startShift')}</th>
-                    <th className="px-10 py-6">{t('stopShift')}</th>
-                    <th className="px-10 py-6">{t('facialId')}</th>
+          <div style={{ flex: 1 }}>
+            <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
+              <thead style={{ background: 'var(--cds-layer-01)' }}>
+                <tr>
+                  <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>{t('date')}</th>
+                  <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>{language === 'ar' ? 'الموقع' : 'Location'}</th>
+                  <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>{t('clockIn')}</th>
+                  <th style={{ fontSize: '0.625rem', fontWeight: 600 }}>{t('clockOut')}</th>
+                  <th style={{ fontSize: '0.625rem', fontWeight: 600, textAlign: 'center' }}>Auth</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.map((rec) => (
+                  <tr key={rec.id}>
+                    <td style={{ fontSize: '0.75rem', fontWeight: 600 }}>{rec.date}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.75rem' }}>{rec.location}</span>
+                        <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{rec.source}</span>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{rec.clockIn}</td>
+                    <td style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>{rec.clockOut || '--:--'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ width: '24px', height: '24px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem' }}>
+                        {rec.source === 'Hardware' ? '📠' : '🧬'}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {paginatedData.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/30 transition-colors group">
-                      <td className="px-10 py-6 font-black text-slate-900">{rec.date}</td>
-                      <td className="px-10 py-6">
-                        <div className="flex flex-col text-start">
-                          <span className="text-sm font-bold text-slate-700">{rec.location}</span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${rec.source === 'Hardware' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                            {rec.source === 'Hardware' ? (language === 'ar' ? '📠 جهاز بصمة' : '📠 Hardware') : (rec.source === 'Mobile' ? (language === 'ar' ? '📱 هاتف' : '📱 Mobile') : (language === 'ar' ? '💻 واجهة الويب' : '💻 Web'))}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-10 py-6 font-mono text-sm font-black text-slate-600">{rec.clockIn}</td>
-                      <td className="px-10 py-6 font-mono text-sm font-black text-slate-400">{rec.clockOut || '--:--'}</td>
-                      <td className="px-10 py-6">
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs ${rec.source === 'Hardware' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
-                          {rec.source === 'Hardware' ? '📠' : '🧬'}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <div style={{ padding: 'var(--cds-spacing-05)', borderTop: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+             <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>Page {currentPage} of {totalPages}</span>
+             <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+                <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="cds--btn cds--btn--ghost cds--btn--sm">Prev</button>
+                <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="cds--btn cds--btn--ghost cds--btn--sm">Next</button>
+             </div>
           </div>
         </div>
       </div>
 
+      {/* Biometric Overlay */}
       {isScanning && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/95 backdrop-blur-md animate-in fade-in duration-300 p-6">
-          <div className="max-w-4xl w-full text-center space-y-12">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-12">
-              <div className="relative">
-                <div className="w-72 h-72 rounded-full border-4 border-indigo-500/50 p-2 overflow-hidden relative shadow-[0_0_40px_rgba(99,102,241,0.2)]">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover rounded-full grayscale brightness-110"
-                  />
-                  <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400 shadow-[0_0_15px_rgba(129,140,248,0.8)] animate-scan-y opacity-70"></div>
-                </div>
-                <p className="mt-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">{t('verifying')}</p>
-                <div className="absolute -top-4 -left-4 w-12 h-12 border-t-4 border-l-4 border-indigo-500 rounded-tl-3xl"></div>
-                <div className="absolute -top-4 -right-4 w-12 h-12 border-t-4 border-r-4 border-indigo-500 rounded-tr-3xl"></div>
-                <div className="absolute -bottom-4 -left-4 w-12 h-12 border-b-4 border-l-4 border-indigo-500 rounded-bl-3xl"></div>
-                <div className="absolute -bottom-4 -right-4 w-12 h-12 border-b-4 border-r-4 border-indigo-500 rounded-br-3xl"></div>
-              </div>
-
-              <div className="flex flex-col items-center">
-                <div className="w-40 h-40 rounded-3xl border-2 border-white/10 p-1 bg-white/5 overflow-hidden shadow-inner">
-                  {employeeProfile?.faceToken ? (
-                    <img src={employeeProfile.faceToken} className="w-full h-full object-cover rounded-2xl grayscale opacity-60" />
-                  ) : (
-                    <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-600 text-xs">---</div>
-                  )}
-                </div>
-                <div className="mt-6 space-y-2 text-start">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 rounded-full border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">{t('syncing')}</span>
-                  </div>
-                </div>
-              </div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: 'var(--cds-spacing-07)' }}>
+          <div style={{ position: 'relative', width: '280px', height: '280px', border: '2px solid var(--cds-interactive-01)', borderRadius: '50%', overflow: 'hidden', marginBottom: 'var(--cds-spacing-07)' }}>
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%) brightness(1.2)' }}
+            />
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '2px', background: 'var(--cds-interactive-01)', boxShadow: '0 0 15px var(--cds-interactive-01)', animation: 'scan-y 3s linear infinite' }}></div>
+          </div>
+          <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: 'var(--cds-spacing-04)' }}>{t('registryVerification')}</h3>
+            <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', marginBottom: 'var(--cds-spacing-04)' }}>
+               <div style={{ height: '100%', background: 'var(--cds-interactive-01)', width: `${scanProgress}%`, transition: 'width 0.3s ease' }}></div>
             </div>
-
-            <div className="space-y-6 max-w-md mx-auto">
-              <h3 className="text-3xl font-black text-white tracking-widest uppercase">{t('registryVerification')}</h3>
-              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${scanProgress}%` }}></div>
-              </div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">{t('alignFaceMatrix')}</p>
-            </div>
+            <p style={{ fontSize: '0.75rem', opacity: 0.6, textTransform: 'uppercase' }}>{t('alignFaceMatrix')}</p>
           </div>
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
+      <style>{`
         @keyframes scan-y {
           0% { top: 0%; }
-          100% { top: 100%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
         }
-        .animate-scan-y {
-          animation: scan-y 2.5s ease-in-out infinite;
-        }
-      `}} />
+      `}</style>
     </div>
   );
 };

@@ -212,292 +212,311 @@ export const UserManagement: React.FC = () => {
     };
 
     const filteredEmployees = employees.filter(emp => {
-        // Precise Email Identification
-        let targetEmail = emp.email;
-        if (!targetEmail) {
-            let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
-            const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
-            let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
-            if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
-            if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
-            targetEmail = `${firstName}@test.com`;
-        }
-
-        const testEmail = targetEmail;
-
-        // Hide ONLY if already in system_users (meaning they have a final role assigned)
         if (systemUsers.some(u => u.employee_id === emp.id)) return false;
-
-        // Note: We don't hide if they are in authUsers anymore, because they still need to be upgraded to a system role.
-        // We will handle the "Grant Auth" button visibility in the render loop.
-
         if (aiFilteredIds !== null) return aiFilteredIds.includes(emp.id);
         return emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.includes(searchQuery.toLowerCase());
     });
 
     return (
-        <div className="p-8 space-y-8 animate-in fade-in duration-700">
-            <div className="flex justify-between items-center">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.6s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">System Access Control</h2>
-                    <p className="text-slate-500 text-sm font-medium mt-1">Manage administrative roles and feature permissions.</p>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>System Access Control</h2>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>Manage administrative roles, auth credentials, and feature-level permissions.</p>
                 </div>
                 {!isSetupNeeded && (
-                    <button onClick={() => { setSelectedEmployee(null); setShowUpgradeModal(true); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 hover:bg-slate-900 transition-all active:scale-95">
-                        + Create Standalone Admin
+                    <button 
+                        onClick={() => { setSelectedEmployee(null); setShowUpgradeModal(true); }}
+                        className="cds--btn cds--btn--primary cds--btn--sm"
+                    >
+                        Create Root Admin
                     </button>
                 )}
             </div>
 
             {isSetupNeeded ? (
-                <div className="bg-rose-50 border border-rose-100 p-8 rounded-[32px] text-center space-y-4">
-                    <h3 className="text-rose-900 font-bold">System Setup Required</h3>
-                    <button onClick={handleInitializeSystem} disabled={loading} className="bg-rose-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-rose-700 transition-all">
-                        {loading ? 'Initializing...' : 'Initialize System Tables'}
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-08)', textAlign: 'center', background: 'var(--cds-support-error-inverse)', color: 'white' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-04)' }}>Registry Initialization Required</h3>
+                    <p style={{ marginBottom: 'var(--cds-spacing-06)', opacity: 0.9 }}>Security tables not found in active database instance.</p>
+                    <button onClick={handleInitializeSystem} disabled={loading} className="cds--btn cds--btn--secondary">
+                        {loading ? 'Initializing...' : 'Synthesize Tables'}
                     </button>
                 </div>
             ) : (
                 <>
-                    <div className="flex gap-4 border-b border-slate-200">
-                        <button onClick={() => setActiveTab('users')} className={`pb-4 px-2 text-sm font-bold transition-all relative ${activeTab === 'users' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            User Accounts
-                            {activeTab === 'users' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full"></div>}
-                        </button>
-                        <button onClick={() => setActiveTab('permissions')} className={`pb-4 px-2 text-sm font-bold transition-all relative ${activeTab === 'permissions' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            Role Feature Permissions
-                            {activeTab === 'permissions' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full"></div>}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('requests')}
-                            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'requests' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
-                        >
-                            Profile Change Requests ({profileRequests.filter(r => r.status === 'PENDING').length})
-                        </button>
+                    <div className="cds--tabs" style={{ marginBottom: 'var(--cds-spacing-05)', background: 'var(--cds-background)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <ul className="cds--tabs__nav" style={{ display: 'flex', gap: '2px', padding: 0, margin: 0, listStyle: 'none' }}>
+                            {[
+                                { id: 'users', label: 'Authorized Users', icon: '👤' },
+                                { id: 'permissions', label: 'Modular Permissions', icon: '🔐' },
+                                { id: 'requests', label: `Service Requests (${profileRequests.filter(r => r.status === 'PENDING').length})`, icon: '✉️' }
+                            ].map(tab => (
+                                <li key={tab.id} className={`cds--tabs__nav-item ${activeTab === tab.id ? 'cds--tabs__nav-item--selected' : ''}`} style={{ flex: '1 0 auto' }}>
+                                    <button
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        style={{
+                                            width: '100%',
+                                            height: '32px',
+                                            padding: '0 var(--cds-spacing-05)',
+                                            fontSize: '0.875rem',
+                                            fontWeight: activeTab === tab.id ? 600 : 400,
+                                            background: activeTab === tab.id ? 'var(--cds-layer-01)' : 'transparent',
+                                            color: activeTab === tab.id ? 'var(--cds-text-primary)' : 'var(--cds-text-secondary)',
+                                            border: 'none',
+                                            borderBottom: activeTab === tab.id ? '2px solid var(--cds-interactive-01)' : '2px solid transparent',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 'var(--cds-spacing-03)',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        <span>{tab.icon}</span>
+                                        {tab.label}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
 
                     {activeTab === 'requests' && (
-                        <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden animate-in fade-in duration-500">
-                            <div className="p-10 border-b border-slate-50 flex justify-between items-center text-start">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Self-Service Profile Updates</h3>
-                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Pending HR Verifications</p>
-                                </div>
+                        <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                            <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Profile Change Requests</h3>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-primary)', marginTop: '4px' }}>Verification required for employee-initiated data updates.</p>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-start">
-                                    <thead className="bg-slate-50/50 border-b border-slate-100">
-                                        <tr>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Employee</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Update Context</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-start">Delta (Old → New)</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-end">Operations</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {profileRequests.length === 0 ? (
-                                            <tr><td colSpan={4} className="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Registry Clear: No Pending Requests</td></tr>
-                                        ) : (
-                                            profileRequests.map((req) => (
-                                                <tr key={req.id} className="hover:bg-slate-50/30 transition-colors">
-                                                    <td className="px-8 py-6">
-                                                        <p className="text-sm font-black text-slate-800">{req.employees?.name}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">UID: {req.employee_id.slice(0, 8)}</p>
-                                                    </td>
-                                                    <td className="px-8 py-6">
-                                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">{req.field_name}</span>
-                                                    </td>
-                                                    <td className="px-8 py-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-xs text-slate-400 italic strike-through line-through">{req.old_value || 'NULL'}</span>
-                                                            <span className="text-lg text-slate-300">→</span>
-                                                            <span className="text-sm font-black text-emerald-600">{req.new_value}</span>
+                            <table className="cds--data-table cds--data-table--short">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Field</th>
+                                        <th>Value Delta</th>
+                                        <th style={{ textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {profileRequests.length === 0 ? (
+                                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 'var(--cds-spacing-08)', color: 'var(--cds-text-disabled)' }}>No pending requests.</td></tr>
+                                    ) : (
+                                        profileRequests.map((req) => (
+                                            <tr key={req.id}>
+                                                <td>
+                                                    <p style={{ fontWeight: 600 }}>{req.employees?.name}</p>
+                                                    <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>ID: {req.employee_id.slice(0, 8)}</p>
+                                                </td>
+                                                <td><span className="cds--tag cds--tag--blue cds--tag--sm">{req.field_name}</span></td>
+                                                <td style={{ fontSize: '0.75rem' }}>
+                                                    <span style={{ textDecoration: 'line-through', color: 'var(--cds-text-disabled)', marginRight: '8px' }}>{req.old_value || '—'}</span>
+                                                    <span style={{ color: 'var(--cds-support-success)', fontWeight: 600 }}>{req.new_value}</span>
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    {req.status === 'PENDING' ? (
+                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                                            <button 
+                                                                onClick={async () => { await dbService.approveProfileUpdate(req.id, 'HR_LEAD'); loadData(); }} 
+                                                                className="cds--btn cds--btn--primary cds--btn--sm"
+                                                            >Approve</button>
+                                                            <button 
+                                                                onClick={async () => { const reason = prompt("Reason:"); if (reason) { await dbService.rejectProfileUpdate(req.id, reason); loadData(); } }} 
+                                                                className="cds--btn cds--btn--ghost cds--btn--sm cds--btn--danger"
+                                                            >Reject</button>
                                                         </div>
-                                                    </td>
-                                                    <td className="px-8 py-6 text-end">
-                                                        {req.status === 'PENDING' ? (
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        await dbService.approveProfileUpdate(req.id, 'HR_LEAD');
-                                                                        loadData();
-                                                                    }}
-                                                                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md"
-                                                                >Approve</button>
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        const reason = prompt("Enter rejection reason:");
-                                                                        if (reason) {
-                                                                            await dbService.rejectProfileUpdate(req.id, reason);
-                                                                            loadData();
-                                                                        }
-                                                                    }}
-                                                                    className="px-6 py-2 bg-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                                >Reject</button>
-                                                            </div>
-                                                        ) : (
-                                                            <span className={`text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-[0.2em] ${req.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                                {req.status}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.625rem', fontWeight: 600, color: req.status === 'APPROVED' ? 'var(--cds-support-success)' : 'var(--cds-support-error)' }}>{req.status}</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     )}
 
-                    {activeTab === 'users' ? (
-                        <>
-                            <div className="bg-white rounded-[32px] border border-slate-200/60 overflow-hidden shadow-sm">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
+                    {activeTab === 'users' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+                            <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)' }}>
+                                <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Portal Registry Users</h3>
+                                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-primary)', marginTop: '4px' }}>Users with granted system access roles.</p>
+                                </div>
+                                <table className="cds--data-table cds--data-table--short">
+                                    <thead>
+                                        <tr>
+                                            <th>Employee / Context</th>
+                                            <th>Identifier</th>
+                                            <th>Role Assignment</th>
+                                            <th style={{ textAlign: 'right' }}>Management</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {systemUsers.map((user) => (
+                                            <tr key={user.id}>
+                                                <td>
+                                                    <p style={{ fontWeight: 600 }}>{user.employees?.name || 'Administrative Node'}</p>
+                                                    <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>{user.employees?.department || 'SYSTEM'}</p>
+                                                </td>
+                                                <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{user.username}</td>
+                                                <td>
+                                                    <select 
+                                                        value={user.role} 
+                                                        onChange={(e) => handleUpdateRole(user.id, e.target.value as UserRole)}
+                                                        style={{ height: '24px', fontSize: '0.75rem', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', outline: 'none' }}
+                                                    >
+                                                        {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en}</option>)}
+                                                    </select>
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    <button onClick={() => handleDeleteUser(user.id)} className="cds--btn cds--btn--ghost cds--btn--sm cds--btn--danger">Revoke</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--cds-spacing-07)' }}>
+                                <div className="cds--tile" style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', padding: 'var(--cds-spacing-06)' }}>
+                                    <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 'var(--cds-spacing-05)', color: 'var(--cds-text-primary)' }}>Provisioning Engine</h4>
+                                    <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-06)' }}>Upgrade standard workforce records to authorized system actors.</p>
+                                    <AISearchBar
+                                        data={employees.filter(e => !systemUsers.some(u => u.employee_id === e.id))}
+                                        onFilter={setAiFilteredIds}
+                                        placeholder="Scan Registry..."
+                                        contextMessage="USER_MANAGEMENT_SCAN - Finding employees for auth upgrades."
+                                        extractInfo={emp => `${emp.name} | ${emp.department} | ${emp.position}`}
+                                        onQueryChange={(q) => setSearchQuery(q)}
+                                        initialValue={searchQuery}
+                                    />
+                                </div>
+                                <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', maxHeight: '400px', overflowY: 'auto' }}>
+                                    <table className="cds--data-table cds--data-table--short cds--data-table--zebra">
                                         <thead>
-                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                                                <th className="px-6 py-4">User / Employee</th>
-                                                <th className="px-6 py-4">Username</th>
-                                                <th className="px-6 py-4">System Role</th>
-                                                <th className="px-6 py-4 text-right">Actions</th>
+                                            <tr>
+                                                <th>Worker</th>
+                                                <th style={{ textAlign: 'right' }}>Provisioning</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-50 font-medium">
-                                            {systemUsers.map((user) => (
-                                                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4">
-                                                        <div>
-                                                            <p className="text-slate-900 font-bold">{user.employees?.name || 'Admin'}</p>
-                                                            <p className="text-[10px] text-slate-400 uppercase">{user.employees?.department || 'System'}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-slate-500 font-mono text-sm">{user.username}</td>
-                                                    <td className="px-6 py-4">
-                                                        <select value={user.role} onChange={(e) => handleUpdateRole(user.id, e.target.value as UserRole)} className="bg-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold outline-none">
-                                                            {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en} / {r.ar}</option>)}
-                                                        </select>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <button onClick={() => handleDeleteUser(user.id)} className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition-all">Revoke</button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                        <tbody>
+                                            {filteredEmployees.map(emp => {
+                                                const isAuth = authUsers.some(au => au.email === (emp.email || `${emp.name.split(' ')[0].toLowerCase()}@test.com`));
+                                                return (
+                                                    <tr key={emp.id}>
+                                                        <td>
+                                                            <p style={{ fontWeight: 600, fontSize: '0.75rem' }}>{emp.name}</p>
+                                                            <p style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)' }}>{emp.position} • {emp.department}</p>
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                                                <button
+                                                                    onClick={() => handleProvision(emp)}
+                                                                    disabled={isProvisioning === emp.id}
+                                                                    className={`cds--btn cds--btn--sm ${isAuth ? 'cds--btn--ghost' : 'cds--btn--secondary'}`}
+                                                                >
+                                                                    {isProvisioning === emp.id ? '...' : (isAuth ? 'Reset' : 'Auth')}
+                                                                </button>
+                                                                <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.email || emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="cds--btn cds--btn--primary cds--btn--sm">Grant</button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
+                        </div>
+                    )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                <div className="md:col-span-1">
-                                    <div className="bg-slate-900 text-white p-8 rounded-[32px] shadow-xl h-full">
-                                        <h4 className="text-xl font-black mb-2">Upgrade Workforce</h4>
-                                        <p className="text-slate-400 text-sm mb-6">Grant portal access to employees.</p>
-                                        <AISearchBar
-                                            data={employees.filter(e => !systemUsers.some(u => u.employee_id === e.id))}
-                                            onFilter={setAiFilteredIds}
-                                            placeholder="Search to Upgrade..."
-                                            contextMessage="KUWAIT HR REPORTING - User management upgrades. Return matching IDs."
-                                            extractInfo={emp => `Name: ${emp.name}, ArabicName: ${emp.nameArabic}, Dept: ${emp.department}, Position: ${emp.position}`}
-                                            onQueryChange={(q) => setSearchQuery(q)}
-                                            initialValue={searchQuery}
-                                        />
+                    {activeTab === 'permissions' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 'var(--cds-spacing-07)', animation: 'slide-up 0.4s ease' }}>
+                            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)' }}>
+                                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--cds-text-primary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-05)', letterSpacing: '0.05em' }}>Security Roles</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    {roles.map(r => (
+                                        <button 
+                                            key={r} 
+                                            onClick={() => setSelectedRoleForPermissions(r)} 
+                                            style={{
+                                                textAlign: 'left',
+                                                padding: 'var(--cds-spacing-03) var(--cds-spacing-04)',
+                                                fontSize: '0.75rem',
+                                                background: selectedRoleForPermissions === r ? 'var(--cds-interactive-01)' : 'transparent',
+                                                color: selectedRoleForPermissions === r ? 'white' : 'var(--cds-text-primary)',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontWeight: selectedRoleForPermissions === r ? 600 : 400
+                                            }}
+                                        >
+                                            {r}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)' }}>
+                                <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Capability Matrix: {selectedRoleForPermissions}</h3>
+                                        <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-primary)', marginTop: '4px' }}>Toggle module access for this role.</p>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.625rem', fontWeight: 600 }}>TEMPLATE:</span>
+                                        <select
+                                            disabled={applyingTemplate}
+                                            onChange={(e) => {
+                                                if (e.target.value === 'seed') handleInitializeSystem();
+                                                else if (e.target.value) handleApplyTemplate(e.target.value);
+                                            }}
+                                            style={{ height: '32px', fontSize: '0.75rem', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', outline: 'none' }}
+                                        >
+                                            <option value="">Apply Configuration...</option>
+                                            {templates.map(t => <option key={t.id} value={t.id}>{t.template_name}</option>)}
+                                            {templates.length === 0 && <option value="seed">Restore Defaults</option>}
+                                        </select>
                                     </div>
                                 </div>
-                                <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200/60 p-6 max-h-[400px] overflow-y-auto custom-scrollbar space-y-3">
-                                    {filteredEmployees.map(emp => {
-                                        // Identity for UI state
-                                        let targetEmail = emp.email;
-                                        if (!targetEmail) {
-                                            let parts = emp.name.split(' ').map(p => p.toLowerCase().replace(/[^a-z0-9]/g, ''));
-                                            const prefixes = ['dr', 'mr', 'mrs', 'ms', 'eng', 'prof'];
-                                            let firstName = prefixes.includes(parts[0]) ? parts[1] : parts[0];
-                                            if (emp.name.toLowerCase().includes('faisal')) firstName = 'faisal';
-                                            if (emp.name.toLowerCase().includes('ihab')) firstName = 'ihab';
-                                            targetEmail = `${firstName}@test.com`;
-                                        }
-                                        const isAuth = authUsers.some(au => au.email === targetEmail);
-
+                                <div style={{ padding: 'var(--cds-spacing-05)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--cds-spacing-03)' }}>
+                                    {availableViews.map(v => {
+                                        const isEnabled = rolePermissions.some(ps => ps.role === selectedRoleForPermissions && ps.view_id === v && ps.is_active !== false);
+                                        const isUpdating = updatingPermission === `${selectedRoleForPermissions}-${v}`;
                                         return (
-                                            <div key={emp.id} className="flex justify-between items-center p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all">
-                                                <div>
-                                                    <p className="font-bold text-slate-800">{emp.name}</p>
-                                                    <p className="text-[10px] text-slate-400 uppercase">{emp.position} • {emp.department}</p>
-                                                    {targetEmail && <p className="text-[9px] text-indigo-400 font-bold lowercase">{targetEmail}</p>}
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleProvision(emp)}
-                                                        disabled={isProvisioning === emp.id}
-                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isProvisioning === emp.id ? 'bg-slate-100 text-slate-400' : isAuth ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/10'}`}
-                                                    >
-                                                        {isProvisioning === emp.id ? '...' : (isAuth ? 'Repair Access' : 'Grant Auth')}
-                                                    </button>
-                                                    <button onClick={() => { setSelectedEmployee(emp); setUsername(emp.email || emp.name.split(' ')[0].toLowerCase() + emp.id.slice(-4)); setShowUpgradeModal(true); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Upgrade</button>
+                                            <div 
+                                                key={v} 
+                                                onClick={() => !isUpdating && handleTogglePermission(selectedRoleForPermissions, v, isEnabled)} 
+                                                style={{
+                                                    padding: 'var(--cds-spacing-04)',
+                                                    border: '1px solid var(--cds-border-subtle)',
+                                                    background: isEnabled ? 'var(--cds-layer-01)' : 'var(--cds-background)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    opacity: isUpdating ? 0.5 : 1
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'capitalize' }}>{v.replace(/-/g, ' ')}</span>
+                                                <div style={{ 
+                                                    width: '32px', 
+                                                    height: '16px', 
+                                                    borderRadius: '8px', 
+                                                    background: isEnabled ? 'var(--cds-interactive-01)' : 'var(--cds-text-disabled)',
+                                                    position: 'relative'
+                                                }}>
+                                                    <div style={{
+                                                        width: '12px',
+                                                        height: '12px',
+                                                        borderRadius: '50%',
+                                                        background: 'white',
+                                                        position: 'absolute',
+                                                        top: '2px',
+                                                        left: isEnabled ? '18px' : '2px',
+                                                        transition: 'all 0.2s'
+                                                    }}></div>
                                                 </div>
                                             </div>
                                         );
                                     })}
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="bg-white rounded-[32px] border border-slate-200/60 p-10 shadow-sm animate-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col md:flex-row gap-8">
-                                <div className="md:w-1/3 space-y-6">
-                                    <h3 className="text-xl font-black text-slate-900">Feature Access</h3>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {roles.map(r => (
-                                            <button key={r} onClick={() => setSelectedRoleForPermissions(r)} className={`text-start px-5 py-3.5 rounded-2xl text-xs font-bold transition-all border ${selectedRoleForPermissions === r ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'}`}>
-                                                {r}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="md:w-2/3">
-                                    <div className="bg-slate-50/50 rounded-[24px] border border-slate-100 overflow-hidden">
-                                        <div className="p-6 bg-white border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                            <div>
-                                                <h4 className="font-black text-slate-800 text-[10px] uppercase tracking-widest">Modules for {selectedRoleForPermissions}</h4>
-                                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Define role-based feature access.</p>
-                                            </div>
-                                            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-1">Apply Template</span>
-                                                    <select
-                                                        disabled={applyingTemplate}
-                                                        onChange={(e) => {
-                                                            if (e.target.value === 'seed-defaults') {
-                                                                handleInitializeSystem();
-                                                            } else if (e.target.value) {
-                                                                handleApplyTemplate(e.target.value);
-                                                            }
-                                                        }}
-                                                        className="bg-transparent text-slate-900 text-xs font-black outline-none cursor-pointer pr-8"
-                                                    >
-                                                        <option value="">{templates.length === 0 ? 'No Templates Found' : 'Select Template...'}</option>
-                                                        {templates.map(t => (
-                                                            <option key={t.id} value={t.id}>{t.template_name}</option>
-                                                        ))}
-                                                        {templates.length === 0 && <option value="seed-defaults">✨ Click to Restore Defaults</option>}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
-                                            {availableViews.map(v => {
-                                                const isEnabled = rolePermissions.some(ps => ps.role === selectedRoleForPermissions && ps.view_id === v && ps.is_active !== false);
-                                                const isUpdating = updatingPermission === `${selectedRoleForPermissions}-${v}`;
-                                                return (
-                                                    <div key={v} onClick={() => !isUpdating && handleTogglePermission(selectedRoleForPermissions, v, isEnabled)} className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer border transition-all ${isEnabled ? 'bg-white border-indigo-100 shadow-sm' : 'bg-slate-50/50 border-transparent opacity-60'}`}>
-                                                        <span className="text-xs font-bold capitalize">{v.replace('-', ' ')}</span>
-                                                        <div className={`w-8 h-4 rounded-full relative ${isEnabled ? 'bg-indigo-500' : 'bg-slate-300'}`}>
-                                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isEnabled ? 'right-0.5' : 'left-0.5'} ${isUpdating ? 'animate-pulse' : ''}`}></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -506,19 +525,31 @@ export const UserManagement: React.FC = () => {
             )}
 
             {showUpgradeModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-                    <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md p-10 relative">
-                        <h3 className="text-2xl font-black mb-8">{selectedEmployee ? `Upgrade: ${selectedEmployee.name}` : 'New System User'}</h3>
-                        <div className="space-y-6">
-                            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none" />
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none" />
-                            <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-slate-50 border rounded-2xl px-6 py-4 font-bold outline-none">
-                                {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en} / {r.ar}</option>)}
-                            </select>
-                            <div className="flex gap-4 pt-4">
-                                <button onClick={() => setShowUpgradeModal(false)} className="flex-1 bg-slate-100 font-bold py-4 rounded-2xl">Cancel</button>
-                                <button onClick={handleUpgrade} className="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-600/30">Commit</button>
+                <div className="cds--modal is-visible" style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}>
+                    <div className="cds--modal-container" style={{ width: '400px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)' }}>
+                        <div className="cds--modal-header" style={{ padding: 'var(--cds-spacing-06)', borderBottom: '1px solid var(--cds-border-subtle)', display: 'flex', justifyContent: 'space-between' }}>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{selectedEmployee ? `Upgrade: ${selectedEmployee.name}` : 'Create Security Account'}</h3>
+                            <button onClick={() => setShowUpgradeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <div className="cds--modal-content" style={{ padding: 'var(--cds-spacing-07)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: '4px' }}>Username</label>
+                                <input className="cds--text-input" value={username} onChange={e => setUsername(e.target.value)} />
                             </div>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: '4px' }}>Initial Password</label>
+                                <input className="cds--text-input" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', display: 'block', marginBottom: '4px' }}>System Role</label>
+                                <select className="cds--select-input" value={selectedRole} onChange={e => setSelectedRole(e.target.value as UserRole)}>
+                                    {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="cds--modal-footer" style={{ padding: 'var(--cds-spacing-06)', display: 'flex', gap: '8px' }}>
+                            <button onClick={() => setShowUpgradeModal(false)} className="cds--btn cds--btn--secondary" style={{ flex: 1 }}>Cancel</button>
+                            <button onClick={handleUpgrade} className="cds--btn cds--btn--primary" style={{ flex: 1 }}>Commit Access</button>
                         </div>
                     </div>
                 </div>

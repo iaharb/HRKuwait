@@ -124,7 +124,21 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
+      <div className="cds--shell">
+        <MainHeader
+          user={currentUser}
+          language={language}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          presentationMode={presentationMode}
+          setPresentationMode={setPresentationMode}
+          notifications={notifications}
+          showNotifications={showNotifications}
+          setShowNotifications={setShowNotifications}
+          onOpenScopeModal={() => setIsScopeModalOpen(true)}
+        />
         <Sidebar
           user={currentUser}
           language={language}
@@ -134,24 +148,10 @@ const App: React.FC = () => {
           onAddMember={() => { setEmployeeToEdit(null); setIsModalOpen(true); }}
           compactMode={compactMode}
         />
-        <main className={`flex-1 min-w-0 overflow-y-auto transition-all duration-500 ${compactMode ? 'compact-ui' : ''} ${presentationMode ? 'presentation-main' : ''}`}>
-          <div className={`h-full ${compactMode ? 'px-6 py-2' : 'px-8 py-6'} ${presentationMode ? 'max-w-full' : 'max-w-[1500px] mx-auto'}`}>
-            <MainHeader
-              user={currentUser}
-              language={language}
-              theme={theme}
-              toggleTheme={toggleTheme}
-              compactMode={compactMode}
-              setCompactMode={setCompactMode}
-              presentationMode={presentationMode}
-              setPresentationMode={setPresentationMode}
-              notifications={notifications}
-              showNotifications={showNotifications}
-              setShowNotifications={setShowNotifications}
-              onOpenScopeModal={() => setIsScopeModalOpen(true)}
-            />
+        <main className={`cds--content ${compactMode ? 'cds--content--collapsed' : ''}`}>
+          <div className="cds--grid">
             <IntelligentTicker />
-            <div className="pb-24">
+            <div className="cds--row pb-24">
               <ViewRenderer
                 user={currentUser}
                 language={language}
@@ -183,8 +183,11 @@ const App: React.FC = () => {
   };
 
   if (loading) return (
-    <div className="h-screen w-full flex items-center justify-center bg-slate-900">
-      <div className="text-indigo-500 font-black tracking-tighter animate-pulse text-2xl">SECURE_SESSION_RECOVERY...</div>
+    <div className="cds--loading-overlay">
+      <div className="cds--loading-spinner" />
+      <div style={{ marginTop: 'var(--cds-spacing-05)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', letterSpacing: '0.1em' }}>
+        SECURE_SESSION_RECOVERY...
+      </div>
     </div>
   );
 

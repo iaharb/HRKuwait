@@ -124,23 +124,23 @@ const SettlementView: React.FC = () => {
   const dateFormatter = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'long', year: 'numeric' });
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 pb-20 text-start">
-      <div className="flex flex-col lg:flex-row gap-12 items-start">
+    <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: 'var(--cds-spacing-07)', alignItems: 'flex-start' }}>
         {/* SaaS Configuration Panel - HIDDEN IN PRINT */}
-        <div className="lg:w-[420px] space-y-8 sticky top-8 no-print">
-          <div className="bg-white/80 backdrop-blur-2xl p-10 rounded-[48px] border border-slate-200 shadow-2xl shadow-slate-900/[0.04]">
-            <div className="flex items-center gap-5 mb-10">
-              <div className="w-14 h-14 bg-indigo-600 text-white rounded-[22px] flex items-center justify-center text-3xl shadow-lg border border-indigo-500">⚖️</div>
+        <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', position: 'sticky', top: 'var(--cds-spacing-05)' }}>
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-06)', paddingBottom: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+              <div style={{ width: '40px', height: '40px', background: 'var(--cds-interactive-01)', color: '#fff', border: '1px solid var(--cds-interactive-01)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem' }}>⚖️</div>
               <div>
-                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-tight">{t('exitConfig')}</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 opacity-60">Engine v6.2 Premium</p>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{t('exitConfig')}</h3>
+                <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-interactive-01)', marginTop: '4px', textTransform: 'uppercase' }}>Engine v6.2 Premium</p>
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="space-y-2 relative" ref={dropdownRef}>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ps-1">{t('targetEmployee')}</label>
-                <div className="relative">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)', position: 'relative' }} ref={dropdownRef}>
+                <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('targetEmployee')}</label>
+                <div style={{ position: 'relative' }}>
                   <AISearchBar
                     data={employees}
                     onFilter={(ids) => {
@@ -164,7 +164,7 @@ const SettlementView: React.FC = () => {
 
                 {/* Search Results Dropdown */}
                 {isDropdownOpen && searchTerm && !selectedId && (
-                  <div className="absolute z-[100] top-full left-0 right-0 mt-3 bg-white border border-slate-200 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden max-h-72 overflow-y-auto animate-in slide-in-from-top-2 duration-200">
+                  <div style={{ position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0, marginTop: '8px', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', maxHeight: '18rem', overflowY: 'auto' }}>
                     {filteredEmployees.length > 0 ? (
                       filteredEmployees.map(emp => (
                         <button
@@ -174,19 +174,19 @@ const SettlementView: React.FC = () => {
                             setSearchTerm(isAr ? emp.nameArabic || emp.name : emp.name);
                             setIsDropdownOpen(false);
                           }}
-                          className="w-full text-left px-6 py-4 hover:bg-slate-50 transition-colors flex items-center gap-4 group"
+                          style={{ width: '100%', textAlign: 'left', padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)', cursor: 'pointer' }}
                         >
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                          <div style={{ width: '32px', height: '32px', background: 'var(--cds-interactive-01)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
                             {emp.name[0]}
                           </div>
-                          <div>
-                            <p className="text-sm font-black text-slate-800">{isAr ? emp.nameArabic || emp.name : emp.name}</p>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{emp.department}</p>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{isAr ? emp.nameArabic || emp.name : emp.name}</p>
+                            <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{emp.department}</p>
                           </div>
                         </button>
                       ))
                     ) : (
-                      <div className="px-6 py-8 text-center text-slate-400 italic text-xs">
+                      <div style={{ padding: 'var(--cds-spacing-05)', textAlign: 'center', color: 'var(--cds-text-disabled)', fontSize: '0.75rem', fontStyle: 'italic' }}>
                         No matches found in registry.
                       </div>
                     )}
@@ -194,161 +194,161 @@ const SettlementView: React.FC = () => {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ps-1">{t('effectiveLastDay')}</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('effectiveLastDay')}</label>
                 <input
                   type="date"
-                  className="w-full px-6 py-4 rounded-[22px] border border-slate-200 bg-white font-black outline-none transition-all text-sm"
+                  style={{ width: '100%', padding: 'var(--cds-spacing-04)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-primary)', outline: 'none', fontSize: '0.875rem', fontFamily: 'monospace' }}
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ps-1">{t('reasonSeparation')}</label>
-                <div className="flex p-1.5 bg-slate-100 rounded-[20px]">
-                  <button onClick={() => setReason('Resignation')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${reason === 'Resignation' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400'}`}>{t('resignation')}</button>
-                  <button onClick={() => setReason('Termination')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${reason === 'Termination' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400'}`}>{t('termination')}</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('reasonSeparation')}</label>
+                <div style={{ display: 'flex', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                  <button onClick={() => setReason('Resignation')} style={{ flex: 1, padding: 'var(--cds-spacing-04)', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', background: reason === 'Resignation' ? 'var(--cds-interactive-01)' : 'transparent', color: reason === 'Resignation' ? '#fff' : 'var(--cds-text-secondary)', cursor: 'pointer', border: 'none' }}>{t('resignation')}</button>
+                  <button onClick={() => setReason('Termination')} style={{ flex: 1, padding: 'var(--cds-spacing-04)', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', background: reason === 'Termination' ? 'var(--cds-interactive-01)' : 'transparent', color: reason === 'Termination' ? '#fff' : 'var(--cds-text-secondary)', cursor: 'pointer', border: 'none' }}>{t('termination')}</button>
                 </div>
               </div>
 
               <button
                 onClick={handleCalculate}
                 disabled={!selectedId || loading}
-                className="w-full py-5 bg-indigo-600 text-white rounded-[28px] font-black text-[12px] uppercase tracking-[0.2em] shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)] active:scale-95 transition-all disabled:opacity-50"
+                className="cds--btn cds--btn--primary"
+                style={{ width: '100%', marginTop: 'var(--cds-spacing-04)', fontSize: '0.75rem', fontFamily: 'monospace' }}
               >
                 {loading ? '...' : t('executeSettlement')}
               </button>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-8 rounded-[40px] text-white border border-white/5 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform duration-1000">🇰🇼</div>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Legal Context</p>
-            <p className="text-xs text-slate-400 leading-relaxed font-medium">Calculations enforce Kuwait Labor Law No. 6/2010 Article 51 for Indemnity and Article 53 for resignation multipliers.</p>
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+            <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>Legal Context</p>
+            <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', lineHeight: 1.6 }}>Calculations enforce Kuwait Labor Law No. 6/2010 Article 51 for Indemnity and Article 53 for resignation multipliers.</p>
           </div>
         </div>
 
         {/* Audit Sheet Area */}
-        <div className="flex-1 min-w-0">
+        <div style={{ flex: 1, minWidth: 0, height: '100%' }}>
           {!result ? (
-            <div className="bg-white/40 border-2 border-dashed border-slate-200 rounded-[72px] h-[750px] flex flex-col items-center justify-center text-center p-20 grayscale opacity-40 no-print">
-              <div className="w-32 h-32 bg-slate-100 rounded-[48px] flex items-center justify-center text-6xl mb-10 shadow-inner">📜</div>
-              <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{t('statementPreview')}</h3>
-              <p className="text-slate-500 mt-4 font-medium text-lg">{i18n.language === 'ar' ? 'اختر موظفاً باستخدام أداة البحث لإنشاء مستند التسوية الرسمي.' : 'Select an employee using the search tool to generate the formal settlement document.'}</p>
+            <div className="cds--tile no-print" style={{ padding: 'var(--cds-spacing-08)', border: '1px dashed var(--cds-border-subtle)', background: 'var(--cds-background)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '600px', opacity: 0.6 }}>
+              <div style={{ fontSize: '3rem', marginBottom: 'var(--cds-spacing-06)', filter: 'grayscale(100%)' }}>📜</div>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)', marginBottom: 'var(--cds-spacing-04)' }}>{t('statementPreview')}</h3>
+              <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', maxWidth: '400px' }}>{i18n.language === 'ar' ? 'اختر موظفاً باستخدام أداة البحث لإنشاء مستند التسوية الرسمي.' : 'Select an employee using the search tool to generate the formal settlement document.'}</p>
             </div>
           ) : (
-            <div ref={formRef} className="printable-document bg-white rounded-[56px] border border-slate-200 shadow-2xl p-12 md:p-24 relative overflow-hidden flex flex-col justify-between">
+            <div ref={formRef} className="printable-document cds--tile" style={{ padding: 'var(--cds-spacing-08)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-09)' }}>
 
               {/* 1. Header (High Fidelity On-Screen, Minimal in Print) */}
-              <div className="border-b-4 border-slate-900 pb-10 mb-12 flex justify-between items-start text-start relative z-10 print:border-black print:pb-6">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--cds-border-strong)', paddingBottom: 'var(--cds-spacing-07)' }}>
                 <div>
-                  <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-1 print:text-3xl print:text-black">{t('settlementCertificate')}</h1>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] print:text-slate-500">{t('officialRecord')}</p>
+                  <h1 style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>{t('settlementCertificate')}</h1>
+                  <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('officialRecord')}</p>
                 </div>
-                <div className="text-right flex flex-col items-end">
-                  <span className="text-6xl mb-2 print:text-4xl">🇰🇼</span>
-                  <p className="text-lg font-black text-slate-900 print:text-black">{dateFormatter.format(new Date())}</p>
-                  <p className="text-[10px] font-black text-indigo-600 mt-1 uppercase tracking-widest print:text-black">{t('auditIdEos')}{result.totalServiceDays}-{selectedId.slice(0, 5).toUpperCase()}</p>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 'var(--cds-spacing-03)' }}>
+                  <span style={{ fontSize: '2.5rem' }}>🇰🇼</span>
+                  <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{dateFormatter.format(new Date())}</p>
+                  <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-interactive-01)', textTransform: 'uppercase' }}>{t('auditIdEos')}{result.totalServiceDays}-{selectedId.slice(0, 5).toUpperCase()}</p>
                 </div>
               </div>
 
               {/* 2. Content Sections (Colorful SaaS look on screen) */}
-              <div className="flex-1 space-y-16 print:space-y-10">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-08)' }}>
                 {/* Employee Block */}
-                <div className="grid grid-cols-2 gap-12 text-start relative z-10">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('identifier')}</p>
-                    <p className="text-3xl font-black text-slate-900 print:text-2xl print:text-black">{isAr ? selectedEmp?.nameArabic || selectedEmp?.name : selectedEmp?.name}</p>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">{selectedEmp?.position} <span className="text-slate-200 mx-2 no-print">•</span> {selectedEmp?.department}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-07)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('identifier')}</p>
+                    <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{isAr ? selectedEmp?.nameArabic || selectedEmp?.name : selectedEmp?.name}</p>
+                    <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{selectedEmp?.position} <span style={{ margin: '0 8px' }}>•</span> {selectedEmp?.department}</p>
                   </div>
-                  <div className="space-y-2 text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('totalTenure')}</p>
-                    <p className="text-3xl font-black text-slate-900 print:text-2xl print:text-black">{result.tenureYears}y {result.tenureMonths}m {result.tenureDays}d</p>
-                    <div className="inline-block px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest print:border print:border-black print:text-black print:bg-white">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)', textAlign: 'right', alignItems: 'flex-end' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('totalTenure')}</p>
+                    <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{result.tenureYears}y {result.tenureMonths}m {result.tenureDays}d</p>
+                    <div style={{ padding: '4px 12px', background: 'var(--cds-interactive-01)', color: '#fff', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase' }}>
                       {t('basisStr')} {t(reason.toLowerCase())}
                     </div>
                   </div>
                 </div>
 
                 {/* Table (SaaS Styling On Screen, Table in Print) */}
-                <div className="bg-slate-50 rounded-[40px] p-10 border border-slate-200 relative z-10 print:border-print-solid print:p-0 print:rounded-none">
-                  <div className="flex items-center justify-between mb-8 print:hidden">
-                    <h4 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600">{t('registryCalculationLedger')}</h4>
-                    <span className="text-[9px] font-black text-slate-400 uppercase">{t('kuwaitLawAudit')}</span>
+                <div style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', padding: 'var(--cds-spacing-06)', width: '100%' }}>
+                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--cds-spacing-06)' }}>
+                    <h4 style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', textTransform: 'uppercase' }}>{t('registryCalculationLedger')}</h4>
+                    <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('kuwaitLawAudit')}</span>
                   </div>
-                  <div className="hidden print:block bg-slate-100 p-3 border-b-2 border-black">
-                    <p className="text-xs font-black uppercase tracking-widest">{t('auditCalculationSummary')}</p>
+                  <div className="hidden print:block" style={{ background: '#f4f4f4', padding: '12px', borderBottom: '2px solid #000' }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase' }}>{t('auditCalculationSummary')}</p>
                   </div>
-                  <table className="w-full text-left text-sm border-collapse">
-                    <tbody className="divide-y divide-slate-200 print:divide-black">
-                      <tr>
-                        <td className="py-5 font-bold text-slate-600 uppercase text-[10px] print:p-3">{t('remunerationExt')}</td>
-                        <td className="py-5 text-right font-black text-slate-900 print:p-3 print:text-black">{result.remuneration.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
+                  <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <tbody style={{ borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                      <tr style={{ borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', color: 'var(--cds-text-secondary)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase' }}>{t('remunerationExt')}</td>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', textAlign: 'right', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{result.remuneration.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
                       </tr>
-                      <tr>
-                        <td className="py-5 font-bold text-slate-600 uppercase text-[10px] print:p-3">{t('dailyWageDivisor')}</td>
-                        <td className="py-5 text-right font-black text-slate-900 print:p-3 print:text-black">{result.dailyRate.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
+                      <tr style={{ borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', color: 'var(--cds-text-secondary)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase' }}>{t('dailyWageDivisor')}</td>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', textAlign: 'right', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{result.dailyRate.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
                       </tr>
-                      <tr>
-                        <td className="py-5 font-bold text-slate-600 uppercase text-[10px] print:p-3">{t('accruedEndOfService')}</td>
-                        <td className="py-5 text-right font-black text-slate-900 print:p-3 print:text-black">{result.breakdown.baseIndemnity.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
+                      <tr style={{ borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', color: 'var(--cds-text-secondary)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase' }}>{t('accruedEndOfService')}</td>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', textAlign: 'right', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{result.breakdown.baseIndemnity.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
                       </tr>
-                      <tr>
-                        <td className="py-5 font-bold text-indigo-600 uppercase text-[10px] print:p-3 print:text-black">{t('resignationMultiplierApplied')}</td>
-                        <td className="py-5 text-right font-black text-indigo-600 print:p-3 print:text-black">{(result.breakdown.multiplierApplied * 100).toFixed(1)} %</td>
+                      <tr style={{ borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', color: 'var(--cds-interactive-01)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase', fontWeight: 700 }}>{t('resignationMultiplierApplied')}</td>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', textAlign: 'right', fontWeight: 700, color: 'var(--cds-interactive-01)' }}>{(result.breakdown.multiplierApplied * 100).toFixed(1)} %</td>
                       </tr>
-                      <tr className="bg-indigo-600/5 print:bg-white print:border-t-2 print:border-black">
-                        <td className="p-6 font-black uppercase text-xs print:p-3">{t('netIndemnityDisbursement')}</td>
-                        <td className="p-6 text-right font-black text-2xl text-indigo-700 print:p-3 print:text-black">{result.indemnityAmount.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
+                      <tr style={{ background: 'var(--cds-layer-02)' }}>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', fontWeight: 700, fontSize: '0.75rem', fontFamily: 'monospace', textTransform: 'uppercase', color: 'var(--cds-text-primary)' }}>{t('netIndemnityDisbursement')}</td>
+                        <td style={{ padding: 'var(--cds-spacing-05) var(--cds-spacing-04)', textAlign: 'right', fontWeight: 700, fontSize: '1.25rem', color: 'var(--cds-text-primary)' }}>{result.indemnityAmount.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
                 {/* Leave Encasement */}
-                <div className="bg-white border-2 border-indigo-600/20 p-8 rounded-[32px] flex justify-between items-center text-start relative z-10 print:border-print-solid print:rounded-none">
-                  <div>
-                    <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-900">{t('unusedLeaveEncasement')}</h4>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{t('basedOnBillableDays1')}{result.breakdown.leaveDaysEncashed}{t('basedOnBillableDays2')}</p>
+                <div style={{ background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', borderLeft: '4px solid var(--cds-interactive-01)', padding: 'var(--cds-spacing-06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                    <h4 style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', textTransform: 'uppercase' }}>{t('unusedLeaveEncasement')}</h4>
+                    <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('basedOnBillableDays1')}{result.breakdown.leaveDaysEncashed}{t('basedOnBillableDays2')}</p>
                   </div>
-                  <p className="text-2xl font-black text-slate-900">{result.leavePayout.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{result.leavePayout.toLocaleString(locale, { minimumFractionDigits: 3 })} {t('currency')}</p>
                 </div>
 
                 {/* Final Net Block - SaaS Dark Style On-Screen */}
-                <div className="bg-slate-900 p-12 text-white rounded-[48px] flex justify-between items-center relative z-10 shadow-2xl shadow-indigo-500/10 print:bg-white print:text-black print:border-print-solid print:p-8 print:rounded-none">
-                  <div className="text-start space-y-2">
-                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-indigo-400 print:text-black">{t('finalNetPayableDisbursement')}</p>
-                    <h2 className="text-7xl font-black tracking-tighter print:text-5xl print:text-black">
+                <div style={{ background: 'var(--cds-layer-02)', border: '1px solid var(--cds-border-subtle)', padding: 'var(--cds-spacing-07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)' }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('finalNetPayableDisbursement')}</p>
+                    <h2 style={{ fontSize: '3rem', fontWeight: 700, color: 'var(--cds-text-primary)', lineHeight: 1 }}>
                       {result.totalSettlement.toLocaleString(locale, { minimumFractionDigits: 3 })}
-                      <span className="text-2xl ms-4 opacity-50 print:opacity-100 print:text-2xl">{t('currency')}</span>
+                      <span style={{ fontSize: '1rem', marginLeft: '12px', opacity: 0.5 }}>{t('currency')}</span>
                     </h2>
                   </div>
                   <div className="no-print">
-                    <button onClick={handlePrint} className="px-10 py-6 bg-white text-slate-900 rounded-[24px] font-black text-xs uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all shadow-2xl">{t('printOfficialStatement')}</button>
+                    <button onClick={handlePrint} className="cds--btn cds--btn--secondary" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{t('printOfficialStatement')}</button>
                   </div>
                 </div>
               </div>
 
               {/* 3. Signature Block (Positioned at bottom for print) */}
-              <div className="grid grid-cols-2 gap-32 pt-24 relative z-10 print:pt-16 print:gap-16">
-                <div className="text-start space-y-16 print:space-y-12">
-                  <div className="border-b-2 border-slate-900 w-full print:border-black"></div>
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-900">{t('employeeAcknowledgment')}</p>
-                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold">{t('signatureNationalId')}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--cds-spacing-10)', paddingTop: 'var(--cds-spacing-09)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-08)', textAlign: 'left' }}>
+                  <div style={{ borderBottom: '1px solid var(--cds-border-strong)', width: '100%' }}></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', textTransform: 'uppercase' }}>{t('employeeAcknowledgment')}</p>
+                    <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('signatureNationalId')}</p>
                   </div>
                 </div>
-                <div className="text-end space-y-16 print:space-y-12">
-                  <div className="border-b-2 border-slate-900 w-full print:border-black"></div>
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-900">{t('authorizedRegistryDirector')}</p>
-                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold">{t('officialSealRequired')}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-08)', textAlign: 'right' }}>
+                  <div style={{ borderBottom: '1px solid var(--cds-border-strong)', width: '100%' }}></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', textTransform: 'uppercase' }}>{t('authorizedRegistryDirector')}</p>
+                    <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{t('officialSealRequired')}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-20 pt-8 border-t border-slate-100 text-center opacity-30 text-[10px] font-black uppercase tracking-[0.5em] relative z-10 print:opacity-100 print:mt-12 print:border-black">
+              <div className="no-print" style={{ marginTop: 'var(--cds-spacing-09)', paddingTop: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)', textAlign: 'center', fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-disabled)', textTransform: 'uppercase', letterSpacing: '0.2em' }}>
                 {t('endOfRegistryRecord')}
               </div>
             </div>

@@ -126,7 +126,7 @@ const ComplianceView: React.FC = () => {
   const [letterModalData, setLetterModalData] = useState<{ run: PayrollRun, items: PayrollItem[] } | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 7;
 
   const banks = [
     { id: 'NBK', name: 'National Bank of Kuwait (NBK)' },
@@ -184,10 +184,10 @@ const ComplianceView: React.FC = () => {
   };
 
   const getExpiryStatus = (days: number) => {
-    if (days < 0) return { label: t('expired'), color: 'bg-rose-500 text-white shadow-rose-200', icon: '🚨' };
-    if (days <= 30) return { label: `${days}d`, color: 'bg-orange-500 text-white shadow-orange-200', icon: '⚠️' };
-    if (days <= 90) return { label: t('warning'), color: 'bg-amber-400 text-amber-900 shadow-amber-100', icon: '⏳' };
-    return { label: t('secure'), color: 'bg-indigo-600 text-white shadow-indigo-200', icon: '✅' };
+    if (days < 0) return { label: t('expired'), color: 'cds--tag--red', icon: '🚨' };
+    if (days <= 30) return { label: `${days}d`, color: 'cds--tag--orange', icon: '⚠️' };
+    if (days <= 90) return { label: t('warning'), color: 'cds--tag--warm-gray', icon: '⏳' };
+    return { label: t('secure'), color: 'cds--tag--green', icon: '✅' };
   };
 
   const expiringDocs = employees.flatMap(emp => {
@@ -201,29 +201,27 @@ const ComplianceView: React.FC = () => {
   const totalPages = Math.ceil(expiringDocs.length / itemsPerPage);
   const paginatedData = expiringDocs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  if (loading) return <div style={{ padding: 'var(--cds-spacing-07)', textAlign: 'center' }}>Loading compliance datasets...</div>;
+
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 pb-24 text-start">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">{t('governmentFilings')}</h2>
-          <p className="text-slate-500 font-medium text-lg mt-1">{t('complianceSub')}</p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)', animation: 'fade-in 0.7s ease' }}>
+      <header>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('governmentFilings')}</h2>
+          <p style={{ fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>{t('complianceSub')}</p>
       </header>
 
-      <section className="bg-white rounded-[56px] border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-10 border-b border-slate-100 bg-slate-50/30 flex flex-col md:flex-row gap-6 md:items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-indigo-50 rounded-2xl text-indigo-600 text-lg">💰</div>
-            <div>
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">{t('wpsEngine')}</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{t('bankPortalFormat')}</p>
-            </div>
+      <section className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', borderRadius: 0 }}>
+        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+             <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{t('wpsEngine')}</h3>
+             <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('bankPortalFormat')}</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('selectBank')}:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+            <label style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{t('selectBank')}:</label>
             <select
-              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/5"
+              className="cds--select-input"
+              style={{ height: '32px', fontSize: '0.75rem', background: 'var(--cds-field-01)' }}
               value={selectedBankFormat}
               onChange={e => setSelectedBankFormat(e.target.value)}
             >
@@ -232,96 +230,91 @@ const ComplianceView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {payrollRuns.filter(r => r.status === 'JV_Generated' || r.status === 'Locked').slice(0, 4).map(run => (
-            <div key={run.id} className="group p-8 bg-slate-50 hover:bg-white hover:ring-2 hover:ring-indigo-500/10 rounded-[40px] border border-slate-200 transition-all duration-300">
-              <div className="flex justify-between items-start mb-8">
+        <div style={{ padding: 'var(--cds-spacing-05)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+          {payrollRuns.filter(r => r.status === 'JV_Generated' || r.status === 'Locked').slice(0, 6).map(run => (
+            <div key={run.id} style={{ padding: 'var(--cds-spacing-05)', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('fiscalPeriod')}</p>
-                  <p className="text-2xl font-black text-slate-900">{run.periodKey}</p>
-                  <p className="text-[11px] font-bold text-slate-400 mt-1">{run.totalDisbursement.toLocaleString(i18n.language === 'ar' ? 'ar-KW' : 'en-KW', { minimumFractionDigits: 3 })} {t('currency')}</p>
+                  <p style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-01)' }}>{t('fiscalPeriod')}</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 600 }}>{run.periodKey}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>{run.totalDisbursement.toLocaleString(i18n.language === 'ar' ? 'ar-KW' : 'en-KW', { minimumFractionDigits: 3 })} {t('currency')}</p>
                 </div>
-                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-xl">✓</div>
+                <div style={{ width: '24px', height: '24px', background: 'var(--cds-support-success)', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>✓</div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)', marginTop: 'auto' }}>
                 <button
                   onClick={() => handleExportWPS(run.id)}
-                  className="py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all active:scale-[0.98] shadow-xl shadow-slate-900/10"
+                  className="cds--btn cds--btn--primary"
+                  style={{ flex: 1, padding: 0, justifyContent: 'center', fontSize: '0.75rem', height: '32px' }}
                 >
-                  📥 {t('wpsExport')}
+                   {t('wpsExport')}
                 </button>
                 <button
                   onClick={() => handleOpenBankLetter(run)}
-                  className="py-4 bg-white border border-slate-200 text-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-[0.98] shadow-sm"
+                  className="cds--btn cds--btn--secondary"
+                  style={{ flex: 1, padding: 0, justifyContent: 'center', fontSize: '0.75rem', height: '32px' }}
                 >
-                  📄 {t('printBankLetter')}
+                   {t('printBankLetter')}
                 </button>
               </div>
             </div>
           ))}
           {payrollRuns.filter(r => r.status === 'JV_Generated' || r.status === 'Locked').length === 0 && (
-            <div className="col-span-full py-20 text-center text-slate-300 italic">No JV generated or locked payroll runs found for export.</div>
+            <div style={{ gridColumn: '1 / -1', padding: 'var(--cds-spacing-07)', textAlign: 'center', color: 'var(--cds-text-secondary)', fontStyle: 'italic', fontSize: '0.875rem' }}>No datasets available for export.</div>
           )}
         </div>
       </section>
 
-      <section className="bg-white rounded-[56px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-10 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <span className="p-2.5 bg-indigo-50 rounded-2xl text-indigo-600 text-lg">🪪</span>
-              {t('docIntegrityRadar')}
-            </h3>
-          </div>
-          <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 px-5 py-2 rounded-2xl">
-            {t('criticalThreshold')}
-          </span>
+      <section className="cds--tile" style={{ padding: 0, border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', borderRadius: 0 }}>
+        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{t('docIntegrityRadar')}</h3>
+          <span className="cds--tag cds--tag--blue" style={{ fontSize: '0.625rem' }}>{t('criticalThreshold')}</span>
         </div>
 
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left">
+        <div style={{ overflowX: 'auto' }}>
+          <table className="cds--data-table cds--data-table--compact">
             <thead>
-              <tr className="bg-white text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                <th className="px-10 py-8">{t('members')}</th>
-                <th className="px-10 py-8">{t('documentTh')}</th>
-                <th className="px-10 py-8">{t('validUntilTh')}</th>
-                <th className="px-10 py-8">{t('registryStatus')}</th>
-                <th className="px-10 py-8 text-right"></th>
+              <tr>
+                <th>{t('members')}</th>
+                <th>{t('documentTh')}</th>
+                <th>{t('validUntilTh')}</th>
+                <th>{t('registryStatus')}</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {paginatedData.map((doc, i) => {
                 const status = getExpiryStatus(doc.days);
                 const empDisplayName = i18n.language === 'ar' ? doc.emp.nameArabic || doc.emp.name : doc.emp.name;
                 return (
-                  <tr key={`${doc.emp.id}-${doc.type}`} className={`group hover:bg-slate-50/50 transition-colors`}>
-                    <td className="px-10 py-8">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-sm border border-slate-200 group-hover:scale-110">
+                  <tr key={`${doc.emp.id}-${doc.type}`}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                        <div style={{ width: '24px', height: '24px', background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
                           {doc.emp.name[0]}
                         </div>
-                        <div>
-                          <p className="text-base font-black text-slate-900 leading-none mb-1.5">{empDisplayName}</p>
-                          <p className="text-[10px] font-black uppercase text-slate-400">{doc.emp.nationality}</p>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 600 }}>{empDisplayName}</span>
+                          <span style={{ fontSize: '0.625rem', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{doc.emp.nationality}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-10 py-8">
-                      <span className="text-[11px] font-black uppercase text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">{doc.type}</span>
-                    </td>
-                    <td className="px-10 py-8 font-mono text-sm font-black text-slate-600">{doc.expiry}</td>
-                    <td className="px-10 py-8">
-                      <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${status.color}`}>
+                    <td><span className="cds--tag cds--tag--warm-gray" style={{ fontSize: '0.625rem' }}>{doc.type}</span></td>
+                    <td style={{ fontSize: '0.75rem', fontWeight: 600 }}>{doc.expiry}</td>
+                    <td>
+                      <span className={`cds--tag ${status.color}`} style={{ fontSize: '0.625rem' }}>
                         {status.label}
-                      </div>
+                      </span>
                     </td>
-                    <td className="px-10 py-8 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       <button
-                        onClick={() => notify("Success", "Automated alert sent to employee device.", "success")}
-                        className="px-6 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 hover:text-indigo-600 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                        onClick={() => notify("Success", "Automated alert sent.", "success")}
+                        className="cds--btn cds--btn--ghost cds--btn--sm"
+                        style={{ padding: 0, justifyContent: 'center', width: '32px' }}
+                        title={t('notify')}
                       >
-                        {i18n.language === 'ar' ? 'إخطار بالتجديد' : 'Notify'}
+                        🔔
                       </button>
                     </td>
                   </tr>
@@ -332,25 +325,13 @@ const ComplianceView: React.FC = () => {
         </div>
 
         {totalPages > 1 && (
-          <div className="p-8 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(expiringDocs.length, currentPage * itemsPerPage)} of {expiringDocs.length} entries
-            </div>
-            <div className="flex gap-2">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-900 transition-all disabled:opacity-30 active:scale-95 shadow-sm"
-              >
-                {i18n.language === 'ar' ? 'السابق' : 'Previous'}
-              </button>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-900 transition-all disabled:opacity-30 active:scale-95 shadow-sm"
-              >
-                {i18n.language === 'ar' ? 'التالي' : 'Next'}
-              </button>
+          <div style={{ padding: 'var(--cds-spacing-04) var(--cds-spacing-05)', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)' }}>
+              Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(expiringDocs.length, currentPage * itemsPerPage)} of {expiringDocs.length}
+            </span>
+            <div style={{ display: 'flex', gap: 'var(--cds-spacing-02)' }}>
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="cds--btn cds--btn--ghost cds--btn--sm">Previous</button>
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="cds--btn cds--btn--ghost cds--btn--sm">Next</button>
             </div>
           </div>
         )}

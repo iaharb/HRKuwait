@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { User, UserRole } from '../types/types';
-import { MOCK_EMPLOYEES } from '../constants.tsx';
 import { dbService } from '../services/dbService.ts';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.ts';
 import { translations } from '../translations.ts';
@@ -68,6 +67,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
 
     // 1. Primary path: Supabase Auth (Enables RLS)
     try {
+      console.log("[Login] Attempting auth for:", normalizedInput);
+      if (!supabase) {
+        console.warn("[Login] Supabase not configured, skipping auth path");
+        throw new Error("Supabase is not configured. Using fallback logic.");
+      }
       // We assume username is email for auth, or we try to find the email first
       let email = normalizedInput;
       if (!email.includes('@')) {
@@ -87,6 +91,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
       });
 
       if (data?.user && !authError) {
+        console.log("[Login] Auth success, waiting for session listener...");
         // Success! Component parent will handle the session change via useAuth hook
         setLoading(false);
         return;
@@ -121,9 +126,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
         }
       }
 
-      setError(error?.message || `Access denied. No record for "${username}".`);
+      setError(authError?.message || `Access denied. No record for "${username}".`);
     } catch (err: any) {
-      setError("Identity synchronization error. Please try again.");
+      console.error("[Login] handleLogin Error:", err);
+      setError(err?.message || "Identity synchronization error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -249,6 +255,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, language }) => {
                 className="px-8 py-3 bg-slate-100 text-slate-900 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 active:scale-95 disabled:opacity-50"
               >
                 {isSeeding ? 'Synchronizing...' : 'Sync Mock DB'}
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  supabase?.auth.signOut();
+                  window.location.reload();
+                }}
+                className="px-8 py-3 bg-rose-100 text-rose-600 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-200 active:scale-95"
+              >
+                Emergency Session Reset
               </button>
               <button
                 onClick={async () => {

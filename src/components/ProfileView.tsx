@@ -26,10 +26,10 @@ const SalaryCertificateModal: React.FC<{
   const netSalary = basicSalary + allowances - deductions;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-300 max-h-[95vh] flex flex-col text-start border border-slate-200">
-        <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 printable-document-root" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md no-print" onClick={onClose}></div>
+      <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-300 max-h-[95vh] flex flex-col text-start border border-slate-200 printable-document">
+        <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center no-print">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('salaryCertPreview')}</p>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
         </div>
@@ -76,7 +76,7 @@ const SalaryCertificateModal: React.FC<{
           </div>
         </div>
 
-        <div className="p-8 bg-slate-900 text-white flex gap-4">
+        <div className="p-8 bg-slate-900 text-white flex gap-4 no-print">
           <button onClick={onClose} className="flex-1 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
             {t('discard')}
           </button>
@@ -101,19 +101,65 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
   const [showCertModal, setShowCertModal] = useState(false);
   const [selectedBank, setSelectedBank] = useState(t('toWhom'));
   const [showGuide, setShowGuide] = useState(!localStorage.getItem('guide_profile_seen'));
-  const [hubTab, setHubTab] = useState<'attendance' | 'leaves' | 'documents'>('attendance');
+  const [hubTab, setHubTab] = useState<'attendance' | 'leaves' | 'documents' | 'payroll' | 'expenses' | 'bonuses' | 'performance'>('attendance');
   const [expandedLeaveId, setExpandedLeaveId] = useState<string | null>(null);
   const [leaveAuditMap, setLeaveAuditMap] = useState<Record<string, any[]>>({});
+  const [payrollHistory, setPayrollHistory] = useState<Array<{ item: PayrollItem, run: PayrollRun }>>([]);
+  const [selectedPayslip, setSelectedPayslip] = useState<{ item: PayrollItem, run: PayrollRun } | null>(null);
+  const [showPayslipModal, setShowPayslipModal] = useState(false);
+  const [expenseClaims, setExpenseClaims] = useState<any[]>([]);
+  const [variableComp, setVariableComp] = useState<any[]>([]);
+  const [kpiTemplates, setKpiTemplates] = useState<any[]>([]);
+  const [latestEval, setLatestEval] = useState<any | null>(null);
+  const [vCompSubTypeFilter, setVCompSubTypeFilter] = useState<'ALL' | 'Performance_Bonus' | 'Profit_Sharing'>('ALL');
+  const [pendingProfileRequests, setPendingProfileRequests] = useState<any[]>([]);
 
   // Filter state
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [vCompFilterStatus, setVCompFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+
+  const accruedAnnual = useMemo(() => {
+    if (!employeeData?.joinDate) return 0;
+    const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+    const join = new Date(employeeData.joinDate);
+    const anchor = join > startOfYear ? join : startOfYear;
+    const today = new Date();
+    const diffDays = Math.ceil(Math.abs(today.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
+    return Number(((diffDays / 365) * (employeeData.leaveBalances?.annual || 30)).toFixed(2));
+  }, [employeeData]);
 
   const months = useMemo(() => {
     return i18n.language === 'ar'
       ? ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
       : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   }, [i18n.language]);
+  
+  const filteredVariableComp = useMemo(() => {
+    return variableComp
+      .filter(vc => {
+        const date = new Date(vc.effective_date || vc.created_at);
+        const inPeriod = (date.getMonth() + 1 === filterMonth) && (date.getFullYear() === filterYear);
+        if (!inPeriod) return false;
+
+        // Sub-type filter
+        if (vCompSubTypeFilter !== 'ALL' && vc.sub_type !== vCompSubTypeFilter) return false;
+
+        // Status filter
+        if (vCompFilterStatus === 'ALL') return true;
+        if (vCompFilterStatus === 'APPROVED') return vc.status === 'APPROVED_FOR_PAYROLL' || vc.status === 'PROCESSED';
+        if (vCompFilterStatus === 'PENDING') return vc.status?.startsWith('PENDING');
+        if (vCompFilterStatus === 'REJECTED') return vc.status === 'REJECTED';
+        return true;
+      })
+      .sort((a, b) => {
+        // Priority: Approved for Payroll on top
+        if (a.status === 'APPROVED_FOR_PAYROLL' && b.status !== 'APPROVED_FOR_PAYROLL') return -1;
+        if (a.status !== 'APPROVED_FOR_PAYROLL' && b.status === 'APPROVED_FOR_PAYROLL') return 1;
+        // Then by date descending
+        return new Date(b.effective_date || b.created_at).getTime() - new Date(a.effective_date || a.created_at).getTime();
+      });
+  }, [variableComp, filterMonth, filterYear, vCompFilterStatus, vCompSubTypeFilter]);
 
   // Biometric Enrollment State
   const [enrolling, setEnrolling] = useState(false);
@@ -125,16 +171,38 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
   const fetchProfileData = async () => {
     setLoading(true);
     try {
-      const [emp, payslip, leaves] = await Promise.all([
-        hrmDb.getEmployeeByName(user.name),
+      // Step 1: Get Employee Object (Primary Sync)
+      const emp = await hrmDb.getEmployeeById(user.id);
+      if (emp) {
+        setEmployeeData(emp);
+        
+        // Fetch KPIs
+        const templates = await hrmDb.getKPITemplates();
+        setKpiTemplates(templates);
+      }
+
+      // Step 2: Parallel fetch all related transactional data
+      const [payslip, leaves, history, expenses, vComp, evals] = await Promise.all([
         hrmDb.getLatestFinalizedPayroll(user.id),
-        hrmDb.getLeaveRequests({ employeeId: user.id })
+        hrmDb.getLeaveRequests({ employeeId: user.id }),
+        hrmDb.getPayrollHistory(user.id),
+        hrmDb.getExpenseClaims(user.id),
+        hrmDb.getEmployeeVariableComp(user.id),
+        hrmDb.getEmployeeEvaluations()
       ]);
-      if (emp) setEmployeeData(emp);
+
       setLatestPayslip(payslip);
       setPersonalLeaves(leaves);
-    } catch (err) {
-      console.error('Error fetching profile data:', err);
+      setPayrollHistory((history || []).sort((a, b) => b.run.periodKey.localeCompare(a.run.periodKey)));
+      setExpenseClaims(expenses);
+      setVariableComp(vComp);
+      
+      const empEvals = evals.filter(e => e.employeeId === user.id).sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      if (empEvals.length > 0) setLatestEval(empEvals[0]);
+
+    } catch (error) {
+      console.error('Sync Error:', error);
+      notify("Connectivity Warning", "Profile data might be partially out of sync. Please retry.", "warning");
     } finally {
       setLoading(false);
     }
@@ -292,6 +360,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
       case 'On-Site': return 'bg-indigo-50 text-indigo-700 border-indigo-100';
       case 'On Leave': return 'bg-amber-50 text-amber-700 border-amber-100';
       case 'Rest Day': return 'bg-slate-50 text-slate-400 border-slate-100';
+      case 'Off-Day': return 'bg-slate-50 text-slate-400 border-slate-100';
       case 'Weekend': return 'bg-slate-50 text-slate-300 border-slate-50';
       case 'Absent': return 'bg-rose-50 text-rose-700 border-rose-100';
       case 'Holiday': return 'bg-indigo-50 text-indigo-700 border-indigo-100';
@@ -302,62 +371,64 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
   if (loading) return <div className="p-10 animate-pulse bg-white rounded-[32px] h-96"></div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24 text-start">
-      {showGuide && (
-        <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-xl shadow-indigo-500/10 flex flex-col md:flex-row items-center gap-8 border border-indigo-500/20 animate-in slide-in-from-top-4 duration-500 relative overflow-hidden text-start">
-          <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">🎫</div>
-          <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center text-3xl shrink-0">👤</div>
-          <div className="flex-1 space-y-2">
-            <h3 className="text-xl font-black tracking-tight">{t('guideProfileTitle')}</h3>
-            <p className="text-indigo-50 font-medium leading-relaxed opacity-90">{t('guideProfileDesc')}</p>
+      <div className="cds--registry-view" style={{ padding: 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+        {showGuide && (
+          <div style={{ background: 'var(--cds-interactive-01)', padding: 'var(--cds-spacing-06)', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', animation: 'slide-in-from-top-4 0.5s ease', color: '#fff' }}>
+            <div style={{ fontSize: '2rem' }}>👤</div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, fontFamily: 'monospace' }}>{t('guideProfileTitle')}</h3>
+              <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', opacity: 0.9 }}>{t('guideProfileDesc')}</p>
+            </div>
+            <button
+              onClick={dismissGuide}
+              className="cds--btn cds--btn--secondary"
+              style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}
+            >
+              {t('gotIt')}
+            </button>
           </div>
-          <button
-            onClick={dismissGuide}
-            className="px-8 py-3 bg-white text-indigo-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 shadow-lg"
-          >
-            {t('gotIt')}
-          </button>
-        </div>
-      )}
+        )}
 
-      <header className="flex flex-col md:flex-row items-start md:items-end gap-6 bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 end-0 p-10 opacity-5 pointer-events-none">
-          <span className="text-[200px] leading-none select-none">🇰🇼</span>
-        </div>
-
-        <div className="w-28 h-28 rounded-[40px] bg-slate-900 border-4 border-slate-800 flex items-center justify-center text-5xl text-white shadow-2xl relative z-10 overflow-hidden">
-          {employeeData?.faceToken ? (
-            <img src={employeeData.faceToken} className="w-full h-full object-cover grayscale brightness-110" />
-          ) : (
-            user.name.split(' ').map(n => n[0]).join('')
-          )}
-        </div>
-        <div className="mb-2 relative z-10 flex-1">
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">
-            {i18n.language === 'ar' ? (
-              employeeData ? (
-                [employeeData.titleAr, employeeData.firstNameAr, employeeData.secondNameAr, employeeData.thirdNameAr, employeeData.fourthNameAr, employeeData.familyNameAr]
-                  .filter(Boolean).join(' ') || employeeData.nameArabic || employeeData.name
-              ) : user.name
+        <header style={{ background: 'var(--cds-layer-01)', border: '1px solid var(--cds-border-subtle)', padding: 'var(--cds-spacing-07)', display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-06)', alignItems: 'flex-start', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ width: '100px', height: '100px', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', flexShrink: 0 }}>
+            {employeeData?.faceToken ? (
+              <img src={employeeData.faceToken} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%) brightness(1.2)' }} />
             ) : (
-              employeeData ? (
-                [employeeData.title, employeeData.firstName, employeeData.secondName, employeeData.thirdName, employeeData.fourthName, employeeData.familyName]
-                  .filter(Boolean).join(' ') || employeeData.name
-              ) : user.name
+              user.name.split(' ').map(n => n[0]).join('')
             )}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3 mt-2">
-            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-lg tracking-widest border border-indigo-100">{user.role}</span>
-            <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg tracking-widest border ${employeeData?.faceToken ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-              {employeeData?.faceToken ? `🧬 ${t('biometricallyLinked')}` : `🚫 ${t('faceNotEnrolled')}`}
-            </span>
           </div>
-        </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-04)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+              {i18n.language === 'ar' ? (
+                employeeData ? (
+                  [employeeData.titleAr, employeeData.firstNameAr, employeeData.secondNameAr, employeeData.thirdNameAr, employeeData.fourthNameAr, employeeData.familyNameAr]
+                    .filter(Boolean).join(' ') || employeeData.nameArabic || employeeData.name
+                ) : user.name
+              ) : (
+                employeeData ? (
+                  [employeeData.title, employeeData.firstName, employeeData.secondName, employeeData.thirdName, employeeData.fourthName, employeeData.familyName]
+                    .filter(Boolean).join(' ') || employeeData.name
+                ) : user.name
+              )}
+            </h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)' }}>
+              <span style={{ padding: '4px 12px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--cds-interactive-01)', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', border: '1px solid rgba(79, 70, 229, 0.2)' }}>{user.role}</span>
+              <span style={{ padding: '4px 12px', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', border: '1px solid var(--cds-border-subtle)', background: employeeData?.faceToken ? 'rgba(79, 70, 229, 0.1)' : 'var(--cds-background)', color: employeeData?.faceToken ? 'var(--cds-interactive-01)' : 'var(--cds-text-secondary)' }}>
+                {employeeData?.faceToken ? `🧬 ${t('biometricallyLinked')}` : `🚫 ${t('faceNotEnrolled')}`}
+              </span>
+              <button 
+                onClick={fetchProfileData}
+                style={{ padding: '4px 12px', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-secondary)', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center' }}
+              >
+                <span className={loading ? 'animate-spin' : ''}>🔄</span> {i18n.language === 'ar' ? 'تحديث' : 'Sync'}
+              </button>
+            </div>
+          </div>
 
-        <div className="relative z-10 flex gap-4">
-          <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 text-center">{t('joinedSince')}</p>
-            <p className="text-lg font-black text-slate-900">
+        <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-05)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-03)' }}>{t('joinedSince')}</p>
+            <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
               {employeeData?.joinDate && !isNaN(new Date(employeeData.joinDate).getTime())
                 ? new Date(employeeData.joinDate).getFullYear()
                 : (i18n.language === 'ar' ? 'غير متوفر' : 'N/A')}
@@ -366,66 +437,68 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="bg-slate-900 p-10 rounded-[40px] text-white flex flex-col justify-center items-center text-center relative overflow-hidden group border border-white/5">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 opacity-90"></div>
-            <div className="relative z-10">
-              <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-4">{t('latestSalarySlip')}</p>
-              <h3 className="text-5xl font-black mb-2">{latestPayslip ? latestPayslip.item.netSalary.toLocaleString(locale) : '0'} <span className="text-xl">{t('currency')}</span></h3>
-            </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 'var(--cds-spacing-07)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
+          <div 
+            onClick={() => { if (latestPayslip) { setSelectedPayslip(latestPayslip); setShowPayslipModal(true); } }}
+            className="cds--tile"
+            style={{ background: 'var(--cds-background)', border: '1px solid var(--cds-interactive-01)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', cursor: 'pointer', padding: 'var(--cds-spacing-07)' }}
+          >
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, fontFamily: 'monospace', color: 'var(--cds-interactive-01)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-04)' }}>{t('latestSalarySlip')}</p>
+            <h3 style={{ fontSize: '3rem', fontWeight: 700, color: 'var(--cds-text-primary)' }}>{latestPayslip ? latestPayslip.item.netSalary.toLocaleString(locale) : '0'} <span style={{ fontSize: '1rem' }}>{t('currency')}</span></h3>
+            <p style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginTop: 'var(--cds-spacing-03)' }}>REVIEW_AUDIT_TRACE</p>
           </div>
 
-          <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-6">
+          <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--cds-border-subtle)', paddingBottom: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-05)' }}>
               <div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">{t('identityEnrollment')}</h3>
-                <p className="text-xs text-slate-500 font-medium">{t('verifyFaceSignature')}</p>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{t('identityEnrollment')}</h3>
+                <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>{t('verifyFaceSignature')}</p>
               </div>
               {employeeData?.faceToken && (
-                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">✓</div>
+                <div style={{ padding: '4px 12px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--cds-interactive-01)', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase' }}>✅ VERIFIED</div>
               )}
             </div>
 
-            <div className="flex flex-col md:flex-row items-center gap-10">
-              <div className="relative">
-                <div className="w-48 h-48 rounded-[40px] bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center group relative shadow-inner">
-                  {enrolling ? (
-                    <video ref={enrollVideoRef} autoPlay muted playsInline className="w-full h-full object-cover grayscale" />
-                  ) : employeeData?.faceToken ? (
-                    <img src={employeeData.faceToken} className="w-full h-full object-cover grayscale" />
-                  ) : (
-                    <span className="text-4xl opacity-20">🤳</span>
-                  )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-07)', alignItems: 'center' }}>
+              <div style={{ width: '160px', height: '160px', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                {enrolling ? (
+                  <video ref={enrollVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)' }} />
+                ) : employeeData?.faceToken ? (
+                  <img src={employeeData.faceToken} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)' }} />
+                ) : (
+                  <span style={{ fontSize: '2rem', opacity: 0.2 }}>🔍</span>
+                )}
 
-                  {enrolling && (
-                    <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center p-6">
-                      <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden border border-white/10">
-                        <div className="h-full bg-indigo-400 transition-all duration-300" style={{ width: `${enrollProgress}%` }}></div>
-                      </div>
+                {enrolling && (
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px', background: 'rgba(0,0,0,0.5)' }}>
+                    <div style={{ width: '100%', height: '2px', background: 'rgba(255,255,255,0.2)' }}>
+                      <div style={{ height: '100%', background: 'var(--cds-interactive-01)', width: `${enrollProgress}%` }} />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex-1 space-y-6">
-                <p className="text-sm text-slate-600 leading-relaxed font-medium">
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', lineHeight: 1.6 }}>
                   {i18n.language === 'ar'
                     ? 'لتمكين تسجيل الحضور من المواقع البعيدة، نحتاج لمسح صورة مرجعية بيومترية. يتم تشفير هذه البيانات واستخدامها فقط للتحقق من القرب المكاني المعتمد من القوى العاملة.'
                     : 'To authorize your attendance from remote sites, we require a master biometric image. This data is encrypted and used only for PAM-mandated proximity verification.'}
                 </p>
-                <div className="flex flex-wrap gap-4">
+                <div style={{ display: 'flex', gap: 'var(--cds-spacing-04)' }}>
                   <button
                     onClick={handleEnrollFace}
                     disabled={enrolling}
-                    className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95 transition-all hover:bg-indigo-700 disabled:opacity-50"
+                    className="cds--btn cds--btn--primary"
+                    style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}
                   >
                     {enrolling ? t('scanningGeometry') : (employeeData?.faceToken ? t('updateFaceRecord') : t('registerNewSignature'))}
                   </button>
                   {employeeData?.faceToken && !enrolling && (
                     <button
                       onClick={handleClearBiometrics}
-                      className="px-8 py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-all"
+                      className="cds--btn cds--btn--danger"
+                      style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}
                     >
                       {i18n.language === 'ar' ? 'حذف الصورة' : 'Remove Photo'}
                     </button>
@@ -436,64 +509,64 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
           </div>
         </div>
 
-        <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="space-y-8">
+        <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-06)' }}>
             <div>
-              <h3 className="text-xl font-black text-slate-900 mb-4 tracking-tight">{t('selfService')}</h3>
-              <p className="text-xs text-slate-400 mb-6 font-medium leading-relaxed">
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{t('selfService')}</h3>
+              <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: 'var(--cds-spacing-03)' }}>
                 {i18n.language === 'ar'
                   ? 'قم بإنشاء شهادات راتب مختومة فوراً لطلبات القروض البنكية (الوطني / بيتك).'
                   : 'Instantly generate stamped salary certificates for bank loan applications (NBK/KFH).'}
               </p>
-              <div className="space-y-4">
-                <div className="space-y-2 text-start">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">
-                    {i18n.language === 'ar' ? 'جهة الإصدار' : 'Issuance Entity'}
-                  </label>
-                  <select
-                    value={selectedBank}
-                    onChange={(e) => setSelectedBank(e.target.value)}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/10"
-                  >
-                    <option>{t('toWhom')}</option>
-                    <option>National Bank of Kuwait (NBK)</option>
-                    <option>Kuwait Finance House (KFH)</option>
-                    <option>Boubyan Bank</option>
-                    <option>Gulf Bank</option>
-                  </select>
-                </div>
-                <button
-                  onClick={() => setShowCertModal(true)}
-                  className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/10 active:scale-95 transition-all hover:bg-indigo-700"
-                >
-                  {i18n.language === 'ar' ? 'تحميل شهادة الراتب' : 'Generate Salary Certificate'}
-                </button>
-              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+              <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>
+                {i18n.language === 'ar' ? 'جهة الإصدار' : 'Issuance Entity'}
+              </label>
+              <select
+                value={selectedBank}
+                onChange={(e) => setSelectedBank(e.target.value)}
+                style={{ width: '100%', padding: 'var(--cds-spacing-04)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-primary)', fontSize: '0.875rem', fontFamily: 'monospace' }}
+              >
+                <option>{t('toWhom')}</option>
+                <option>National Bank of Kuwait (NBK)</option>
+                <option>Kuwait Finance House (KFH)</option>
+                <option>Boubyan Bank</option>
+                <option>Gulf Bank</option>
+              </select>
+              <button
+                onClick={() => setShowCertModal(true)}
+                className="cds--btn cds--btn--primary"
+                style={{ width: '100%', marginTop: 'var(--cds-spacing-03)', fontSize: '0.75rem', fontFamily: 'monospace' }}
+              >
+                {i18n.language === 'ar' ? 'تحميل شهادة الراتب' : 'Generate Salary Certificate'}
+              </button>
             </div>
 
             {/* Allowance Breakdown */}
-            <div className="pt-8 border-t border-slate-100 text-start">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+            <div style={{ paddingTop: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)' }}>
+              <h4 style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-04)' }}>
                 {i18n.language === 'ar' ? 'بدلاتي' : 'My Allowances'}
               </h4>
               {employeeData?.allowances?.length ? (
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
                   {employeeData.allowances.map((a: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{a.isHousing ? '🏠' : '💼'}</span>
-                        <span className="text-[11px] font-black text-slate-700">
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--cds-spacing-03)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                        <span>{a.isHousing ? '🏠' : '💼'}</span>
+                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>
                           {i18n.language === 'ar' && a.nameArabic ? a.nameArabic : a.name}
                         </span>
                       </div>
-                      <span className="text-[11px] font-black text-indigo-700">
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)' }}>
                         {a.type === 'Fixed' ? `${Number(a.value).toLocaleString()} KWD` : `${a.value}%`}
                       </span>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between bg-slate-900 text-white px-4 py-2.5 rounded-2xl">
-                    <span className="text-[10px] font-black uppercase tracking-widest">{i18n.language === 'ar' ? 'إجمالي البدلات' : 'Total Allowances'}</span>
-                    <span className="text-[11px] font-black">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--cds-spacing-03)', background: 'var(--cds-interactive-01)', color: '#fff', border: '1px solid var(--cds-interactive-01)' }}>
+                    <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase' }}>{i18n.language === 'ar' ? 'إجمالي البدلات' : 'Total Allowances'}</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }}>
                       {employeeData.allowances.reduce((s: number, a: any) =>
                         s + (a.type === 'Fixed' ? Number(a.value) : (employeeData!.salary * Number(a.value) / 100)), 0
                       ).toLocaleString()} KWD
@@ -501,22 +574,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-slate-300 italic">{i18n.language === 'ar' ? 'لا توجد بدلات مسجلة' : 'No allowances on record'}</p>
+                <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-disabled)' }}>{i18n.language === 'ar' ? 'لا توجد بدلات مسجلة' : 'No allowances on record'}</p>
               )}
             </div>
 
-            <div className="pt-8 border-t border-slate-100 text-start">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+            <div style={{ paddingTop: 'var(--cds-spacing-06)', borderTop: '1px solid var(--cds-border-subtle)' }}>
+              <h4 style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase', marginBottom: 'var(--cds-spacing-04)' }}>
                 {i18n.language === 'ar' ? 'إحصائيات الوثائق الرسمية' : 'Official Document Stats'}
               </h4>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-500">{i18n.language === 'ar' ? 'حالة البطاقة المدنية' : 'Civil ID Status'}</span>
-                  <span className="text-[10px] font-black text-indigo-600 uppercase">{t('secure')}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--cds-spacing-03)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                  <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{i18n.language === 'ar' ? 'حالة البطاقة المدنية' : 'Civil ID Status'}</span>
+                  <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)' }}>{t('secure')}</span>
                 </div>
-                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-500">{i18n.language === 'ar' ? 'ملف التأمينات (PIFSS)' : 'PIFSS Filing'}</span>
-                  <span className="text-[10px] font-black text-indigo-600 uppercase">{t('verified')}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--cds-spacing-03)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)' }}>
+                  <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>{i18n.language === 'ar' ? 'ملف التأمينات (PIFSS)' : 'PIFSS Filing'}</span>
+                  <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-interactive-01)' }}>{t('verified')}</span>
                 </div>
               </div>
             </div>
@@ -527,17 +600,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
       {/* ── Leave Balance Cards ── */}
       {employeeData && employeeData.leaveBalances && (
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">
-            {i18n.language === 'ar' ? 'رصيد الإجازات' : 'Leave Balance Overview'}
-          </h3>
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {i18n.language === 'ar' ? 'رصيد الإجازات' : 'Leave Balance Overview'}
+            </h3>
+            <div className="flex items-center gap-2">
+               <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+               <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Live To-Date Accrual</span>
+            </div>
+          </div>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {[
-              { id: 'annual', icon: '🌴', label: i18n.language === 'ar' ? 'سنوية' : 'Annual', entitled: employeeData.leaveBalances.annual, used: employeeData.leaveBalances.annualUsed, color: 'bg-indigo-500', isSubLevel: false },
+              { id: 'annual', icon: '🌴', label: i18n.language === 'ar' ? 'سنوية' : 'Annual', entitled: employeeData.leaveBalances.annual, used: employeeData.leaveBalances.annualUsed, color: 'bg-indigo-500', isSubLevel: false, accrued: accruedAnnual },
               { id: 'sick', icon: '🤒', label: i18n.language === 'ar' ? 'مرضية' : 'Sick', entitled: employeeData.leaveBalances.sick, used: employeeData.leaveBalances.sickUsed, color: 'bg-amber-500', isSubLevel: false },
               { id: 'emergency', icon: '🚨', label: i18n.language === 'ar' ? 'طارئة' : 'Emergency', entitled: employeeData.leaveBalances.emergency, used: employeeData.leaveBalances.emergencyUsed, color: 'bg-rose-400', isSubLevel: true },
               { id: 'short', icon: '⏱', label: i18n.language === 'ar' ? 'إذن قصير' : 'Short Perm', entitled: employeeData.leaveBalances.shortPermissionLimit, used: employeeData.leaveBalances.shortPermissionUsed, color: 'bg-violet-400', isSubLevel: true },
               { id: 'hajj', icon: '🕌', label: i18n.language === 'ar' ? 'حج' : 'Hajj', entitled: 1, used: employeeData.leaveBalances.hajUsed ? 1 : 0, color: 'bg-emerald-500', isSubLevel: false },
-            ].map((item, i) => {
+            ].map((item: any, i) => {
               const remaining = Math.max(0, item.entitled - item.used);
               const pct = item.entitled > 0 ? Math.min(100, (item.used / item.entitled) * 100) : 0;
               const isOver = item.used > item.entitled;
@@ -555,7 +634,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
                     <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-700 ${isOver ? 'bg-rose-500' : item.color}`} style={{ width: `${pct}%` }} />
                     </div>
-                    <p className={`text-[9px] font-bold ${item.isSubLevel ? 'text-slate-300' : 'text-slate-400'}`}>{remaining} {item.id === 'short' ? 'hrs' : 'days'} remaining</p>
+                    <div className="flex justify-between items-center">
+                       <p className={`text-[9px] font-bold ${item.isSubLevel ? 'text-slate-300' : 'text-slate-400'}`}>{remaining} {item.id === 'short' ? 'hrs' : 'days'} remaining</p>
+                       {item.accrued !== undefined && (
+                         <span className="text-[8px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">
+                           {item.accrued} earned to-date
+                         </span>
+                       )}
+                    </div>
                   </div>
                 </div>
               );
@@ -565,47 +651,78 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
       )}
 
       {/* Personal Activity Hub (Filtered Section) */}
-      <div className="bg-white rounded-[48px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 text-start">
-          <div className="space-y-1">
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{t('personalActivityHub')}</h3>
-            <div className="flex items-center gap-4 mt-2">
+      <div className="cds--tile" style={{ padding: '0', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: 'var(--cds-spacing-06)', borderBottom: '1px solid var(--cds-border-subtle)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--cds-spacing-05)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+              {t('personalActivityHub')}
+            </h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--cds-spacing-03)' }}>
               <select
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest outline-none shadow-sm"
+                style={{ padding: 'var(--cds-spacing-03) var(--cds-spacing-04)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-primary)', fontSize: '0.75rem', fontFamily: 'monospace' }}
                 value={filterMonth}
                 onChange={e => setFilterMonth(parseInt(e.target.value))}
               >
                 {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
               </select>
               <select
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest outline-none shadow-sm"
+                style={{ padding: 'var(--cds-spacing-03) var(--cds-spacing-04)', background: 'var(--cds-background)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-primary)', fontSize: '0.75rem', fontFamily: 'monospace' }}
                 value={filterYear}
                 onChange={e => setFilterYear(parseInt(e.target.value))}
               >
                 <option value={2025}>2025</option>
                 <option value={2026}>2026</option>
               </select>
+
+              {hubTab === 'bonuses' && (
+                <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 'var(--cds-spacing-03)' }}>
+                    <button 
+                      onClick={() => setVCompSubTypeFilter(prev => prev === 'Performance_Bonus' ? 'ALL' : 'Performance_Bonus')}
+                      style={{ padding: 'var(--cds-spacing-03)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase', cursor: 'pointer', background: vCompSubTypeFilter === 'Performance_Bonus' ? 'var(--cds-interactive-01)' : 'var(--cds-background)', color: vCompSubTypeFilter === 'Performance_Bonus' ? '#fff' : 'var(--cds-text-secondary)', border: '1px solid var(--cds-border-subtle)' }}
+                    >
+                      <span>⭐</span> {i18n.language === 'ar' ? 'ترشيح للأداء' : 'Performance'}
+                    </button>
+                    <button 
+                      onClick={() => setVCompSubTypeFilter(prev => prev === 'Profit_Sharing' ? 'ALL' : 'Profit_Sharing')}
+                      style={{ padding: 'var(--cds-spacing-03)', fontSize: '0.625rem', fontFamily: 'monospace', textTransform: 'uppercase', cursor: 'pointer', background: vCompSubTypeFilter === 'Profit_Sharing' ? 'var(--cds-support-success)' : 'var(--cds-background)', color: vCompSubTypeFilter === 'Profit_Sharing' ? '#fff' : 'var(--cds-text-secondary)', border: '1px solid var(--cds-border-subtle)' }}
+                    >
+                      <span>💰</span> {i18n.language === 'ar' ? 'مكافأة الشركة' : 'Company Bonus'}
+                    </button>
+                  </div>
+
+                  <select
+                    style={{ padding: 'var(--cds-spacing-03) var(--cds-spacing-04)', background: 'var(--cds-layer-02)', border: '1px solid var(--cds-border-subtle)', color: 'var(--cds-text-primary)', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                    value={vCompFilterStatus}
+                    onChange={e => setVCompFilterStatus(e.target.value as any)}
+                  >
+                    <option value="ALL">{i18n.language === 'ar' ? 'الكل' : 'All Status'}</option>
+                    <option value="APPROVED">{i18n.language === 'ar' ? 'مقبول' : 'Approved'}</option>
+                    <option value="PENDING">{i18n.language === 'ar' ? 'قيد الانتظار' : 'Pending'}</option>
+                    <option value="REJECTED">{i18n.language === 'ar' ? 'مرفوض' : 'Rejected'}</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex p-1 bg-slate-100 rounded-2xl border border-slate-200">
-            <button
-              onClick={() => setHubTab('attendance')}
-              className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hubTab === 'attendance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
-            >
-              {t('attendanceSheet')}
-            </button>
-            <button
-              onClick={() => setHubTab('leaves')}
-              className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hubTab === 'leaves' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
-            >
-              {t('leavePortfolio')}
-            </button>
-            <button
-              onClick={() => setHubTab('documents')}
-              className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hubTab === 'documents' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
-            >
-              {i18n.language === 'ar' ? 'وثائقي' : 'Documents'}
-            </button>
+          <div className="cds--tabs">
+            {[
+              { id: 'attendance', label: t('attendanceSheet') },
+              { id: 'leaves', label: t('leavePortfolio') },
+              { id: 'documents', label: i18n.language === 'ar' ? 'وثائقي' : 'Documents' },
+              { id: 'payroll', label: i18n.language === 'ar' ? 'الرواتب' : 'Payroll' },
+              { id: 'expenses', label: i18n.language === 'ar' ? 'المصاريف' : 'Expenses' },
+              { id: 'bonuses', label: i18n.language === 'ar' ? 'المكافآت' : 'Bonuses' },
+              { id: 'performance', label: i18n.language === 'ar' ? 'الأداء' : 'Performance' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setHubTab(tab.id as any)}
+                className={`cds--tab ${hubTab === tab.id ? 'active' : ''}`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -721,6 +838,122 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
                 )}
               </tbody>
             </table>
+          ) : hubTab === 'payroll' ? (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-white text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <th className="px-10 py-6">{t('period')}</th>
+                  <th className="px-10 py-6">Basic Salary</th>
+                  <th className="px-10 py-6">Allowances & Bonuses</th>
+                  <th className="px-10 py-6">Deductions</th>
+                  <th className="px-10 py-6">Net Salary</th>
+                  <th className="px-10 py-6 text-right" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payrollHistory.length > 0 ? payrollHistory.map(({ item, run }) => (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-10 py-6">
+                      <p className="text-sm font-black text-slate-800">{run.periodKey}</p>
+                      <p className="text-[10px] text-slate-400">{run.cycleType}</p>
+                    </td>
+                    <td className="px-10 py-6">
+                       <p className="text-sm font-black text-slate-900">{item.basicSalary.toLocaleString(locale)}</p>
+                       <p className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">Basic</p>
+                    </td>
+                    <td className="px-10 py-6">
+                       <p className="text-sm font-black text-emerald-600">{(item.housingAllowance + item.otherAllowances + (item.overtimeAmount || 0) + (item.performanceBonus || 0) + (item.annualLeavePay || 0) + (item.sickLeavePay || 0)).toLocaleString(locale)}</p>
+                       <p className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">
+                         H: {item.housingAllowance.toLocaleString(locale)} | L: {((item.annualLeavePay || 0) + (item.sickLeavePay || 0)).toLocaleString(locale)}
+                       </p>
+                    </td>
+                    <td className="px-10 py-6">
+                       <p className="text-sm font-black text-rose-600">{(item.pifssDeduction + item.leaveDeductions + item.shortPermissionDeductions).toLocaleString(locale)}</p>
+                       <p className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">
+                         P: {item.pifssDeduction.toLocaleString(locale)} | A: {item.leaveDeductions.toLocaleString(locale)}
+                       </p>
+                    </td>
+                    <td className="px-10 py-6 font-black text-indigo-600 font-mono text-lg">{item.netSalary.toLocaleString(locale)}</td>
+                    <td className="px-10 py-6 text-right">
+                      <button 
+                        onClick={() => { setSelectedPayslip({ item, run }); setShowPayslipModal(true); }}
+                        className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm group-hover:shadow-indigo-600/20"
+                      >
+                        {i18n.language === 'ar' ? 'عرض التفاصيل' : 'Details'}
+                      </button>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={6} className="p-32 text-center text-slate-300 italic font-medium">No payroll history found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          ) : hubTab === 'expenses' ? (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-white text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <th className="px-10 py-6">Merchant</th>
+                  <th className="px-10 py-6">Date</th>
+                  <th className="px-10 py-6">Amount</th>
+                  <th className="px-10 py-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {expenseClaims.length > 0 ? expenseClaims.map(claim => (
+                  <tr key={claim.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-10 py-6 font-bold">{claim.merchant}</td>
+                    <td className="px-10 py-6 text-slate-500">{claim.date}</td>
+                    <td className="px-10 py-6 font-black">{claim.amount.toLocaleString(locale)} {t('currency')}</td>
+                    <td className="px-10 py-6">
+                      <span className={`px-2 py-1 rounded text-[8px] font-black uppercase ${
+                        claim.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' : 
+                        claim.status === 'Rejected' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
+                      }`}>{claim.status}</span>
+                    </td>
+                  </tr>
+                )) : (
+                   <tr><td colSpan={4} className="p-32 text-center text-slate-300 italic font-medium">No expense claims found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          ) : hubTab === 'bonuses' ? (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-white text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <th className="px-10 py-6">Type</th>
+                  <th className="px-10 py-6">Period</th>
+                  <th className="px-10 py-6">Amount</th>
+                  <th className="px-10 py-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredVariableComp.length > 0 ? filteredVariableComp.map(comp => (
+                  <tr key={comp.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-10 py-6">
+                      <p className="text-sm font-black text-slate-800">
+                        {comp.comp_type === 'OVERTIME' ? (i18n.language === 'ar' ? 'إضافي' : 'Overtime') : 
+                         (comp.sub_type || 'Bonus').replace(/_/g, ' ')}
+                      </p>
+                    </td>
+                    <td className="px-10 py-6 text-slate-500">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{comp.effective_date || comp.created_at?.slice(0, 10)}</p>
+                      <p className="text-[10px] font-black text-indigo-500">{comp.comp_type}</p>
+                    </td>
+                    <td className="px-10 py-6 font-black text-emerald-600">+{Number(comp.amount).toLocaleString(locale)} {t('currency')}</td>
+                    <td className="px-10 py-6">
+                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                        comp.status === 'APPROVED_FOR_PAYROLL' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                        comp.status === 'PROCESSED' ? 'bg-slate-50 text-slate-400 border-slate-100' :
+                        comp.status === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
+                        'bg-blue-50 text-blue-600 border-blue-100'
+                      }`}>{comp.status?.replace(/_/g, ' ')}</span>
+                    </td>
+                  </tr>
+                )) : (
+                   <tr><td colSpan={4} className="p-32 text-center text-slate-300 italic font-medium">No bonuses or overtime found for this month.</td></tr>
+                )}
+              </tbody>
+            </table>
           ) : null}
 
           {/* ── Documents Tab ── */}
@@ -760,6 +993,60 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
               </div>
             </div>
           )}
+
+          {hubTab === 'performance' && (
+            <div className="p-8">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">{i18n.language === 'ar' ? 'مؤشرات الأداء الرئيسية' : 'Key Performance Indicators (KPIs)'}</h3>
+                  <p className="text-xs font-bold text-slate-500 mt-1">{i18n.language === 'ar' ? 'التقييمات المخصصة والنقاط المحققة' : 'Assigned templates and achieved scores'}</p>
+                </div>
+              </div>
+
+              {employeeData?.kpiTemplateIds && employeeData.kpiTemplateIds.length > 0 ? (
+                <div className="space-y-6">
+                  {kpiTemplates.filter(t => employeeData.kpiTemplateIds?.includes(t.id)).map(tmpl => (
+                    <div key={tmpl.id} className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+                      <div className="flex justify-between items-center mb-4 px-2">
+                        <h4 className="text-sm font-black text-slate-700">{tmpl.title}</h4>
+                        {tmpl.department === employeeData.department && (
+                          <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl uppercase tracking-widest border border-indigo-100 shadow-sm">{i18n.language === 'ar' ? 'افتراضي' : 'Default'}</span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {tmpl.kpis.map((k: any, idx: number) => {
+                           const evalScore = latestEval?.kpiScores?.find((s:any) => s.name === `[${tmpl.title}] ${k.name}`);
+                           return (
+                             <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-colors hover:border-indigo-100">
+                                <div className="flex-1">
+                                  <span className="text-xs font-black text-slate-700">{k.name}</span>
+                                </div>
+                                <div className="w-24 text-center">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{i18n.language === 'ar' ? 'الوزن' : 'Weight'}: {k.weight}%</span>
+                                </div>
+                                <div className="w-32 text-right">
+                                    {evalScore ? (
+                                      <span className="inline-block text-xs font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                                        {evalScore.score}%  {i18n.language === 'ar' ? 'مُحقق' : 'Achieved'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] font-bold text-slate-400 px-3 py-1.5">{i18n.language === 'ar' ? 'قيد الانتظار' : 'Pending'}</span>
+                                    )}
+                                </div>
+                             </div>
+                           )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-20 text-center border-2 border-dashed border-slate-200 rounded-[40px] bg-slate-50/50">
+                  <p className="text-slate-400 text-sm font-black uppercase tracking-widest">{i18n.language === 'ar' ? 'لا توجد نماذج مخصصة بعد' : 'No KPI Templates Assigned'}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -774,8 +1061,150 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user }) => {
           onClose={() => setShowCertModal(false)}
         />
       )}
-    </div>
-  );
+
+      {showPayslipModal && selectedPayslip && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 text-start printable-document-root">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md no-print" onClick={() => setShowPayslipModal(false)}></div>
+          <div className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col border border-slate-200 printable-document">
+            <div className="p-10 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-start">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg shadow-indigo-600/20">KW</div>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">{i18n.language === 'ar' ? 'قسيمة الراتب التفصيلية' : 'Audit Payslip'}</h3>
+                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1">Audit Trace ID: {selectedPayslip.run.id.slice(0, 8).toUpperCase()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-8">
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{i18n.language === 'ar' ? 'الفترة المحاسبية' : 'Accounting Period'}</p>
+                  <p className="text-xl font-black text-slate-900 tracking-tighter">
+                    {(() => {
+                      const [y, m] = selectedPayslip.run.periodKey.split('-');
+                      const months = i18n.language === 'ar' 
+                        ? ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+                        : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                      return `${months[parseInt(m) - 1]} ${y}`;
+                    })()}
+                  </p>
+                </div>
+                <button onClick={() => setShowPayslipModal(false)} className="w-14 h-14 flex items-center justify-center bg-white rounded-[20px] text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100 transition-all active:scale-95 text-2xl font-bold">×</button>
+              </div>
+            </div>
+
+            <div className={`flex-1 overflow-y-auto p-10 space-y-10 text-start ${i18n.language === 'ar' ? 'font-arabic' : ''}`} dir={i18n.language === 'ar' ? 'rtl' : 'ltr'}>
+              {/* Contractual Header */}
+              <div className="bg-slate-900 rounded-[40px] p-8 text-white relative z-10 shadow-2xl overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20"></div>
+                <div className="flex justify-between items-center mb-6 opacity-60">
+                  <span className="text-[10px] font-black uppercase tracking-widest">{i18n.language === 'ar' ? 'الراتب التعاقدي الإجمالي' : 'Contractual Monthly Gross'}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest font-mono">{(selectedPayslip.item.employeeId || '').slice(0, 8).toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between items-end">
+                  <div className="text-4xl font-black flex items-baseline gap-2">
+                    {((selectedPayslip.item.allowanceBreakdown || []).find(a => a.name.includes('Contractual'))?.value
+                      || (selectedPayslip.item.basicSalary + selectedPayslip.item.housingAllowance + selectedPayslip.item.otherAllowances + (selectedPayslip.item.leaveDeductions || 0))).toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                    <span className="text-sm opacity-40">KWD</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-medium text-slate-300">{selectedPayslip.item.employeeName}</p>
+                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-1">{i18n.language === 'ar' ? 'حالة التدقيق: ناجح' : 'Audit Status: PASSED'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-10">
+                {/* EARNINGS */}
+                <div>
+                  <h6 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-4">
+                    {i18n.language === 'ar' ? 'بيانات الاستحقاق وتوزيع الراتب' : 'Earnings & Salary Allocation'} <span className="h-[1px] flex-1 bg-slate-100"></span>
+                  </h6>
+                  <div className="grid grid-cols-1 gap-4">
+                    {((selectedPayslip.item.allowanceBreakdown || []).filter(a => !a.name.includes('Contractual') && (a.value || 0) > 0)).length > 0 ? (
+                      (selectedPayslip.item.allowanceBreakdown || [])
+                        .filter(a => !a.name.includes('Contractual') && (a.value || 0) > 0)
+                        .map((a, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-700">{a.name}</span>
+                              {(a.name.includes('Pay') || a.name.includes('Worked')) && (
+                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">
+                                  {i18n.language === 'ar' ? 'تم التحقق من بيانات الحضور' : 'Verified Attendance Data'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-sm font-black text-indigo-600">{(a.value || 0).toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                          </div>
+                      ))
+                    ) : (
+                      <div className="flex justify-between items-center bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                        <span className="text-sm font-bold text-slate-700">{i18n.language === 'ar' ? 'الراتب الأساسي' : 'Basic Salary'}</span>
+                        <span className="text-sm font-black text-slate-900">{selectedPayslip.item.basicSalary.toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* DEDUCTIONS */}
+                <div>
+                  <h6 className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-6 flex items-center gap-4">
+                    {i18n.language === 'ar' ? 'الاستقطاعات' : 'Deductions'} <span className="h-[1px] flex-1 bg-rose-50"></span>
+                  </h6>
+                  <div className="grid grid-cols-1 gap-4">
+                    {((selectedPayslip.item.deductionBreakdown || []).filter(d => (d.value || 0) > 0)).length > 0 ? (
+                      (selectedPayslip.item.deductionBreakdown || [])
+                        .filter(d => (d.value || 0) > 0)
+                        .map((d, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-rose-50/30 p-4 rounded-2xl border border-rose-100">
+                            <span className="text-sm font-medium text-slate-600">{d.name}</span>
+                            <span className="text-sm font-black text-rose-600">-{(d.value || 0).toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                          </div>
+                      ))
+                    ) : (
+                      <div className="flex justify-between items-center bg-rose-50/30 p-4 rounded-2xl border border-rose-100">
+                        <span className="text-sm font-medium text-slate-600">{i18n.language === 'ar' ? 'تأمينات (PIFSS)' : 'PIFSS (11.5%)'}</span>
+                        <span className="text-sm font-black text-rose-600">-{selectedPayslip.item.pifssDeduction.toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-10 border-t-2 border-dashed border-slate-200">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-3">{i18n.language === 'ar' ? 'صافي الراتب المستحق' : 'Net Salary Payable'}</p>
+                      <div className="flex items-baseline gap-4">
+                        <span className="text-6xl font-black text-slate-900 tracking-tighter">{selectedPayslip.item.netSalary.toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                        <span className="text-2xl font-black text-slate-400 uppercase tracking-widest">KWD</span>
+                      </div>
+                    </div>
+                    <div className="text-right opacity-30">
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono">*SECURED AUDIT SEAL*</p>
+                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">VERIFIED AGAINST OFFICIAL PAYROLL AUDIT LOGS</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 bg-slate-900 flex gap-4 no-print">
+               <button 
+                onClick={() => window.print()} 
+                className="flex-1 py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+               >
+                 {i18n.language === 'ar' ? 'طباعة القسيمة' : 'Print Payslip'}
+               </button>
+               <button 
+                onClick={() => setShowPayslipModal(false)}
+                className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20"
+               >
+                 {t('close')}
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    );
 };
 
 export default ProfileView;

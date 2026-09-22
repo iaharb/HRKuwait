@@ -203,7 +203,6 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Auto-concatenate Full Name if individual parts provided
     const fullNameEn = `${formData.title} ${formData.firstName} ${formData.secondName} ${formData.thirdName} ${formData.fourthName} ${formData.familyName}`.replace(/\s+/g, ' ').trim();
     const fullNameAr = `${formData.titleAr} ${formData.firstNameAr} ${formData.secondNameAr} ${formData.thirdNameAr} ${formData.fourthNameAr} ${formData.familyNameAr}`.replace(/\s+/g, ' ').trim();
 
@@ -215,6 +214,12 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
 
     if (!dataToSubmit.name || !dataToSubmit.civilId) {
       notify(t('warning'), t('actionRequired'), "warning");
+      return;
+    }
+
+    const dlmExempt = ['Admin', 'Executive'].includes(dataToSubmit.role);
+    if (!dlmExempt && !dataToSubmit.managerId) {
+      notify(t('warning'), language === 'ar' ? 'كل موظف يجب أن يكون له مدير مباشر (ما عدا الرئيس التنفيذي)' : 'Every employee must have a direct manager (DLM); only Admins and Executives are exempt.', "warning");
       return;
     }
 
@@ -236,358 +241,113 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({ isOpen, onClose, language
     }
   };
 
-  const sectionHeader = (icon: string, label: string) => (
-    <div className="flex items-center gap-3 border-b border-slate-100 pb-3 mt-10 mb-6 first:mt-0">
-      <span className="text-xl">{icon}</span>
-      <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{label}</h3>
+  const sectionHeader = (label: string) => (
+    <div style={{ borderBottom: '1px solid var(--cds-border-subtle)', paddingBottom: 'var(--cds-spacing-02)', marginTop: 'var(--cds-spacing-05)', marginBottom: 'var(--cds-spacing-04)' }}>
+      <h3 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>{label}</h3>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}></div>
-      <div className="bg-white rounded-[48px] w-full max-w-6xl shadow-2xl relative z-10 overflow-hidden border border-slate-200 max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-300">
-
-        <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+    <div className="cds--modal is-visible" style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="cds--modal-container" style={{ background: 'var(--cds-background)', width: '100%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', color: 'var(--cds-text-primary)', border: '1px solid var(--cds-border-strong)' }}>
+        <div style={{ padding: 'var(--cds-spacing-05)', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              {employeeToEdit ? (language === 'ar' ? 'تعديل الملف الشخصي' : 'Modify Registry Profile') : t('addMember')}
-            </h2>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Registry Context: {formData.department} Scope</p>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 400 }}>{employeeToEdit ? 'Edit employee registry' : 'Enroll new employee'}</h2>
           </div>
-          <button onClick={onClose} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 text-xl font-bold hover:text-rose-500 transition-colors">×</button>
+          <button onClick={onClose} className="cds--btn cds--btn--ghost" style={{ padding: '0 var(--cds-spacing-04)' }}>Close</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-10 space-y-2">
-
-          {/* Identity Section */}
-          {sectionHeader("👤", t('personalIdentity'))}
-          <div className="space-y-8">
-            {/* English Name Parts */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Title</label>
-                <input placeholder="Dr / Mr" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">First Name</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Second Name</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.secondName} onChange={e => setFormData({ ...formData, secondName: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Third Name</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.thirdName} onChange={e => setFormData({ ...formData, thirdName: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Fourth Name</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.fourthName} onChange={e => setFormData({ ...formData, fourthName: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Family Name</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.familyName} onChange={e => setFormData({ ...formData, familyName: e.target.value })} />
-              </div>
+        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', padding: 'var(--cds-spacing-05)' }}>
+          {sectionHeader("Personal identity")}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+            <div className="cds--form-item">
+              <label className="cds--label">Title</label>
+              <input className="cds--text-input" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
             </div>
-
-            {/* Arabic Name Parts */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4" dir="rtl">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">اللقب</label>
-                <input placeholder="د / أ" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.titleAr} onChange={e => setFormData({ ...formData, titleAr: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الأول</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.firstNameAr} onChange={e => setFormData({ ...formData, firstNameAr: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الثاني</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.secondNameAr} onChange={e => setFormData({ ...formData, secondNameAr: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الثالث</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.thirdNameAr} onChange={e => setFormData({ ...formData, thirdNameAr: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">الرابع</label>
-                <input className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.fourthNameAr} onChange={e => setFormData({ ...formData, fourthNameAr: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-1">العائلة</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-right text-sm" value={formData.familyNameAr} onChange={e => setFormData({ ...formData, familyNameAr: e.target.value })} />
-              </div>
+            <div className="cds--form-item">
+              <label className="cds--label">First name</label>
+              <input required className="cds--text-input" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} />
             </div>
+            <div className="cds--form-item">
+              <label className="cds--label">Family name</label>
+              <input required className="cds--text-input" value={formData.familyName} onChange={e => setFormData({ ...formData, familyName: e.target.value })} />
+            </div>
+            <div className="cds--form-item">
+              <label className="cds--label">Nationality</label>
+              <select className="cds--select" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
+                <option value="Kuwaiti">Kuwaiti National</option>
+                <option value="Expat">Expat</option>
+              </select>
+            </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('email') || 'Email Address'}</label>
-                <input type="email" placeholder="employee@company.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Mobile / WhatsApp</label>
-                <input type="tel" placeholder="+965 XXXX XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Emergency Contact</label>
-                <input placeholder="Name / Number" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.emergencyContact} onChange={e => setFormData({ ...formData, emergencyContact: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('nationality')}</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all text-sm" value={formData.nationality} onChange={e => setFormData({ ...formData, nationality: e.target.value as any })}>
-                  <option value="Kuwaiti">{t('kuwaiti')}</option>
-                  <option value="Expat">{t('expat')}</option>
+          {sectionHeader("Career placement")}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+             <div className="cds--form-item">
+                <label className="cds--label">Department</label>
+                <select className="cds--select" value={formData.department} onChange={e => setFormData({ ...formData, department: e.target.value })}>
+                   {departments.map(d => <option key={d.en} value={d.en}>{d.en}</option>)}
                 </select>
-              </div>
+             </div>
+             <div className="cds--form-item">
+                <label className="cds--label">Position</label>
+                <select className="cds--select" required value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })}>
+                   <option value="">Select designation</option>
+                   {STANDARD_POSITIONS.map(p => <option key={p.en} value={p.en}>{p.en}</option>)}
+                </select>
+             </div>
+<div className="cds--form-item">
+                <label className="cds--label">Registry role</label>
+                <select className="cds--select" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value as any })}>
+                  {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{r.en}</option>)}
+                </select>
+             </div>
+             <div className="cds--form-item">
+                <label className="cds--label">Direct manager (DLM)</label>
+                <select className="cds--select" value={formData.managerId} onChange={e => setFormData({ ...formData, managerId: e.target.value, managerName: e.target.value ? (employeesData.find(em => em.id === e.target.value)?.name || '') : '' })}>
+                   <option value="">—</option>
+                   {employeesData.filter(em => em.id !== (employeeToEdit?.id || '')).map(em => <option key={em.id} value={em.id}>{em.name}</option>)}
+                </select>
+             </div>
+          </div>
+
+          {sectionHeader("Official documents")}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+            <div className="cds--form-item">
+                <label className="cds--label">Civil ID number</label>
+                <input required maxLength={12} className="cds--text-input" value={formData.civilId} onChange={e => setFormData({ ...formData, civilId: e.target.value.replace(/\D/g, '') })} />
+            </div>
+            <div className="cds--form-item">
+                <label className="cds--label">Civil ID expiry</label>
+                <input type="date" className="cds--text-input" value={formData.civilIdExpiry} onChange={e => setFormData({ ...formData, civilIdExpiry: e.target.value })} />
+            </div>
+            <div className="cds--form-item">
+                <label className="cds--label">Passport number</label>
+                <input className="cds--text-input" value={formData.passportNumber} onChange={e => setFormData({ ...formData, passportNumber: e.target.value })} />
             </div>
           </div>
 
-          {/* Placement Section */}
-          {sectionHeader("💼", t('careerPlacement'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('dept')}</label>
-              <select
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                value={formData.department}
-                onChange={e => {
-                  const match = departments.find(d => d.en === e.target.value);
-                  setFormData({ ...formData, department: e.target.value, departmentArabic: match?.ar || '' });
-                }}
-              >
-                {departments.map(d => <option key={d.en} value={d.en}>{language === 'ar' ? d.ar : d.en}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Role (Access Control)</label>
-              <select
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                value={formData.role}
-                onChange={e => setFormData({ ...formData, role: e.target.value as any })}
-              >
-                {STANDARD_ROLES.map(r => <option key={r.id} value={r.id}>{language === 'ar' ? r.ar : r.en}</option>)}
-              </select>
-              <p className="text-[10px] text-indigo-500 font-bold px-1 mt-1">
-                {language === 'ar'
-                  ? '💡 سيتم مزامنة هذا الدور مع صلاحيات الدخول في قسم الأمان.'
-                  : '💡 This role synchronizes with Access Control permissions.'}
-              </p>
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('roleEn')} / {t('roleAr')}</label>
-              <select
-                required
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                value={formData.position}
-                onChange={e => {
-                  const match = STANDARD_POSITIONS.find(p => p.en === e.target.value);
-                  setFormData({ ...formData, position: e.target.value, positionArabic: match?.ar || '' });
-                }}
-              >
-                <option value="">-- Select Designation --</option>
-                {STANDARD_POSITIONS.map(p => (
-                  <option key={p.en} value={p.en}>{language === 'ar' ? p.ar : p.en}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2 lg:col-span-3">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Reporting Manager</label>
-              <select
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                value={formData.managerId}
-                onChange={e => {
-                  const manager = employeesData.find(emp => emp.id === e.target.value);
-                  setFormData({
-                    ...formData,
-                    managerId: e.target.value,
-                    managerName: manager ? manager.name : ''
-                  });
-                }}
-              >
-                <option value="">-- No Direct Line Manager --</option>
-                {employeesData.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>
-                ))}
-              </select>
-            </div>
-
-          </div>
-
-          {/* Bank & Payment Details */}
-          {sectionHeader("💳", t('bankAndPayment'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('bankCode')}</label>
-              <select
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                value={formData.bankCode}
-                onChange={e => setFormData({ ...formData, bankCode: e.target.value })}
-              >
-                {kuwaitBanks.map(b => <option key={b.code} value={b.code}>{b.name} ({b.code})</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('ibanNumber')}</label>
-              <input
-                className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-mono font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                placeholder="KW00 XXXX XXXX XXXX XXXX XXXX XXXX"
-                value={formData.iban}
-                onChange={e => setFormData({ ...formData, iban: e.target.value.toUpperCase() })}
-              />
-            </div>
-          </div>
-
-          {/* Official Documents */}
-          {sectionHeader("🛡️", t('officialDocuments'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdNumber')}</label>
-              <input required maxLength={12} className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilId} onChange={e => setFormData({ ...formData, civilId: e.target.value.replace(/\D/g, '') })} />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('civilIdExpiry')}</label>
-              <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.civilIdExpiry} onChange={e => setFormData({ ...formData, civilIdExpiry: e.target.value })} />
-            </div>
-            {formData.nationality === 'Kuwaiti' && (
-              <>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('pifssNumber')}</label>
-                  <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssNumber} onChange={e => setFormData({ ...formData, pifssNumber: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PIFSS Status</label>
-                  <select className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.pifssStatus} onChange={e => setFormData({ ...formData, pifssStatus: e.target.value as any })}>
-                    <option value="Registered">Registered</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Exempt">Exempt</option>
-                  </select>
-                </div>
-              </>
-            )}
-            {formData.nationality === 'Expat' && (
-              <>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportNumber')}</label>
-                  <input className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportNumber} onChange={e => setFormData({ ...formData, passportNumber: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('passportExpiry')}</label>
-                  <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.passportExpiry} onChange={e => setFormData({ ...formData, passportExpiry: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('iznAmalExpiry')}</label>
-                  <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.iznAmalExpiry} onChange={e => setFormData({ ...formData, iznAmalExpiry: e.target.value })} />
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Contract Settings */}
-          {sectionHeader("📜", t('contractSettings'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('joinDate')}</label>
-              <input type="date" className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.joinDate} onChange={e => setFormData({ ...formData, joinDate: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('workingDaysWeek')}</label>
-              <div className="grid grid-cols-2 gap-4">
-                <button type="button" onClick={() => setFormData({ ...formData, workDaysPerWeek: 5 })} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 5 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>5 Days</button>
-                <button type="button" onClick={() => setFormData({ ...formData, workDaysPerWeek: 6 })} className={`py-4 rounded-2xl font-black text-sm border transition-all ${formData.workDaysPerWeek === 6 ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>6 Days</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Financial Section */}
-          {sectionHeader("💰", t('financialConfig'))}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{t('salary')} (Basic)</label>
-                <input type="number" required className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 font-black text-lg outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all" value={formData.salary} onChange={e => setFormData({ ...formData, salary: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Allowances</h4>
-                {formData.allowances.length === 0 && <p className="text-xs text-slate-300 italic">No allowances configured.</p>}
-                <div className="space-y-3">
-                  {formData.allowances.map(allow => (
-                    <div key={allow.id} className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm animate-in slide-in-from-left-4">
-                      <div>
-                        <p className="text-xs font-black text-slate-900">{language === 'ar' ? allow.nameArabic : allow.name} {allow.isHousing && '🏠'}</p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase">{allow.type === 'Fixed' ? `${allow.value} KWD` : `${allow.value}% of Basic`}</p>
-                      </div>
-                      <button type="button" onClick={() => removeAllowance(allow.id)} className="text-rose-500 font-black text-[10px] uppercase tracking-widest p-2 hover:bg-rose-50 rounded-lg transition-all">Remove</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-indigo-50/30 p-8 rounded-[40px] border border-indigo-100 space-y-6">
-              <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Add New Allowance</h4>
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Allowance Category</label>
-                  <select
-                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/10"
-                    value={newAllowance.selectedName}
-                    onChange={e => handleNameChange(e.target.value)}
-                  >
-                    {STANDARD_ALLOWANCE_NAMES.map(opt => (
-                      <option key={opt.en} value={opt.en}>{language === 'ar' ? opt.ar : opt.en}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {newAllowance.selectedName === 'Other' && (
-                  <input
-                    placeholder="Type Allowance Name..."
-                    className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none animate-in fade-in"
-                    value={newAllowance.customName}
-                    onChange={e => setNewAllowance({ ...newAllowance, customName: e.target.value })}
-                  />
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Logic</label>
-                    <select className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.type} onChange={e => setNewAllowance({ ...newAllowance, type: e.target.value as any })}>
-                      <option value="Fixed">Fixed Amount</option>
-                      <option value="Percentage">% of Basic</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ps-1">Magnitude</label>
-                    <input type="number" placeholder="Value" className="w-full px-5 py-3 rounded-xl border border-indigo-100 bg-white text-xs font-bold outline-none" value={newAllowance.value} onChange={e => setNewAllowance({ ...newAllowance, value: parseFloat(e.target.value) || 0 })} />
-                  </div>
-                </div>
-
-                <label className="flex items-center gap-3 cursor-pointer select-none py-2 group">
-                  <div className="relative w-10 h-5 bg-slate-200 rounded-full transition-all group-has-[:checked]:bg-indigo-500">
-                    <input type="checkbox" className="sr-only peer" checked={newAllowance.isHousing} onChange={e => setNewAllowance({ ...newAllowance, isHousing: e.target.checked })} />
-                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-5"></div>
-                  </div>
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Is Housing? (Unconditional Payment)</span>
-                </label>
-
-                <button type="button" onClick={addAllowance} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/10 active:scale-95 transition-all">
-                  Add Allowance to Registry
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 pt-10 border-t border-slate-100 sticky bottom-0 bg-white pb-2 z-10">
-            <button type="button" onClick={onClose} className="flex-1 px-8 py-5 rounded-[24px] border border-slate-200 font-black text-[11px] uppercase text-slate-400 transition-all hover:bg-slate-50">
-              {t('discard')}
-            </button>
-            <button type="submit" disabled={loading} className="flex-[2] px-8 py-5 rounded-[24px] font-black text-[11px] uppercase text-white bg-slate-900 shadow-2xl hover:bg-black active:scale-95 transition-all disabled:opacity-50">
-              {loading ? '...' : (employeeToEdit ? t('saveChanges') : t('enroll'))}
-            </button>
+          {sectionHeader("Financial configuration")}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+             <div className="cds--form-item">
+                <label className="cds--label">Basic salary (KWD)</label>
+                <input type="number" className="cds--text-input" value={formData.salary} onChange={e => setFormData({ ...formData, salary: parseInt(e.target.value) || 0 })} />
+             </div>
+             <div className="cds--form-item">
+                <label className="cds--label">Bank account (IBAN)</label>
+                <input className="cds--text-input" value={formData.iban} onChange={e => setFormData({ ...formData, iban: e.target.value.toUpperCase() })} />
+             </div>
           </div>
         </form>
+
+        <div style={{ padding: 'var(--cds-spacing-05)', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', gap: 'var(--cds-spacing-05)', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} className="cds--btn cds--btn--secondary">Discard</button>
+          <button type="submit" disabled={loading} onClick={handleSubmit} className="cds--btn cds--btn--primary">
+            {loading ? 'Processing...' : (employeeToEdit ? 'Save changes' : 'Enroll member')}
+          </button>
+        </div>
       </div>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: -1 }} onClick={onClose}></div>
     </div>
   );
 };

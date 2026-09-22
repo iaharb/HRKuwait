@@ -6,7 +6,8 @@ import { ThemeProvider } from './components/ThemeContext.tsx';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { resources } from './translations.ts';
-import './styles/index.css'; // Added local css import
+import './styles/index.css'; 
+import './styles/carbon-v11.css'; 
 
 import { BrowserRouter } from 'react-router-dom';
 

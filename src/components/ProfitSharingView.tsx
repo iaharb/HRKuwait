@@ -179,64 +179,62 @@ const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user, compactMode
     const isFinanceOrHR = ['HR', 'HR Manager', 'Payroll Manager', 'Admin'].includes(user.role);
 
     return (
-        <div className={`${compactMode ? 'p-4 space-y-4' : 'p-8 space-y-8'} animate-fade-in text-start pb-20`}>
+        <div className="cds--registry-view" style={{ padding: compactMode ? '0' : 'var(--cds-spacing-05)', animation: 'fade-in 0.8s ease', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-07)' }}>
             {/* Header section... */}
-            <div className={`flex flex-col md:flex-row justify-between items-center bg-slate-900 ${compactMode ? 'p-6' : 'p-10'} rounded-[32px] border border-slate-800 shadow-2xl relative overflow-hidden group`}>
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 via-transparent to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
-                <div className="relative z-10">
-                    <h2 className={`${compactMode ? 'text-xl' : 'text-3xl'} font-black text-white tracking-tight flex items-center gap-3`}>
-                        <span className={compactMode ? 'text-2xl' : 'text-4xl'}>💰</span> Profit Sharing & Distributions
+            <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-interactive-01)', background: '#161616', color: '#f4f4f4', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', '@media (min-width: 768px)': { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' } } as any}>
+                <div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#f4f4f4', display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-04)' }}>
+                        <span style={{ color: '#4589ff' }}>🖩</span> Profit Sharing & Distributions
                     </h2>
-                    <p className={`font-bold text-slate-400 mt-2 uppercase ${compactMode ? 'text-[10px]' : 'text-xs'} tracking-[0.2em]`}>Corporate Stewardship & Reward Index</p>
+                    <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#c6c6c6', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 'var(--cds-spacing-03)' }}>Corporate Stewardship & Reward Index</p>
                 </div>
-                <div className="relative z-10 flex gap-4">
-                    <div className={`${compactMode ? 'p-3' : 'p-5'} bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md`}>
-                        <p className={`text-indigo-300 font-extrabold uppercase ${compactMode ? 'text-[8px]' : 'text-[10px]'} tracking-widest mb-1`}>Current Cycle</p>
-                        <p className={`text-white font-black ${compactMode ? 'text-sm' : 'text-xl'}`}>{periodName}</p>
+                <div>
+                    <div style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-strong)', background: 'rgba(255,255,255,0.05)', display: 'inline-block' }}>
+                        <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#4589ff', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Current Cycle</p>
+                        <p style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'monospace', color: '#fff' }}>{periodName}</p>
                     </div>
                 </div>
             </div>
 
             {/* Finance Input Panel */}
             {(['Admin', 'HR Manager', 'Executive'].includes(user.role)) && (
-                <div className={`bg-white ${compactMode ? 'p-5' : 'p-10'} rounded-[32px] border border-slate-200 shadow-xl relative overflow-hidden`}>
-                    <div className={`absolute top-0 right-0 ${compactMode ? 'p-4 text-3xl' : 'p-8 text-5xl'} opacity-[0.03] pointer-events-none`}>🏦</div>
-                    <h3 className={`${compactMode ? 'text-sm' : 'text-lg'} font-black text-slate-900 ${compactMode ? 'mb-4' : 'mb-6'} uppercase tracking-widest text-indigo-600`}>Finance Recommendation Box</h3>
+                <div className="cds--tile" style={{ padding: 'var(--cds-spacing-06)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Finance Recommendation Box</h3>
 
-                    <div className={`grid grid-cols-1 md:grid-cols-5 ${compactMode ? 'gap-3' : 'gap-6'}`}>
-                        <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Period Mark</label>
-                            <input type="text" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl font-mono text-center font-bold text-slate-700`} value={periodName} onChange={e => setPeriodName(e.target.value)} />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--cds-spacing-05)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Period Mark</label>
+                            <input type="text" style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-text-primary)', fontFamily: 'monospace', textAlign: 'center' }} value={periodName} onChange={e => setPeriodName(e.target.value)} />
                         </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Profit (KWD)</label>
-                            <input type="number" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-emerald-50/50 border border-emerald-200 rounded-xl font-bold text-emerald-700 text-right`} placeholder="0.000" value={totalProfit} onChange={e => setTotalProfit(Number(e.target.value))} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Net Profit (KWD)</label>
+                            <input type="number" style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-interactive-01)', fontFamily: 'monospace', textAlign: 'right', fontWeight: 700 }} placeholder="0.000" value={totalProfit} onChange={e => setTotalProfit(Number(e.target.value))} />
                         </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bonus Pool %</label>
-                            <input type="number" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-center font-bold`} min="0" max="100" placeholder="%" value={poolPct} onChange={e => setPoolPct(Number(e.target.value))} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Bonus Pool %</label>
+                            <input type="number" style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-text-primary)', fontFamily: 'monospace', textAlign: 'center' }} min="0" max="100" placeholder="%" value={poolPct} onChange={e => setPoolPct(Number(e.target.value))} />
                         </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Methodology</label>
-                            <select className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700`} value={distMethod} onChange={e => setDistMethod(e.target.value as any)}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Methodology</label>
+                            <select style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-text-primary)' }} value={distMethod} onChange={e => setDistMethod(e.target.value as any)}>
                                 <option value="EQUAL_SPLIT">Equal Split</option>
                                 <option value="PRO_RATA_SALARY">Pro-Rata by Salary</option>
                             </select>
                         </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Eligibility Cut-Off</label>
-                            <input type="date" className={`w-full ${compactMode ? 'px-3 py-1.5 text-xs' : 'px-4 py-3'} bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700`} value={cutoffDate} onChange={e => setCutoffDate(e.target.value)} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-03)' }}>
+                            <label style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Eligibility Cut-Off</label>
+                            <input type="date" style={{ padding: 'var(--cds-spacing-04)', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-background)', color: 'var(--cds-text-primary)', fontFamily: 'monospace' }} value={cutoffDate} onChange={e => setCutoffDate(e.target.value)} />
                         </div>
                     </div>
 
-                    <div className="mt-8 flex justify-between items-end border-t border-slate-200 pt-6">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--cds-border-subtle)', paddingTop: 'var(--cds-spacing-05)', marginTop: 'var(--cds-spacing-05)' }}>
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recommended Bonus Pool Target</p>
-                            <p className="text-3xl font-black text-slate-900 mt-1">
-                                {totalProfit && poolPct ? ((Number(totalProfit) * Number(poolPct)) / 100).toLocaleString() : '0.000'} <span className="text-xl text-slate-300">KWD</span>
+                            <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Recommended Bonus Pool Target</p>
+                            <p style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>
+                                {totalProfit && poolPct ? ((Number(totalProfit) * Number(poolPct)) / 100).toLocaleString() : '0.000'} <span style={{ fontSize: '1rem', color: 'var(--cds-text-secondary)' }}>KWD</span>
                             </p>
                         </div>
-                        <button onClick={handleProposePool} className="px-8 py-4 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 active:scale-95">
+                        <button onClick={handleProposePool} className="cds--btn cds--btn--primary" style={{ fontFamily: 'monospace' }}>
                             Propose to Executives
                         </button>
                     </div>
@@ -244,55 +242,57 @@ const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user, compactMode
             )}
 
             {/* Pools Grid */}
-            <h3 className={`${compactMode ? 'text-lg mt-6' : 'text-xl mt-12'} font-black text-slate-800 mb-4`}>Bonus Cycles Registry</h3>
-            <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-4' : 'gap-8'}`}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Bonus Cycles Registry</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 'var(--cds-spacing-06)' }}>
                 {pools.map(pool => (
-                    <div key={pool.id} className={`${compactMode ? 'p-5' : 'p-8'} rounded-[32px] border transition-all cursor-pointer group ${selectedPoolId === pool.id ? 'bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-600/20 text-white' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-lg'}`} onClick={() => handleSelectPool(pool.id)}>
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h4 className={`text-2xl font-black font-mono tracking-tighter ${selectedPoolId === pool.id ? 'text-white' : 'text-slate-900'}`}>{pool.periodName} Profit Run</h4>
-                                <p className={`text-xs mt-1 font-bold ${selectedPoolId === pool.id ? 'text-indigo-200' : 'text-slate-400'}`}>Initiated by: {pool.creatorName || 'Finance'}</p>
+                    <div key={pool.id} className={`cds--tile ${selectedPoolId === pool.id ? 'cds--tile--is-selected' : ''}`} style={{ padding: '0', border: selectedPoolId === pool.id ? '1px solid var(--cds-interactive-01)' : '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', cursor: 'pointer', display: 'flex', flexDirection: 'column' }} onClick={() => handleSelectPool(pool.id)}>
+                        <div style={{ padding: 'var(--cds-spacing-06)', display: 'flex', flexDirection: 'column', gap: 'var(--cds-spacing-05)', flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h4 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{pool.periodName} Profit Run</h4>
+                                    <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: '4px' }}>Initiated by: {pool.creatorName || 'Finance'}</p>
+                                </div>
+                                <div style={{ padding: '2px 8px', fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', textTransform: 'uppercase', background: pool.status === 'EXECUTIVE_APPROVED' ? '#d0e2ff' : pool.status === 'HR_PROCESSED' ? '#defbe6' : 'var(--cds-layer-active-01)', color: pool.status === 'EXECUTIVE_APPROVED' ? '#0043ce' : pool.status === 'HR_PROCESSED' ? '#044317' : 'var(--cds-text-primary)' }}>
+                                    {pool.status.replace(/_/g, ' ')}
+                                </div>
                             </div>
-                            <div className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${selectedPoolId === pool.id ? 'bg-white/20 text-white' : pool.status === 'EXECUTIVE_APPROVED' ? 'bg-indigo-50 text-indigo-600' : pool.status === 'HR_PROCESSED' ? 'bg-blue-50 text-blue-500' : 'bg-slate-100 text-slate-500'}`}>
-                                {pool.status.replace(/_/g, ' ')}
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-4 mb-8">
-                            <div>
-                                <p className={`text-[10px] font-black uppercase tracking-widest ${selectedPoolId === pool.id ? 'text-indigo-300' : 'text-slate-400'}`}>Reported Gross Net</p>
-                                <p className="text-lg font-black">{pool.totalNetProfit.toLocaleString()} <span className="text-xs">KWD</span></p>
-                            </div>
-                            <div>
-                                <p className={`text-[10px] font-black uppercase tracking-widest ${selectedPoolId === pool.id ? 'text-indigo-300' : 'text-slate-400'}`}>Approved Target Pool</p>
-                                <p className="text-lg font-black">{pool.approvedPoolAmount.toLocaleString()} <span className="text-xs">KWD</span> <span className="text-[10px] text-emerald-400">({pool.recommendedPoolPct}%)</span></p>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 'var(--cds-spacing-05)' }}>
+                                <div>
+                                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Reported Gross Net</p>
+                                    <p style={{ fontSize: '1.125rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{pool.totalNetProfit.toLocaleString()} <span style={{ fontSize: '0.75rem' }}>KWD</span></p>
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Approved Target Pool</p>
+                                    <p style={{ fontSize: '1.125rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{pool.approvedPoolAmount.toLocaleString()} <span style={{ fontSize: '0.75rem' }}>KWD</span> <span style={{ fontSize: '0.625rem', color: '#24a148', marginLeft: '4px' }}>({pool.recommendedPoolPct}%)</span></p>
+                                </div>
                             </div>
                         </div>
 
                         {/* Action Buttons purely based on state & role */}
-                        <div className="pt-6 border-t border-white/10 flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ padding: 'var(--cds-spacing-05)', borderTop: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                             {pool.status === 'DRAFT' && ['Executive', 'Admin'].includes(user.role) && (
-                                <button onClick={() => handleExecutiveApproval(pool.id)} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedPoolId === pool.id ? 'bg-white text-indigo-600 hover:bg-slate-100' : 'bg-slate-900 text-white hover:bg-indigo-600'}`}>
+                                <button onClick={() => handleExecutiveApproval(pool.id)} className="cds--btn cds--btn--tertiary" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
                                     Sign & Accrue
-                                </button> // Signs it, creates 210500 vs 510400 entries
-                            )}
-                            {pool.status === 'EXECUTIVE_APPROVED' && ['HR', 'HR Manager', 'Admin'].includes(user.role) && (
-                                <button onClick={() => handleRunDistribution(pool)} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedPoolId === pool.id ? 'bg-white text-indigo-600 hover:bg-slate-100' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                                    Run Distribution Engine
                                 </button>
                             )}
+                            {pool.status === 'EXECUTIVE_APPROVED' && ['HR', 'HR Manager', 'Admin'].includes(user.role) && (
+                                <button onClick={() => handleRunDistribution(pool)} className="cds--btn cds--btn--primary" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                    Run Dist. Engine
+                                </button> // Runs the logic to create variable pay entries
+                            )}
                             {pool.status === 'HR_PROCESSED' && (
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${selectedPoolId === pool.id ? 'text-emerald-300' : 'text-emerald-600'}`}>
-                                        {pool.totalDistributed.toLocaleString()} KWD successfully injected into VarComp
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--cds-spacing-03)' }}>
+                                    <span style={{ width: '8px', height: '8px', background: '#24a148', display: 'block' }}></span>
+                                    <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#044317', textTransform: 'uppercase' }}>
+                                        {pool.totalDistributed.toLocaleString()} KWD injected
                                     </span>
                                 </div>
                             )}
 
-                            <div className="text-right">
-                                <p className={`text-[9px] font-black uppercase tracking-widest ${selectedPoolId === pool.id ? 'text-indigo-300' : 'text-slate-400'}`}>Distribution Standard</p>
-                                <p className={`text-xs font-bold ${selectedPoolId === pool.id ? 'text-white' : 'text-slate-700'}`}>{pool.distributionMethod.replace('_', ' ')}</p>
+                            <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', textTransform: 'uppercase' }}>Distribution Standard</p>
+                                <p style={{ fontSize: '0.75rem', fontWeight: 600, fontFamily: 'monospace', color: 'var(--cds-text-primary)' }}>{pool.distributionMethod.replace('_', ' ')}</p>
                             </div>
                         </div>
                     </div>
@@ -301,50 +301,48 @@ const ProfitSharingView: React.FC<ProfitSharingViewProps> = ({ user, compactMode
 
             {/* Selected Pool Allocations Viewer */}
             {selectedPoolId && activePoolAllocations.length > 0 && (
-                <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm mt-8 animate-fade-in">
-                    <div className="flex justify-between items-end mb-8">
+                <div className="cds--tile" style={{ padding: '0', border: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-01)', marginTop: 'var(--cds-spacing-07)', animation: 'fade-in 0.5s ease', overflow: 'hidden' }}>
+                    <div style={{ padding: 'var(--cds-spacing-05)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--cds-border-subtle)', background: 'var(--cds-layer-02)' }}>
                         <div>
-                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Distribution Audit Sub-Ledger</h3>
-                            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>Distribution Audit Sub-Ledger</h3>
+                            <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-secondary)', marginTop: '4px', textTransform: 'uppercase' }}>
                                 {activePoolAllocations.length} Evaluated Records
                             </p>
                         </div>
-                        <div className="text-right border border-emerald-100 bg-emerald-50 rounded-xl px-6 py-4">
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Payout Booked</p>
-                            <p className="text-2xl font-black text-emerald-700">{activePoolAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0).toLocaleString()} <span className="text-sm">KWD</span></p>
+                        <div style={{ border: '1px solid #24a148', background: '#defbe6', padding: 'var(--cds-spacing-04)' }}>
+                            <p style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: '#044317', textTransform: 'uppercase', marginBottom: '4px' }}>Total Payout Booked</p>
+                            <p style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'monospace', color: '#044317' }}>{activePoolAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0).toLocaleString()} <span style={{ fontSize: '0.875rem' }}>KWD</span></p>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-100">
-                                    <th className="p-4 rounded-tl-xl px-6">Empl. Record</th>
-                                    <th className="p-4 px-6">Department</th>
-                                    <th className="p-4 px-6">Award Date</th>
-                                    <th className="p-4 px-6 text-right">Granted Value (KWD)</th>
+                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                        <thead style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cds-text-secondary)', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                            <tr>
+                                <th style={{ padding: 'var(--cds-spacing-04)' }}>Empl. Record</th>
+                                <th style={{ padding: 'var(--cds-spacing-04)' }}>Department</th>
+                                <th style={{ padding: 'var(--cds-spacing-04)' }}>Award Date</th>
+                                <th style={{ padding: 'var(--cds-spacing-04)', textAlign: 'right' }}>Granted Value (KWD)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {activePoolAllocations.map((a, i) => (
+                                <tr key={a.id} style={{ borderBottom: i < activePoolAllocations.length - 1 ? '1px solid var(--cds-border-subtle)' : 'none' }}>
+                                    <td style={{ padding: 'var(--cds-spacing-04)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--cds-text-primary)' }}>
+                                        {a.employeeName}
+                                    </td>
+                                    <td style={{ padding: 'var(--cds-spacing-04)' }}>
+                                        <span style={{ fontSize: '0.625rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', background: 'var(--cds-layer-active-01)', padding: '2px 8px' }}>{a.department}</span>
+                                    </td>
+                                    <td style={{ padding: 'var(--cds-spacing-04)', fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--cds-text-secondary)' }}>
+                                        {new Date(a.createdAt || '').toLocaleDateString('en-GB')}
+                                    </td>
+                                    <td style={{ padding: 'var(--cds-spacing-04)', fontSize: '1.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--cds-text-primary)', textAlign: 'right' }}>
+                                        {a.allocatedAmount.toFixed(3)}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {activePoolAllocations.map(a => (
-                                    <tr key={a.id} className="hover:bg-slate-50">
-                                        <td className="p-4 px-6">
-                                            <p className="font-bold text-slate-900">{a.employeeName}</p>
-                                        </td>
-                                        <td className="p-4 px-6">
-                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-md font-bold text-xs">{a.department}</span>
-                                        </td>
-                                        <td className="p-4 px-6 font-mono text-xs text-slate-500">
-                                            {new Date(a.createdAt || '').toLocaleDateString('en-GB')}
-                                        </td>
-                                        <td className="p-4 px-6 text-right">
-                                            <span className="text-lg font-black text-slate-800">{a.allocatedAmount.toFixed(3)}</span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 

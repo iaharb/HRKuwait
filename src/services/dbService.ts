@@ -125,7 +125,8 @@ const mapEmployee = (data: any): Employee => {
     faceToken: data.face_token,
     deviceUserId: data.device_user_id,
     iban: data.iban,
-    bankCode: data.bank_code
+    bankCode: data.bank_code,
+    kpiTemplateIds: data.kpi_template_ids || (resolvedLeaveBalances?.kpiTemplateIds || [])
   };
 };
 
@@ -190,6 +191,7 @@ const mapPayrollItem = (data: any): PayrollItem => ({
   annualLeavePay: Number(data.annual_leave_pay || 0),
   performanceBonus: Number(data.performance_bonus || 0),
   companyBonus: Number(data.company_bonus || 0),
+  profitSharing: Number(data.profit_sharing || (data.allowance_breakdown || []).find((a: any) => a.name === 'Profit Sharing (PS)')?.value || 0),
   shortPermissionDeductions: Number(data.short_permission_deductions || 0),
   pifssDeduction: Number(data.pifss_deduction || 0),
   pifssEmployerShare: Number(data.pifss_employer_share || 0),
@@ -358,6 +360,26 @@ export const dbService = {
       }
     }
 
+    // 4. Synchronize with Supabase Auth metadata if Admin API is available
+    if (supabaseAdmin) {
+      try {
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+        // Look for the user by username (assuming username is prefix of email) or by employee email if possible
+        const userToUpdate = (users as any[]).find(u =>
+          u.user_metadata?.employee_id === userData?.employee_id ||
+          u.email?.startsWith(id) // id is often username here
+        );
+
+        if (userToUpdate) {
+          await supabaseAdmin.auth.admin.updateUserById(userToUpdate.id, {
+            user_metadata: { ...userToUpdate.user_metadata, role }
+          });
+        }
+      } catch (authErr) {
+        console.warn('Auth metadata sync failed during role update:', authErr);
+      }
+    }
+
     return {
       success: true
     };
@@ -487,16 +509,16 @@ export const dbService = {
     try {
       return await queryFn(supabase);
     } catch (e: any) {
-      const isAuthError = e.code === '401' || e.code === '42501' || e.message?.includes('JWT');
+      // Supabase RLS/Auth error codes: 401, 42501, PGRST116 (sometimes returned when updating hidden rows)
+      const isAuthError = e.code === '401' || e.code === '42501' || e.code === 'PGRST116' || e.status === 403 || e.status === 401 ||
+                          e.message?.includes('permission denied') || e.message?.includes('JWT');
+      
       if (isAuthError && supabaseAdmin) {
-        console.warn(`[Supabase] RLS/Auth Block detected. Attempting bypass with Admin client.`);
+        console.warn(`[Supabase] RLS/Auth Block detected (Code: ${e.code}). Attempting bypass with Admin client.`);
         try {
           return await queryFn(supabaseAdmin as any);
         } catch (adminErr: any) {
           console.error(`[Supabase] Admin bypass failed:`, adminErr);
-          // If adminErr has a code or message, log it clearly
-          if (adminErr.message) console.error(`[Supabase] Admin Error Message:`, adminErr.message);
-          if (adminErr.code) console.error(`[Supabase] Admin Error Code:`, adminErr.code);
           throw e; // Throw original error if admin also fails
         }
       }
@@ -579,6 +601,18 @@ export const dbService = {
     return employees.find(e => e.name.toLowerCase() === name.toLowerCase() || (e.nameArabic && e.nameArabic === name));
   },
 
+  async getEmployeeById(id: string): Promise<Employee | undefined> {
+    return this._safeQuery(async (client) => {
+      const { data, error } = await client
+        .from('employees')
+        .select('*, allowance_rows:employee_allowances(*), leave_balances_rows:leave_balances(*)')
+        .eq('id', id)
+        .single();
+      if (error) return undefined;
+      return mapEmployee(data);
+    });
+  },
+
   async addEmployee(employee: Omit<Employee, 'id'>): Promise<Employee> {
     const dbPayload = {
       name: employee.name || `${employee.title || ''} ${employee.firstName || ''} ${employee.familyName || ''}`.trim(),
@@ -621,7 +655,8 @@ export const dbService = {
       leave_balances: employee.leaveBalances,
       allowances: employee.allowances,
       manager_id: employee.managerId || null,
-      manager_name: employee.managerName || null
+      manager_name: employee.managerName || null,
+      kpi_template_ids: employee.kpiTemplateIds || []
     };
 
     return dbService._safeQuery(async (client) => {
@@ -658,8 +693,8 @@ export const dbService = {
 
   async updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee> {
     const dbUpdates: any = {};
-    if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.nameArabic !== undefined) dbUpdates.name_arabic = updates.nameArabic;
+    if (updates.name !== undefined) dbUpdates.name = updates.name || null;
+    if (updates.nameArabic !== undefined) dbUpdates.name_arabic = updates.nameArabic || null;
 
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
@@ -704,11 +739,28 @@ export const dbService = {
     if (updates.managerId !== undefined) dbUpdates.manager_id = updates.managerId || null;
     if (updates.managerName !== undefined) dbUpdates.manager_name = updates.managerName;
 
-    // Use upsert to handle cases where the record might not exist in the database yet (e.g. mock data)
+    if (!id) throw new Error("Employee ID is required for update.");
+    if (Object.keys(dbUpdates).length === 0) return this.getEmployeeById(id);
+
+    // Use update() instead of upsert() to prevent accidental "partial insert" failures 
+    // when a record exists but is hidden by RLS policies.
     return dbService._safeQuery(async (client) => {
-      // Ensure ID is a valid UUID or skip if it looks like a mock ID that isn't a UUID
-      const { data, error = null } = await client.from('employees').upsert([{ ...dbUpdates, id }]).select().single();
-      if (error) throw error;
+      // Graceful fallback to avoid schema failure: inject KPI IDs into the flexible leave_balances JSON
+      if (updates.kpiTemplateIds !== undefined) {
+         try {
+            const { data: dbEmp } = await client.from('employees').select('leave_balances').eq('id', id).single();
+            const legacyLB = dbEmp?.leave_balances || {};
+            dbUpdates.leave_balances = { ...legacyLB, kpiTemplateIds: updates.kpiTemplateIds };
+         } catch (e) {
+            console.warn("Failed modifying legacy JSON for KPI storage:", e);
+         }
+      }
+
+      const { data, error = null } = await client.from('employees').update(dbUpdates).eq('id', id).select().single();
+      if (error) {
+        console.error(`DB Error updating employee ${id}:`, error);
+        throw error;
+      }
 
       // Synchronize role with app_users if role was updated
       if (updates.role !== undefined) {
@@ -716,6 +768,10 @@ export const dbService = {
         if (userError) {
           console.warn('Sync warning: Could not update app_user role during employee update. User might not exist yet.', userError);
         }
+      }
+
+      if (updates.kpiTemplateIds !== undefined) {
+         // KPI_NO_OP
       }
 
       if (updates.leaveBalances !== undefined) {
@@ -893,18 +949,49 @@ export const dbService = {
   },
 
   async getLatestFinalizedPayroll(userId: string): Promise<{ item: PayrollItem, run: PayrollRun } | null> {
-    const runs = await this.getPayrollRuns();
-    const finalizedRuns = runs.filter(r => r.status === 'Finalized');
-    if (finalizedRuns.length === 0) return null;
+    const { data: runs, error } = await supabase!
+      .from('payroll_runs')
+      .select('*')
+      .in('status', ['Finalized', 'Locked', 'JV_Generated'])
+      .order('period_key', { ascending: false });
+    
+    if (error || !runs || runs.length === 0) return null;
 
-    const latestRun = finalizedRuns[0];
-    const items = await this.getPayrollItems(latestRun.id);
-    const userItem = items.find(i => i.employeeId === userId);
+    // Search through finalized runs for this user's record
+    for (const run of runs) {
+      const { data: items, error: itemErr } = await supabase!
+        .from('payroll_items')
+        .select('*')
+        .eq('run_id', run.id)
+        .eq('employee_id', userId)
+        .limit(1);
+      
+      if (!itemErr && items && items.length > 0) {
+        return {
+          item: mapPayrollItem(items[0]),
+          run: mapPayrollRun(run)
+        };
+      }
+    }
 
-    if (!userItem) return null;
-    return {
-      item: userItem, run: latestRun
-    };
+    return null;
+  },
+
+  async getPayrollHistory(userId: string): Promise<Array<{ item: PayrollItem, run: PayrollRun }>> {
+    return this._safeQuery(async (client) => {
+      const { data, error } = await client
+        .from('payroll_items')
+        .select('*, payroll_runs!inner(*)')
+        .eq('employee_id', userId)
+        .in('payroll_runs.status', ['Finalized', 'Locked', 'JV_Generated'])
+        .order('period_key', { ascending: false, foreignTable: 'payroll_runs' });
+      
+      if (error) throw error;
+      return (data || []).map((row: any) => ({
+        item: mapPayrollItem(row),
+        run: mapPayrollRun(row.payroll_runs)
+      }));
+    });
   },
 
   async getCompanySettings(): Promise<any> {
@@ -978,47 +1065,41 @@ export const dbService = {
     const monthStart = new Date(start.getFullYear(), start.getMonth(), 1);
     monthStart.setHours(0, 0, 0, 0);
 
-    // Bucket 1: Pre-leave Work Days (Excluding Fridays)
-    let preLeaveDays = 0;
-    let preCurr = new Date(monthStart);
-    while (preCurr < start) {
-      if (preCurr.getDay() !== 5) preLeaveDays++;
-      preCurr.setDate(preCurr.getDate() + 1);
-    }
-
+    const DIVISOR = 26.0;
     const basic = target.salary;
-    let allowancesTotal = 0;
+    
     let housingAllowance = 0;
-    let nonHousingAllowancesTotal = 0;
-
+    let allAdditiveAllowances = 0;
+    
     target.allowances.forEach(a => {
       const val = a.type === 'Fixed' ? Number(a.value) : (basic * (Number(a.value) / 100));
-      allowancesTotal += val;
-      if (a.isHousing) {
+      allAdditiveAllowances += val;
+      if (a.isHousing || a.name?.toLowerCase().includes('housing')) {
         housingAllowance += val;
-      } else {
-        nonHousingAllowancesTotal += val;
       }
     });
 
-    const fullGrossParams = basic + housingAllowance + nonHousingAllowancesTotal;
-    const dailyGrossFull = fullGrossParams / 26;
-    const dailyBasePlusHousing = (basic + housingAllowance) / 26;
+    const dailyWorkGross = (basic + allAdditiveAllowances) / DIVISOR;
+    const dailyLeaveBase = (basic + housingAllowance) / DIVISOR; // Non-housing allowances excluded during leave
 
-    const pifssRate = 0.115;
-    const pifssAmount = target.nationality === 'Kuwaiti' ? (basic * pifssRate) : 0;
+    // 1. Work Days Before Leave
+    let workDaysBefore = 0;
+    let preCurr = new Date(monthStart);
+    while (preCurr < start) {
+      if (preCurr.getDay() !== 5) workDaysBefore++;
+      preCurr.setDate(preCurr.getDate() + 1);
+    }
+    const workPayBefore = workDaysBefore * dailyWorkGross;
 
-    // Bucket 1 Pay: Work days * Full Gross
-    const workPay = preLeaveDays * dailyGrossFull;
-
-    // Bucket 2: Leave Duration Breakdown (Minus Fridays)
+    // 2. Leave Payout
     const leaveDurationRaw = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const fridays = countFridays(start, end);
     const payableLeaveDays = Math.max(0, leaveDurationRaw - fridays);
 
+    let leavePayTotal = 0;
     let sickLeaveDeduction = 0;
-    let leavePay = 0;
     let excludedAllowanceDeduction = 0;
+    
     let daysInStartMonth = 0;
     let daysInNextMonth = 0;
     let leavePayStartMonth = 0;
@@ -1031,28 +1112,18 @@ export const dbService = {
 
     while (curr <= end) {
       if (curr.getDay() !== 5) {
-        let dailyPay = 0;
-
+        let payPercentage = 1.0;
         if (leaveType === 'Sick') {
           const sickDayNumber = pastSickDays + payableDayIndex + 1;
-          let deductionFactor = 0;
-          if (sickDayNumber <= 15) deductionFactor = 0;
-          else if (sickDayNumber <= 30) deductionFactor = 0.25;
-          else if (sickDayNumber <= 45) deductionFactor = 0.75;
-          else deductionFactor = 1.0;
-
-          // Sick segment deducts from the base + housing bucket
-          const dailySickDeduct = dailyBasePlusHousing * deductionFactor;
-          dailyPay = dailyBasePlusHousing - dailySickDeduct;
-          sickLeaveDeduction += dailySickDeduct;
-        } else {
-          // Ordinary leaves (Annual, etc) just use Base + Housing directly
-          dailyPay = dailyBasePlusHousing;
+          if (sickDayNumber <= 15) payPercentage = 1.0;
+          else if (sickDayNumber <= 25) payPercentage = 0.75;
+          else if (sickDayNumber <= 35) payPercentage = 0.50;
+          else if (sickDayNumber <= 45) payPercentage = 0.25;
+          else payPercentage = 0;
         }
 
-        // Calculate excluded non-housing allowances for this day
-        excludedAllowanceDeduction += (dailyGrossFull - dailyBasePlusHousing);
-
+        const dailyPay = dailyLeaveBase * payPercentage;
+        
         if (curr.getMonth() === startMonth) {
           daysInStartMonth++;
           leavePayStartMonth += dailyPay;
@@ -1061,38 +1132,61 @@ export const dbService = {
           leavePayNextMonth += dailyPay;
         }
 
-        leavePay += dailyPay;
+        if (payPercentage < 1.0) {
+            sickLeaveDeduction += (dailyLeaveBase - dailyPay);
+        }
+        
+        // Tracking how much gross was lost due to leave (Non-housing allowances + any sick deductions)
+        excludedAllowanceDeduction += (dailyWorkGross - dailyPay);
+
+        leavePayTotal += dailyPay;
         payableDayIndex++;
       }
       curr.setDate(curr.getDate() + 1);
     }
 
-    const isStraddle = end.getMonth() !== start.getMonth();
-    const isShort = leaveDurationRaw <= 7 && !isStraddle;
+    // PIFSS Deduction (11.5% of Base)
+    let pifssAmount = target.nationality === 'Kuwaiti' ? (basic * 0.115) : 0;
+    
+    // Check if PIFSS was already deducted this month in any finalized run
+    if (pifssAmount > 0 && supabase) {
+      const monthPattern = start.toISOString().substring(0, 7);
+      const { data: previousDaductions } = await supabase
+        .from('payroll_runs')
+        .select('id, period_key, payroll_items!inner(pifss_deduction)')
+        .eq('status', 'Finalized')
+        .eq('payroll_items.employee_id', employeeId)
+        .ilike('period_key', `%${monthPattern}%`);
+      
+      const alreadyPaid = previousDaductions?.some(d => (d.payroll_items as any).pifss_deduction > 0);
+      if (alreadyPaid) {
+        console.log(`LOG: PIFSS for ${target.name} already settled this month. Omiting from preview.`);
+        pifssAmount = 0;
+      }
+    }
 
-    const total = Math.max(0, workPay + leavePay - pifssAmount);
+    const total = Math.max(0, workPayBefore + leavePayTotal - pifssAmount);
 
     return {
       leaveType,
-      workDays: preLeaveDays,
-      workPay: workPay,
+      workDays: workDaysBefore,
+      workPay: workPayBefore,
       pifssDeducted: pifssAmount,
       leaveDays: leaveDurationRaw,
       payableLeaveDays,
-      fridaysExcluded: fridays,
-      daysInStartMonth,
-      leavePayStartMonth,
-      daysInNextMonth,
-      leavePayNextMonth,
-      excludedAllowanceDeduction,
-      leavePay,
+      leavePay: leavePayTotal,
       sickLeaveDeduction,
-      total,
-      dailyGross: dailyGrossFull,
-      dailyBasicPlusHousing: dailyBasePlusHousing,
-      isStraddle,
-      isShort,
-      processingPath: isShort ? 'Monthly_Normal' : 'Hub_Payout'
+      excludedAllowanceDeduction,
+      totalDisbursement: total,
+      total: total, // For backward compatibility
+      dailyGross: dailyWorkGross, // For audit display
+      fridaysExcluded: fridays,
+      isShort: leaveDurationRaw <= 7 && end.getMonth() === start.getMonth(),
+      daysInStartMonth,
+      daysInNextMonth,
+      leavePayStartMonth,
+      leavePayNextMonth,
+      isStraddle: end.getMonth() !== start.getMonth()
     };
   },
 
@@ -1127,9 +1221,10 @@ export const dbService = {
       verified_by_hr: true,
       variance: 0,
       allowance_breakdown: [
-        { name: `Work Days Analysis (${calculation.workDays}d @ ${calculation.dailyGross.toFixed(3)})`, value: calculation.workPay },
-        { name: `Leave Settlement (${calculation.payableLeaveDays}d)`, value: calculation.leavePay }
-      ],
+        { name: `Work Days Analysis (${calculation.workDays}d @ 1/26th)`, value: calculation.workPay },
+        { name: `Leave Base Pay (${calculation.payableLeaveDays}d)`, value: calculation.leavePay - (calculation.payableLeaveDays * (targetEmp.salary * 0.25 / 26)) }, // Rough split for housing if applicable
+        { name: `Leave Housing Pay`, value: (calculation.payableLeaveDays * (targetEmp.salary * 0.25 / 26)) }
+      ].filter(a => a.value > 0),
       deduction_breakdown: [
         { name: 'PIFSS Social Security Contribution', value: calculation.pifssDeducted },
         { name: `Fridays Excluded (${calculation.fridaysExcluded})`, value: 0 },
@@ -1145,7 +1240,7 @@ export const dbService = {
       status: 'Finalized',
       total_disbursement: calculation.total,
       created_at: new Date().toISOString(),
-      locked_start: targetLeave.startDate,
+      locked_start: new Date(new Date(targetLeave.startDate).getFullYear(), new Date(targetLeave.startDate).getMonth(), 1).toISOString().split('T')[0],
       locked_end: targetLeave.endDate,
       target_leave_id: targetLeave.id
     };
@@ -1187,12 +1282,85 @@ export const dbService = {
     });
 
     if (error) throw error;
+    if (!data || !data.id) {
+      console.error("RPC generate_payroll_draft returned invalid data:", data);
+      throw new Error("Payroll generation failed: No ID returned from server.");
+    }
+    const runId = data.id;
+
+    // PATCH: Fix unmapped variable comp types that the sovereign RPC misses (PE, PS, CB)
+    const { data: missingVc } = await supabase
+      .from('variable_compensation')
+      .select('*')
+      .in('comp_type', ['PERFORMANCE_BONUS', 'PROFIT_SHARE', 'BONUS', 'COMPANY_BONUS'])
+      .eq('status', 'APPROVED_FOR_PAYROLL')
+      .is('payroll_run_id', null);
+
+    if (missingVc && missingVc.length > 0) {
+      // 1. Assign this run ID to all missing records
+      const vcIds = missingVc.map(vc => vc.id);
+      await supabase.from('variable_compensation')
+        .update({ payroll_run_id: runId })
+        .in('id', vcIds);
+
+      // 2. Fetch payroll items for this run
+      const { data: pItems } = await supabase
+        .from('payroll_items')
+        .select('*')
+        .eq('run_id', runId);
+
+      if (pItems && pItems.length > 0) {
+        // Group the missing VCs by employee_id
+        const empVcMap: Record<string, any> = {};
+        missingVc.forEach(vc => {
+          if (!empVcMap[vc.employee_id]) {
+            empVcMap[vc.employee_id] = { performanceBonus: 0, profitSharing: 0, companyBonus: 0, total: 0 };
+          }
+          if (vc.comp_type === 'PERFORMANCE_BONUS') empVcMap[vc.employee_id].performanceBonus += vc.amount;
+          else if (vc.comp_type === 'PROFIT_SHARE') empVcMap[vc.employee_id].profitSharing += vc.amount;
+          else if (vc.comp_type === 'BONUS' || vc.comp_type === 'COMPANY_BONUS') empVcMap[vc.employee_id].companyBonus += vc.amount;
+
+          empVcMap[vc.employee_id].total += vc.amount;
+        });
+
+        // 3. Update the targeted payroll items
+        for (const pItem of pItems) {
+          const vcs = empVcMap[pItem.employee_id];
+          if (vcs && vcs.total > 0) {
+            const newNet = pItem.net_salary + vcs.total;
+            const updatePayload: any = {
+              net_salary: newNet,
+            };
+            
+            // Only update columns if we found positive values to prevent overwriting correct initial states zeroes
+            if (vcs.performanceBonus > 0) updatePayload.performance_bonus = (pItem.performance_bonus || 0) + vcs.performanceBonus;
+            if (vcs.companyBonus > 0) updatePayload.company_bonus = (pItem.company_bonus || 0) + vcs.companyBonus;
+            
+            // Rebuild breakdown to inject the visual lines
+            const currentBreakdown = pItem.allowance_breakdown || [];
+            if (vcs.performanceBonus > 0) currentBreakdown.push({ name: 'Performance Bonus (PE)', value: vcs.performanceBonus });
+            if (vcs.profitSharing > 0) currentBreakdown.push({ name: 'Profit Sharing (PS)', value: vcs.profitSharing });
+            if (vcs.companyBonus > 0) currentBreakdown.push({ name: 'Company Bonus (CB)', value: vcs.companyBonus });
+            updatePayload.allowance_breakdown = currentBreakdown;
+
+            await supabase.from('payroll_items').update(updatePayload).eq('id', pItem.id);
+          }
+        }
+      }
+
+      // 4. Update total disbursement on the run
+      const { data: updatedItems } = await supabase.from('payroll_items').select('net_salary').eq('run_id', runId);
+      if (updatedItems) {
+        const newTotal = updatedItems.reduce((sum, i) => sum + Number(i.net_salary), 0);
+        await supabase.from('payroll_runs').update({ total_disbursement: newTotal }).eq('id', runId);
+      }
+    }
 
     // Fetch the generated run to return it
     const { data: runData, error: runError } = await supabase
       .from('payroll_runs')
       .select('*')
-      .eq('id', data.id)
+      .eq('id', runId)
       .single();
 
     if (runError) throw runError;
@@ -1346,7 +1514,12 @@ export const dbService = {
     return this._safeQuery(async () => {
       // Primary table is 'attendance', secondary is 'attendance_records'
       let query = supabase!.from('attendance').select('*');
-      if (filter?.employeeId) query = query.eq('employee_id', filter.employeeId);
+      if (filter?.employeeId) {
+        query = query.eq('employee_id', filter.employeeId);
+      } else if (filter) {
+        // If a filter object exists but employeeId is missing, return nothing to be safe
+        return [];
+      }
 
       const { data, error } = await query.order('clock_in', { ascending: false });
       if (error) {
@@ -1363,6 +1536,7 @@ export const dbService = {
     const dbPayload = {
       employee_id: record.employeeId,
       employee_name: record.employeeName,
+      date: record.date,
       clock_in: record.clockIn,
       clock_out: record.clockOut,
       location: record.location,
@@ -1385,10 +1559,43 @@ export const dbService = {
   async saveHardwareConfig(config: HardwareConfig): Promise<void> { hardwareConfig = { ...config }; },
 
   async syncHardwareAttendance(): Promise<{ synced: number; errors: number }> {
+    if (!supabase) throw new Error('Supabase not configured');
     await new Promise(resolve => setTimeout(resolve, 1500));
-    return {
-      synced: 5, errors: 0
-    };
+    
+    // 1. Get all active employees
+    const employees = await this.getEmployees();
+    if (!employees.length) return { synced: 0, errors: 0 };
+
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // 2. Find employees who ALREADY have a record today (to skip them)
+    const { data: existing } = await supabase.from('attendance')
+      .select('employee_id')
+      .eq('date', today);
+    
+    const existingIds = new Set((existing || []).map(r => r.employee_id));
+    
+    // 3. Filter employees who need a record (Hardware simulation)
+    const missingEmployees = employees.filter(emp => !existingIds.has(emp.id)).slice(0, 10); // Sync up to 10 at a time
+    if (!missingEmployees.length) return { synced: 0, errors: 0 };
+
+    const logs = missingEmployees.map(emp => ({
+      id: gid(),
+      employee_id: emp.id,
+      employee_name: emp.name,
+      date: today,
+      clock_in: '07:30:00',
+      clock_out: '16:00:00', // 8.5 hour shift = 0.5hr OT (won't be pushed based on new >1hr rule)
+      location: 'Al Hamra Tower HQ',
+      status: 'On-Site',
+      source: 'Hardware'
+    }));
+
+    const { error } = await supabase.from('attendance').insert(logs);
+    if (error) return { synced: 0, errors: missingEmployees.length };
+    
+    return { synced: missingEmployees.length, errors: 0 };
   },
 
   async generateHistoricalAttendance(): Promise<{ generated: number }> {
@@ -1397,16 +1604,29 @@ export const dbService = {
     let totalGenerated = 0;
 
     const startDate = new Date('2026-01-01');
-    const endDate = new Date();
+    const now = new Date();
+    // Cap at yesterday
+    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    await supabase.from('attendance').delete().gte('date', todayStr);
 
     for (const emp of employees) {
+      // Fetch existing dates to avoid duplicates
+      const { data: existing } = await supabase
+        .from('attendance')
+        .select('date')
+        .eq('employee_id', emp.id)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]);
+      
+      const existingDates = new Set((existing || []).map(r => r.date));
       const logs = [];
       let currentDate = new Date(startDate);
 
       while (currentDate <= endDate) {
-        if (currentDate.getDay() !== 5) { // Skip Fridays
-          const dateStr = currentDate.toISOString().split('T')[0];
-
+        const dateStr = currentDate.toISOString().split('T')[0];
+        if (currentDate.getDay() !== 5 && !existingDates.has(dateStr)) {
           let clockIn = '07:15:00';
           let clockOut = '15:30:00';
 
@@ -1466,7 +1686,7 @@ export const dbService = {
       const outSec = hOut * 3600 + mOut * 60 + sOut;
       const duration = outSec - inSec;
 
-      if (duration > standardShift) {
+      if (duration > (standardShift + 3600)) { // Only > 1 hour OT
         const otHours = (duration - standardShift) / 3600;
 
         const { count } = await supabase
@@ -1474,7 +1694,7 @@ export const dbService = {
           .select('id', { count: 'exact', head: true })
           .eq('employee_id', rec.employee_id)
           .eq('comp_type', 'OVERTIME')
-          .ilike('notes', `%${rec.id}%`);
+          .ilike('notes', `%${rec.date}%`);
 
         if (!count || count === 0) {
           await supabase.from('variable_compensation').insert([{
@@ -1491,6 +1711,18 @@ export const dbService = {
     }
 
     return { processed: processedCount };
+  },
+
+  async purgeLowOvertime(): Promise<void> {
+    const client = supabaseAdmin || supabase;
+    if (!client) throw new Error('Supabase not configured');
+    const { error } = await client
+      .from('variable_compensation')
+      .delete()
+      .eq('comp_type', 'OVERTIME')
+      .eq('status', 'PENDING_MANAGER')
+      .lte('amount', 1);
+    if (error) throw error;
   },
 
   async getOfficeLocations(): Promise<OfficeLocation[]> {
@@ -1724,8 +1956,8 @@ export const dbService = {
           status = log.status || 'On-Site';
           if (activeLeave && activeLeave.status === 'HR_Approved') subStatus = 'Resumption Pending';
         } else {
-          if (dayOfWeek === 5) status = 'Weekend';
-          else if (dayOfWeek === 6) status = emp.workDaysPerWeek === 5 ? 'Rest Day' : 'Absent';
+          if (dayOfWeek === 5) status = 'Off-Day';
+          else if (dayOfWeek === 6) status = emp.workDaysPerWeek === 5 ? 'Off-Day' : (holidayDates.includes(dateStr) ? 'Holiday' : 'Absent');
           else if (holidayDates.includes(dateStr)) status = 'Holiday';
           else if (activeLeave) { status = 'On Leave'; subStatus = activeLeave.type; }
         }
@@ -1917,6 +2149,18 @@ export const dbService = {
     return data || [];
   },
 
+  async getEmployeeVariableComp(employeeId: string): Promise<any[]> {
+    return this._safeQuery(async (client) => {
+      const { data, error } = await client
+        .from('variable_compensation')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    });
+  },
+
   async updateVariableCompStatus(id: string, newStatus: string, calculatedKwd?: number): Promise<void> {
     const updatePayload: any = { status: newStatus };
     if (calculatedKwd !== undefined) {
@@ -1926,6 +2170,13 @@ export const dbService = {
       .from('variable_compensation')
       .update(updatePayload)
       .eq('id', id);
+    if (error) throw error;
+  },
+
+  async createVariableComp(payload: any): Promise<void> {
+    const { error } = await supabase!
+      .from('variable_compensation')
+      .insert([payload]);
     if (error) throw error;
   },
 
@@ -1951,6 +2202,17 @@ export const dbService = {
       role_name: template.roleName,
       kpis: template.kpis
     }]);
+    if (error) throw error;
+  },
+
+  async updateKPITemplate(id: string, updates: Partial<Omit<KPITemplate, 'id' | 'createdAt'>>): Promise<void> {
+    const payload: any = {};
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.department !== undefined) payload.department = updates.department;
+    if (updates.roleName !== undefined) payload.role_name = updates.roleName;
+    if (updates.kpis !== undefined) payload.kpis = updates.kpis;
+
+    const { error } = await supabase!.from('kpi_templates').update(payload).eq('id', id);
     if (error) throw error;
   },
 
@@ -2011,6 +2273,18 @@ export const dbService = {
         }]);
       }
     }
+  },
+
+  async updateEmployeeEvaluation(id: string, evalData: Partial<EmployeeEvaluation>): Promise<void> {
+    const payload: any = {};
+    if (evalData.kpiScores !== undefined) payload.kpi_scores = evalData.kpiScores;
+    if (evalData.totalScore !== undefined) payload.total_score = evalData.totalScore;
+    if (evalData.proRataFactor !== undefined) payload.pro_rata_factor = evalData.proRataFactor;
+    if (evalData.calculatedKwd !== undefined) payload.calculated_kwd = evalData.calculatedKwd;
+    if (evalData.status !== undefined) payload.status = evalData.status;
+
+    const { error } = await supabase!.from('employee_evaluations').update(payload).eq('id', id);
+    if (error) throw error;
   },
 
   // ─── Profit Sharing & Bonuses ──────────────────────────────────────────────

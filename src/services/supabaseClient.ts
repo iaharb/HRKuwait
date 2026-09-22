@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 // Online-only mode – reads from Vite environment variables set in .env
 const isMeta = typeof import.meta !== 'undefined' && import.meta.env;
 
-const supabaseUrl = isMeta ? import.meta.env.VITE_SUPABASE_URL : process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = isMeta ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseUrl = isMeta ? import.meta.env.VITE_SUPABASE_URL : process.env.VITE_SUPABASE_URL;
+export const supabaseAnonKey = isMeta ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(
@@ -22,7 +22,13 @@ export const supabase = isSupabaseConfigured
 const serviceRoleKey = isMeta ? import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY : process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 export const supabaseAdmin = isSupabaseConfigured && serviceRoleKey
-  ? createClient(supabaseUrl!, serviceRoleKey)
+  ? createClient(supabaseUrl!, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  })
   : null;
 
 if (isSupabaseConfigured) {
