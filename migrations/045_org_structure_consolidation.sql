@@ -135,20 +135,21 @@ BEFORE INSERT OR UPDATE ON employees
 FOR EACH ROW EXECUTE FUNCTION employees_sync_derived_org();
 
 -- 6. Sync la_users ↔ employees on org fields (entity_id, job_title_id, manager_id)
+-- Common fields: id, org_id, entity_id, job_title_id, manager_id, email, full_name/name, department, role, status
 CREATE OR REPLACE FUNCTION sync_la_users_to_employees()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        INSERT INTO employees (id, org_id, entity_id, job_title_id, manager_id, email, full_name, department, nationality, status, created_at, updated_at)
-        VALUES (NEW.id, NEW.org_id, NEW.entity_id, NEW.job_title_id, NEW.manager_id, NEW.email, NEW.full_name, NEW.department, NEW.nationality, NEW.status, now(), now())
+        INSERT INTO employees (id, org_id, entity_id, job_title_id, manager_id, email, name, department, role, status, created_at, updated_at)
+        VALUES (NEW.id, NEW.org_id, NEW.entity_id, NEW.job_title_id, NEW.manager_id, NEW.email, NEW.full_name, NEW.department, NEW.role, NEW.status, now(), now())
         ON CONFLICT (id) DO UPDATE SET
             entity_id = NEW.entity_id,
             job_title_id = NEW.job_title_id,
             manager_id = NEW.manager_id,
             email = NEW.email,
-            full_name = NEW.full_name,
+            name = NEW.full_name,
             department = NEW.department,
-            nationality = NEW.nationality,
+            role = NEW.role,
             status = NEW.status,
             updated_at = now();
     ELSIF TG_OP = 'UPDATE' THEN
@@ -157,9 +158,9 @@ BEGIN
             job_title_id = NEW.job_title_id,
             manager_id = NEW.manager_id,
             email = NEW.email,
-            full_name = NEW.full_name,
+            name = NEW.full_name,
             department = NEW.department,
-            nationality = NEW.nationality,
+            role = NEW.role,
             status = NEW.status,
             updated_at = now()
         WHERE id = NEW.id;
@@ -182,9 +183,9 @@ BEGIN
             job_title_id = NEW.job_title_id,
             manager_id = NEW.manager_id,
             email = NEW.email,
-            full_name = NEW.full_name,
+            full_name = NEW.name,
             department = NEW.department,
-            nationality = NEW.nationality,
+            role = NEW.role,
             status = NEW.status,
             updated_at = now()
         WHERE id = NEW.id;
