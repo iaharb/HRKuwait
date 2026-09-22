@@ -220,10 +220,11 @@ BEGIN
         'start_date', p_start_date,
         'end_date',   p_end_date,
         'reason',     p_reason,
-        'contact',    p_contact
+        'contact_during', p_contact
     );
-    -- Use the generic engine's start request with the LEAVE flow
-    v_res := wf_start_request('Leave', v_payload, p_deputy_id);
+    -- Use the generic engine's start request with the ACTUAL leave type (e.g., "Annual")
+    -- The flow resolver will pick the LEAVE flow based on applies_to
+    v_res := wf_start_request(p_leave_type, v_payload, p_deputy_id);
     RETURN v_res;
 END; $$;
 
