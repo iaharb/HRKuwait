@@ -90,6 +90,17 @@ export interface ReassignPreviewRow {
   note: string;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  created_at: string;
+  actor_user_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  old_values: Record<string, any> | null;
+  new_values: Record<string, any> | null;
+}
+
 const ORG = '00000000-0000-0000-0000-000000000000';
 
 async function unwrap<T>(promise: Promise<{ data: T | null; error: any }>, label: string): Promise<T> {
@@ -324,6 +335,14 @@ export const orgStructureService = {
       adminClient().from('wf_request_steps').select('id', { count: 'exact', head: true }).eq('resolved_actor_id', userId).in('status', ['PENDING', 'WAITING']),
     ]);
     return (legacy.count || 0) + (generic.count || 0);
+  },
+
+  // ===== Audit Trail =====
+  async getAuditLog(entityType?: string, entityId?: string, limit = 100): Promise<AuditLogEntry[]> {
+    let query = adminClient().from('org_structure_audit').select('*').eq('org_id', ORG).order('created_at', { ascending: false }).limit(limit);
+    if (entityType) query = query.eq('entity_type', entityType);
+    if (entityId) query = query.eq('entity_id', entityId);
+    return unwrap<AuditLogEntry[]>(query, 'getAuditLog');
   },
 };
 
